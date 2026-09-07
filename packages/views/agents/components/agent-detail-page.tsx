@@ -58,7 +58,7 @@ import {
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink, useNavigation } from "../../navigation";
-import { PAGE_GUTTER, PageHeader } from "../../layout/page-header";
+import { PAGE_GUTTER, PAGE_RAIL, PageHeader } from "../../layout/page-header";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { AgentPresenceIndicator } from "./agent-presence-indicator";
 import { VisibilityBadge } from "./visibility-badge";
@@ -358,7 +358,7 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
       />
 
       {!canEdit.allowed && (
-        <div className={cn(PAGE_GUTTER, "pt-3")}>
+        <div className={cn(PAGE_RAIL, PAGE_GUTTER, "pt-3")}>
           <CapabilityBanner
             reason={canEdit.reason}
             resource="agent"
@@ -368,50 +368,44 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
       )}
 
       {isArchived && (
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-2 border-b bg-muted/50 py-2 text-caption text-muted-foreground",
-            PAGE_GUTTER,
-          )}
-        >
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1">
-            {t(($) => $.detail.archived_banner)}
-          </span>
-          {canEdit.allowed && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-caption"
-              onClick={() => handleRestore(agent.id)}
-            >
-              {t(($) => $.detail.restore)}
-            </Button>
-          )}
+        <div className="shrink-0 border-b bg-muted/50 py-2 text-caption text-muted-foreground">
+          <div className={cn(PAGE_RAIL, PAGE_GUTTER, "flex items-center gap-2")}>
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">
+              {t(($) => $.detail.archived_banner)}
+            </span>
+            {canEdit.allowed && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-caption"
+                onClick={() => handleRestore(agent.id)}
+              >
+                {t(($) => $.detail.restore)}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
       {!isArchived && !runtimeBound && (
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 py-2 text-caption text-amber-900 dark:text-amber-100",
-            PAGE_GUTTER,
-          )}
-        >
-          <Server className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1">
-            {t(($) => $.detail.runtime_required_banner)}
-          </span>
-          {canEdit.allowed && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 border-amber-500/40 bg-background/70 text-caption"
-              onClick={() => setTabNavIntent("general")}
-            >
-              {t(($) => $.detail.bind_runtime)}
-            </Button>
-          )}
+        <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 py-2 text-caption text-amber-900 dark:text-amber-100">
+          <div className={cn(PAGE_RAIL, PAGE_GUTTER, "flex items-center gap-2")}>
+            <Server className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">
+              {t(($) => $.detail.runtime_required_banner)}
+            </span>
+            {canEdit.allowed && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 border-amber-500/40 bg-background/70 text-caption"
+                onClick={() => setTabNavIntent("general")}
+              >
+                {t(($) => $.detail.bind_runtime)}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -512,105 +506,107 @@ function DetailHeader({
 
   return (
     <header
-      className={cn("shrink-0 border-b bg-background pb-5 pt-3", PAGE_GUTTER)}
+      className="shrink-0 border-b bg-background pb-5 pt-3"
     >
-      <div className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
-        <AppLink
-          href={backHref}
-          className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {t(($) => $.page.title)}
-        </AppLink>
-        <span aria-hidden="true">/</span>
-        <span className="truncate text-foreground">{agent.name}</span>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <ActorAvatar
-            actorType="agent"
-            actorId={agent.id}
-            size="2xl"
-            profileLink={false}
-            className="ring-1 ring-border"
-          />
-          <div className="min-w-0 pt-0.5">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <h1 className="min-w-0 text-balance text-title-lg font-semibold tracking-tight sm:text-display-sm">
-                {agent.name}
-              </h1>
-              <AgentPresenceIndicator detail={presence} />
-            </div>
-            <ExpandableDescription>
-              {agent.description ||
-                t(($) => $.inspector.no_description_placeholder)}
-            </ExpandableDescription>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{agent.model || t(($) => $.pickers.model_default)}</span>
-              </span>
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <Server className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">
-                  {runtime
-                    ? runtimeDisplayLabel(runtime)
-                    : t(($) => $.pickers.runtime_none)}
-                </span>
-              </span>
-              <VisibilityBadge value={agent.visibility} />
-              <span className="inline-flex items-center gap-1.5">
-                <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                {t(($) => $.detail.updated, { when: timeAgo(agent.updated_at) })}
-              </span>
-            </div>
-          </div>
+      <div className={cn(PAGE_RAIL, PAGE_GUTTER)}>
+        <div className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+          <AppLink
+            href={backHref}
+            className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t(($) => $.page.title)}
+          </AppLink>
+          <span aria-hidden="true">/</span>
+          <span className="truncate text-foreground">{agent.name}</span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 self-end lg:self-start">
-          {!isArchived && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={dmPending}
-              // An anchor never matches `:disabled`, so the base variant's
-              // `disabled:` rules never fire here — Base UI's data-disabled
-              // is what carries the dimmed, inert look.
-              className="data-disabled:pointer-events-none data-disabled:opacity-50"
-              render={<AppLink href={dmHref} onClick={onDm} />}
-              nativeButton={false}
-            >
-              <MessageSquare className="h-4 w-4" aria-hidden="true" />
-              {t(($) => $.detail.dm)}
-            </Button>
-          )}
-          {!isArchived && canAssign && (
-            <Button type="button" size="sm" onClick={onAssign}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {t(($) => $.detail.assign_work)}
-            </Button>
-          )}
-          {!isArchived && canArchive && hasMoreActions ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon-sm" />}
-                aria-label={t(($) => $.detail.more_actions_aria)}
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <ActorAvatar
+              actorType="agent"
+              actorId={agent.id}
+              size="2xl"
+              profileLink={false}
+              className="ring-1 ring-border"
+            />
+            <div className="min-w-0 pt-0.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h1 className="min-w-0 text-balance text-title-lg font-semibold tracking-tight sm:text-display-sm">
+                  {agent.name}
+                </h1>
+                <AgentPresenceIndicator detail={presence} />
+              </div>
+              <ExpandableDescription>
+                {agent.description ||
+                  t(($) => $.inspector.no_description_placeholder)}
+              </ExpandableDescription>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{agent.model || t(($) => $.pickers.model_default)}</span>
+                </span>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Server className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">
+                    {runtime
+                      ? runtimeDisplayLabel(runtime)
+                      : t(($) => $.pickers.runtime_none)}
+                  </span>
+                </span>
+                <VisibilityBadge value={agent.visibility} />
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t(($) => $.detail.updated, { when: timeAgo(agent.updated_at) })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 self-end lg:self-start">
+            {!isArchived && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={dmPending}
+                // An anchor never matches `:disabled`, so the base variant's
+                // `disabled:` rules never fire here — Base UI's data-disabled
+                // is what carries the dimmed, inert look.
+                className="data-disabled:pointer-events-none data-disabled:opacity-50"
+                render={<AppLink href={dmHref} onClick={onDm} />}
+                nativeButton={false}
               >
-                <MoreHorizontal
-                  className="h-4 w-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-auto">
-                {onArchive && (
-                  <DropdownMenuItem variant="destructive" onClick={onArchive}>
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    {t(($) => $.detail.more_archive)}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                {t(($) => $.detail.dm)}
+              </Button>
+            )}
+            {!isArchived && canAssign && (
+              <Button type="button" size="sm" onClick={onAssign}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t(($) => $.detail.assign_work)}
+              </Button>
+            )}
+            {!isArchived && canArchive && hasMoreActions ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="ghost" size="icon-sm" />}
+                  aria-label={t(($) => $.detail.more_actions_aria)}
+                >
+                  <MoreHorizontal
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto">
+                  {onArchive && (
+                    <DropdownMenuItem variant="destructive" onClick={onArchive}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t(($) => $.detail.more_archive)}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>
@@ -634,18 +630,20 @@ function BackHeader({ paths, title }: { paths: string; title: string }) {
 function DetailLoadingSkeleton() {
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className={cn("shrink-0 border-b pb-5 pt-3", PAGE_GUTTER)}>
-        <Skeleton className="h-4 w-48" />
-        <div className="mt-4 flex items-start gap-4">
-          <Skeleton className="h-14 w-14 rounded-full" />
-          <div className="flex-1 space-y-3">
-            <Skeleton className="h-7 w-64" />
-            <Skeleton className="h-4 w-full max-w-xl" />
-            <Skeleton className="h-4 w-full max-w-lg" />
+      <div className="shrink-0 border-b pb-5 pt-3">
+        <div className={cn(PAGE_RAIL, PAGE_GUTTER)}>
+          <Skeleton className="h-4 w-48" />
+          <div className="mt-4 flex items-start gap-4">
+            <Skeleton className="h-14 w-14 rounded-full" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-7 w-64" />
+              <Skeleton className="h-4 w-full max-w-xl" />
+              <Skeleton className="h-4 w-full max-w-lg" />
+            </div>
           </div>
         </div>
       </div>
-      <div className={cn("flex flex-1 flex-col py-6", PAGE_GUTTER)}>
+      <div className={cn(PAGE_RAIL, PAGE_GUTTER, "flex flex-1 flex-col py-6")}>
         <Skeleton className="h-9 w-96" />
         <div className="mt-6 grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
