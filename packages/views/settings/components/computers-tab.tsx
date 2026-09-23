@@ -42,15 +42,10 @@ function PersonalComputersTab() {
     useState<ComputerOperation["action"]>("provision");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [registration, setRegistration] = useState({
-    name: "",
-    host: "",
-    port: 22,
-    ssh_user: "",
-  });
+  const availableMachines = data.machines.data?.filter(m => m.enabled || action === "remove") ?? [];
   const settings = draft ?? data.settings.data?.settings;
   const busy =
-    data.save.isPending || data.register.isPending || data.operate.isPending;
+    data.save.isPending || data.operate.isPending;
   async function perform(operation: () => Promise<unknown>, done: () => void) {
     setError("");
     setNotice("");
@@ -89,7 +84,7 @@ function PersonalComputersTab() {
     multica_pat: t(($) => $.computers.multica_pat),
   };
   return (
-    <SettingsTab title={t(($) => $.computers.title)}>
+    <SettingsTab title={t(($) => $.computers.personal_title)}>
       {(error ||
         data.settings.error ||
         data.machines.error ||
@@ -206,7 +201,7 @@ function PersonalComputersTab() {
           <label className="block space-y-1">
             <span>{t(($) => $.computers.title)}</span>
             <Select
-              items={(data.machines.data ?? []).map((m) => ({
+              items={availableMachines.map((m) => ({
                 value: m.id,
                 label: m.name,
               }))}
@@ -217,7 +212,7 @@ function PersonalComputersTab() {
                 <SelectValue placeholder={t(($) => $.computers.choose)} />
               </SelectTrigger>
               <SelectContent>
-                {data.machines.data?.map((m) => (
+                {availableMachines.map((m) => (
                   <SelectItem value={m.id} key={m.id}>
                     {m.name}
                   </SelectItem>
@@ -278,7 +273,7 @@ function PersonalComputersTab() {
           {action === "remove" && <p>{t(($) => $.computers.remove_help)}</p>}
           <Button
             type="submit"
-            disabled={busy || !machine || !workspace || !settings}
+            disabled={busy || !machine || !availableMachines.some(m => m.id === machine) || !workspace || !settings}
             variant={action === "remove" ? "destructive" : "default"}
           >
             {t(($) => $.computers.execute)}
@@ -306,51 +301,6 @@ function PersonalComputersTab() {
           ))}
         </ul>
       </SettingsSection>
-      {data.settings.data?.operator && (
-        <SettingsSection title={t(($) => $.computers.register)}>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void perform(
-                () => data.register.mutateAsync(registration),
-                () => data.register.reset(),
-              );
-            }}
-          >
-            {(["name", "host", "ssh_user"] as const).map((key) => (
-              <label key={key} className="block space-y-1">
-                <span>{t(($) => $.computers.machine_fields[key])}</span>
-                <Input
-                  required
-                  value={registration[key]}
-                  onChange={(e) =>
-                    setRegistration({ ...registration, [key]: e.target.value })
-                  }
-                />
-              </label>
-            ))}
-            <label className="block space-y-1">
-              <span>{t(($) => $.computers.port)}</span>
-              <Input
-                type="number"
-                min={1}
-                max={65535}
-                value={registration.port}
-                onChange={(e) =>
-                  setRegistration({
-                    ...registration,
-                    port: Number(e.target.value),
-                  })
-                }
-              />
-            </label>
-            <Button type="submit" disabled={busy}>
-              {t(($) => $.computers.register)}
-            </Button>
-          </form>
-        </SettingsSection>
-      )}
     </SettingsTab>
   );
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Computer, ComputerOperation, ComputerSettings } from "./schema";
+import type { ComputerOperation, ComputerSettings } from "./schema";
 export type {
   Computer,
   ComputerBinding,
@@ -37,15 +37,13 @@ export function useComputers(userId: string) {
     mutationFn: (input: ComputerSettings) => api.saveComputerSettings(input),
     onSuccess: refresh,
   });
-  const register = useMutation({
-    gcTime: 0,
-    mutationFn: (input: Omit<Computer, "id">) => api.registerComputer(input),
-    onSuccess: refresh,
-  });
   const operate = useMutation({
     gcTime: 0,
     mutationFn: (input: ComputerOperation) => api.operateComputer(input),
     onSuccess: refresh,
   });
-  return { settings, machines, bindings, save, register, operate };
+  return { settings, machines, bindings, save, operate };
 }
+
+export {useInstanceAccess,useComputerAdmin} from "./admin";
+export type {AdminComputer} from "./admin-schema";

@@ -1393,6 +1393,30 @@
     "ready": "Ready",
     "running": "In progress",
     "removed": "Uninstalled",
-    "hidden": "Choose Show secrets to view or edit"
+    "hidden": "Choose Show secrets to view or edit",
+    "personal_title": "自分の実行環境"
+  },
+  "admin": {
+    "title": "Admin Area",
+    "scope": "Instance administration · all workspaces",
+    "back": "Back to app",
+    "denied": "Only instance administrators can access this page.",
+    "saved": "Saved",
+    "refresh": "Refresh",
+    "disable_help": "Disabling blocks new provisioning, sync and upgrades. Running services continue; owners can still uninstall.",
+    "no_computers": "No Computers registered.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "edit": "Edit Computer",
+    "enable": "Enable",
+    "disable": "Disable",
+    "save": "Save",
+    "cancel": "Cancel",
+    "connection_help": "SSH credentials and host verification are configured by the server operator. Once an account is bound, register a new Computer to change the connection.",
+    "bindings": "Account bindings",
+    "bindings_help": "Latest 500 bindings. Linux accounts and employee credentials are not transferred or deleted here.",
+    "audit": "Activity log",
+    "audit_help": "Latest 200 actions. No passwords, tokens or private keys are shown.",
+    "empty": "No records yet."
   }
 }

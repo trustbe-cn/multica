@@ -119,8 +119,14 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Multica token must be valid and belong to you")
 		return
 	}
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Cannot start operation")
+		return
+	}
+	defer tx.Rollback(r.Context())
 	var m computer.Machine
-	err = h.DB.QueryRow(r.Context(), `SELECT id::text,name,host,port,ssh_user FROM computer WHERE id=$1 AND enabled`, in.ComputerID).Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser)
+	err = tx.QueryRow(r.Context(), `SELECT id::text,name,host,port,ssh_user FROM computer WHERE id=$1 AND (enabled OR $2='remove') FOR SHARE`, in.ComputerID, in.Action).Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser)
 	if err != nil {
 		writeError(w, 404, "Computer unavailable")
 		return
@@ -143,12 +149,16 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	// The unique machine/account record is also the ownership boundary. Failed
 	// attempts never let a second caller race the first caller's remote job.
 	var b computerBinding
-	err = h.DB.QueryRow(r.Context(), claimComputerBindingSQL, m.ID, uid, in.WorkspaceID, in.Username, in.Action).Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.HealthPort)
+	err = tx.QueryRow(r.Context(), claimComputerBindingSQL, m.ID, uid, in.WorkspaceID, in.Username, in.Action).Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.HealthPort)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, 409, "This account is already bound or an operation is running")
 		return
 	}
 	if err != nil {
+		writeError(w, 500, "Cannot start operation")
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Cannot start operation")
 		return
 	}

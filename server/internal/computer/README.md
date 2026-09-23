@@ -1,7 +1,8 @@
 # Self-hosted Computer provisioning
 
-The personal **Settings → Computers** page registers Linux accounts and managed
-Multica daemons. This feature is disabled until an operator supplies the settings
+The personal **Settings → My environments** page manages Linux accounts and
+Multica daemons. Instance administrators manage the machine registry, bindings
+and audit at **/admin**, outside any workspace. This feature is disabled until an operator supplies the settings
 below. Workspace administrator roles do not grant access to another human's
 credentials. Every saved Multica PAT must belong to the authenticated human.
 
@@ -9,8 +10,15 @@ Server configuration:
 
 - `MULTICA_COMPUTER_SECRET_KEY`: a base64-encoded 32-byte encryption key. Preserve
   this separately from database backups; changing it requires re-entering credentials.
-- `MULTICA_COMPUTER_OPERATOR_IDS`: comma-separated human UUIDs allowed to register
-  Computers. This is a deployment-level operator list.
+- `MULTICA_INSTANCE_ADMIN_IDS`: comma-separated human UUIDs allowed into Admin
+  Area and its APIs. Workspace owner/admin roles do not grant this access. This
+  phase uses deployment configuration, not a self-service grant endpoint.
+- `MULTICA_COMPUTER_OPERATOR_IDS`: legacy bootstrap fallback, used only when
+  `MULTICA_INSTANCE_ADMIN_IDS` is absent. Setting the new variable explicitly
+  empty disables all instance administrators, even if the old list is populated.
+  Change configuration and restart the backend to grant/revoke access. Choose
+  the initial human UUID from the actual authenticated account; no automatic
+  first-user or workspace-owner promotion is performed.
 - `MULTICA_COMPUTER_SSH_KEY`: absolute path to the operator's private SSH key.
   Mount it read-only in the server container. Prepopulate that server user's SSH
   `known_hosts` from independently verified host keys; unknown or changed hosts fail.
@@ -68,3 +76,10 @@ Before enabling on a real host, validate on an explicitly designated nonproducti
 Computer/account: PAM match/mismatch/lockout, interrupted creation, symlink defense,
 GitLab authentication and author identity, multiple users/Computers, daemon restart,
 key synchronization and uninstall. Never aim the tests at the production operator.
+
+The legacy POST /api/computers remains compatible and uses the same instance
+admin check and audit transaction. Admin APIs never expose employee credentials.
+Disabling a Computer prevents new provision/sync/upgrade operations, but existing
+jobs/services keep running and owners may remove their own daemon. A connection
+cannot be changed once any account binding exists; register another Computer.
+Bindings show the latest 500 entries and audit shows the latest 200 entries.

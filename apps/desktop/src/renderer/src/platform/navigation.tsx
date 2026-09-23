@@ -48,6 +48,10 @@ function extractWorkspaceSlug(path: string): string | null {
  */
 function tryRouteToOverlay(path: string): boolean {
   const overlay = useWindowOverlayStore.getState();
+  if (path === "/admin" || path.startsWith("/admin/")) {
+    overlay.open({type:"admin"});
+    return true;
+  }
   if (path === "/workspaces/new") {
     overlay.open({ type: "new-workspace" });
     return true;

@@ -1393,6 +1393,30 @@
     "ready": "可用",
     "running": "处理中",
     "removed": "已卸载",
-    "hidden": "点击「显示秘密」查看或编辑"
+    "hidden": "点击「显示秘密」查看或编辑",
+    "personal_title": "我的运行环境"
+  },
+  "admin": {
+    "title": "管理后台",
+    "scope": "实例管理 · 所有工作区",
+    "back": "返回应用",
+    "denied": "只有实例管理员才能访问此页面。",
+    "saved": "已保存",
+    "refresh": "刷新",
+    "disable_help": "停用后不再接受新的开通、同步或升级。已运行的服务继续运行，账号本人仍可卸载。",
+    "no_computers": "尚未登记 Computer。",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "edit": "编辑 Computer",
+    "enable": "启用",
+    "disable": "停用",
+    "save": "保存",
+    "cancel": "取消",
+    "connection_help": "SSH 凭据及主机校验由服务器运维配置。账号绑定后如需更换连接，请登记新的 Computer。",
+    "bindings": "账号绑定",
+    "bindings_help": "最近 500 条绑定。在此不转移或删除 Linux 账号及员工凭据。",
+    "audit": "操作记录",
+    "audit_help": "最近 200 条操作，不显示密码、Token 或私钥。",
+    "empty": "暂无记录。"
   }
 }

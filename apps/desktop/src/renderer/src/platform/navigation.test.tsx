@@ -151,6 +151,14 @@ describe("push", () => {
     expect(getActiveTab(useTabStore.getState())?.url).toBe("/acme/issues");
   });
 
+  it("opens Admin Area above tabs without requiring a workspace", () => {
+    useTabStore.getState().reset();
+    const getAdapter = renderProvider();
+    getAdapter().push("/admin");
+    expect(overlay.open).toHaveBeenCalledWith({type:"admin"});
+    expect(useTabStore.getState().activeWorkspaceSlug).toBeNull();
+  });
+
   it("routes transition paths to the window overlay without touching sessions", () => {
     const getAdapter = renderProvider();
     const before = acmeGroup();

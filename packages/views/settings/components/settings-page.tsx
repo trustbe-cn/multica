@@ -115,7 +115,7 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           Key,
           <TokensTab />,
         ),
-        entry("computers", t($ => $.computers.title), Server, <ComputersTab />),
+        entry("computers", t($ => $.computers.personal_title), Server, <ComputersTab />),
       ],
     },
     {
