@@ -202,3 +202,38 @@ func TestRemotePythonScriptsParse(t *testing.T) {
 		}
 	}
 }
+
+func TestPAMSudoPrivilegeCheckFailsClosed(t *testing.T) {
+	start := strings.Index(pamScript, "env=dict(os.environ,LC_ALL=")
+	end := strings.Index(pamScript[start:], "pw=sys.stdin") + start
+	for _, tc := range []struct {
+		name, out, stderr string
+		code              int
+		allow             bool
+	}{
+		{"ubuntu-denial-zero", "User alice is not allowed to run sudo on test-host.", "", 0, true},
+		{"denial-one", "User alice is not allowed to run sudo on test-host.", "", 1, true},
+		{"privileged", "User alice may run the following commands on test-host:\n (ALL) ALL", "", 0, false},
+		{"silent-error", "", "", 1, false},
+		{"config-error", "User alice is not allowed to run sudo on test-host.", "sudoers error", 1, false},
+		{"unknown-status", "User alice is not allowed to run sudo on test-host.", "", 2, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(map[string]any{"out": tc.out, "err": tc.stderr, "code": tc.code})
+			prefix := `import os,sys,subprocess,json,types
+c=json.loads(sys.stdin.read()); u="alice"
+os.uname=lambda: types.SimpleNamespace(nodename="test-host")
+def run(*args,**kwargs):
+    assert kwargs["env"]["LC_ALL"]=="C"
+    return types.SimpleNamespace(stdout=c["out"],stderr=c["err"],returncode=c["code"])
+subprocess.run=run
+`
+			cmd := exec.Command("python3", "-c", prefix+pamScript[start:end])
+			cmd.Stdin = strings.NewReader(string(payload))
+			err := cmd.Run()
+			if (err == nil) != tc.allow {
+				t.Fatalf("unexpected policy decision: %v", err)
+			}
+		})
+	}
+}
