@@ -19,6 +19,12 @@ const (
 // teardown. Adding a table requires an explicit ownership decision here; the
 // handler deletion graph must then implement that decision before CI passes.
 var workspaceDeletionManifest = map[string]workspaceDeleteAction{
+	// Computer records belong to the deployment/human, not the workspace.
+	// Keep bindings so their owner can uninstall an OS service even after workspace deletion.
+	"computer":                           workspaceDeleteKeep,
+	"computer_credential":                workspaceDeleteKeep,
+	"computer_binding":                   workspaceDeleteDetach,
+	"computer_audit":                     workspaceDeleteKeep,
 	"activity_log":                       workspaceDelete,
 	"agent":                              workspaceDelete,
 	"agent_builder_draft":                workspaceDelete,

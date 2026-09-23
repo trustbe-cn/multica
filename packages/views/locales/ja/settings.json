@@ -1349,5 +1349,50 @@
     "status_loading": "確認中...",
     "status_unknown": "状態を取得できません",
     "channel_hint": "{{channel}} でエージェントと会話し、タスクを作成します。"
+  },
+  "computers": {
+    "title": "Computers",
+    "credentials": "Your credentials",
+    "credentials_help": "Only you can read these credentials. Saving changes does not update existing Computers; choose Sync credentials for each one.",
+    "git_name": "Git author name",
+    "git_email": "Git author email",
+    "gitlab_url": "GitLab URL",
+    "gitlab_token": "GitLab token",
+    "multica_pat": "Your Multica personal access token",
+    "model_keys": "Model API keys (KEY=value, one per line)",
+    "save": "Save credentials",
+    "reveal": "Show secrets",
+    "hide": "Hide secrets",
+    "loading": "Loading…",
+    "setup": "Your runtime",
+    "setup_help": "Uses the current workspace. Existing Linux accounts require their current password; an incorrect password never resets the account.",
+    "choose": "Choose a Computer",
+    "username": "Linux username",
+    "password": "Linux password",
+    "action": "Action",
+    "execute": "Apply",
+    "remove_help": "Stops and disables the runtime. Your Linux account, files and code are kept.",
+    "register": "Register Computer",
+    "port": "SSH port",
+    "accepted": "Request accepted. Check the runtime status below.",
+    "failed": "Operation failed",
+    "actions": {
+      "provision": "Create or reuse account",
+      "sync": "Sync credentials",
+      "upgrade": "Upgrade runtime",
+      "remove": "Remove runtime"
+    },
+    "machine_fields": {
+      "name": "Name",
+      "host": "SSH host",
+      "ssh_user": "SSH operator username"
+    },
+    "ssh_key": "GitLab SSH private key (optional, instead of token)",
+    "known_hosts": "SSH known hosts (required with a private key)",
+    "model_example": "OPENAI_API_KEY=…",
+    "ready": "Ready",
+    "running": "In progress",
+    "removed": "Uninstalled",
+    "hidden": "Choose Show secrets to view or edit"
   }
 }

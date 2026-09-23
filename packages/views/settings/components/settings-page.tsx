@@ -30,6 +30,7 @@ import { resolveSettingsLocation, settingsHref } from "./settings-navigation";
 import { AppLink, useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
 import { PreferencesTab } from "./preferences-tab";
+import { ComputersTab } from "./computers-tab";
 import { TokensTab } from "./tokens-tab";
 import { WorkspaceTab } from "./workspace-tab";
 import { MembersTab } from "./members-tab";
@@ -114,6 +115,7 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           Key,
           <TokensTab />,
         ),
+        entry("computers", t($ => $.computers.title), Server, <ComputersTab />),
       ],
     },
     {

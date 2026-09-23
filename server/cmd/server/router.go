@@ -1612,6 +1612,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// against it. Sits in the user-scoped group for that reason: there is
 		// no workspace in the path to gate on.
 		// --- User-scoped routes (no workspace context required) ---
+		r.With(handler.RequireHumanActor).Get("/api/me/computer-settings", h.ComputerSettings)
+		r.With(handler.RequireHumanActor).Get("/api/me/computer-bindings", h.ComputerBindings)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings", h.ComputerBindings)
+		r.With(handler.RequireHumanActor).Put("/api/me/computer-settings", h.ComputerSettings)
+		r.With(handler.RequireHumanActor).Get("/api/computers", h.Computers)
+		r.With(handler.RequireHumanActor).Post("/api/computers", h.Computers)
 		r.Get("/api/me", h.GetMe)
 		r.Patch("/api/me", h.UpdateMe)
 		r.Patch("/api/me/onboarding", h.PatchOnboarding)

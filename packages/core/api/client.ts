@@ -1,3 +1,4 @@
+import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
 import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema } from "./schemas";
@@ -952,6 +953,13 @@ export class ApiClient {
     }
     return res.json() as Promise<T>;
   }
+
+  async getComputerSettings() { return parseComputerSettings(await this.fetch<unknown>("/api/me/computer-settings")); }
+  async saveComputerSettings(input: ComputerSettings) { await this.fetch("/api/me/computer-settings", { method: "PUT", body: JSON.stringify(input) }); }
+  async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }
+  async registerComputer(input: Omit<Computer, "id">) { await this.fetch("/api/computers", { method: "POST", body: JSON.stringify(input) }); }
+  async listComputerBindings(): Promise<ComputerBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/me/computer-bindings"), ComputerBindingSchema.array(), [] as ComputerBinding[], { endpoint: "/api/me/computer-bindings" }); }
+  async operateComputer(input: ComputerOperation) { await this.fetch("/api/me/computer-bindings", { method: "POST", body: JSON.stringify(input) }); }
 
   // Auth
   async sendCode(email: string): Promise<void> {

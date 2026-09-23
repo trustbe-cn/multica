@@ -595,6 +595,45 @@ type CommentReaction struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type Computer struct {
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Host      string             `json:"host"`
+	Port      int32              `json:"port"`
+	SshUser   string             `json:"ssh_user"`
+	Enabled   bool               `json:"enabled"`
+	CreatedBy pgtype.UUID        `json:"created_by"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type ComputerAudit struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	BindingID pgtype.UUID        `json:"binding_id"`
+	Action    string             `json:"action"`
+	Outcome   string             `json:"outcome"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type ComputerBinding struct {
+	ID          pgtype.UUID        `json:"id"`
+	ComputerID  pgtype.UUID        `json:"computer_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Username    string             `json:"username"`
+	Verified    bool               `json:"verified"`
+	HealthPort  int32              `json:"health_port"`
+	State       string             `json:"state"`
+	LastError   string             `json:"last_error"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ComputerCredential struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	Ciphertext []byte             `json:"ciphertext"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ContactSalesInquiry struct {
 	ID              pgtype.UUID        `json:"id"`
 	FirstName       string             `json:"first_name"`
