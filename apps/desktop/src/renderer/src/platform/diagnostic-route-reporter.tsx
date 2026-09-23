@@ -101,6 +101,8 @@ function overlayPath(overlay: WindowOverlay): string {
       return "/onboarding";
     case "invite":
       return `/invite/${overlay.invitationId}`;
+    case "admin":
+      return "/admin";
     case "invitations":
       return "/invitations";
   }

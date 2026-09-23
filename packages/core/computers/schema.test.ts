@@ -1,3 +1,4 @@
+import { InstanceAccessSchema, AdminComputerSchema } from "./admin-schema";
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { parseComputerSettings } from "./schema";
@@ -30,5 +31,17 @@ describe("Computer settings response", () => {
       },
     };
     expect(parseComputerSettings(data)).toEqual(data);
+  });
+});
+
+// Administrative capabilities fail closed when a response is incomplete.
+describe("instance admin response contracts", () => {
+  it("requires an explicit boolean capability", () => {
+    expect(InstanceAccessSchema.safeParse({}).success).toBe(false);
+    expect(InstanceAccessSchema.safeParse({admin:"true"}).success).toBe(false);
+    expect(InstanceAccessSchema.parse({admin:false}).admin).toBe(false);
+  });
+  it("rejects a registry row without its availability state", () => {
+    expect(AdminComputerSchema.safeParse({id:"x",name:"Test",host:"test",port:22,ssh_user:"ops"}).success).toBe(false);
   });
 });

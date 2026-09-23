@@ -78,6 +78,12 @@ describe("Computers settings", () => {
     );
     expect(api.operateComputer).not.toHaveBeenCalled();
   });
+  it("keeps machine registration out of personal settings even for operators", async () => {
+    api.getComputerSettings.mockResolvedValue({operator:true,settings});
+    mount();
+    await screen.findByLabelText("Git author name");
+    expect(screen.queryByRole("button",{name:"Register Computer"})).not.toBeInTheDocument();
+  });
   it("surfaces settings errors without an editable empty replacement", async () => {
     api.getComputerSettings.mockRejectedValue(
       new Error("Settings unavailable"),

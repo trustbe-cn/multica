@@ -22,6 +22,7 @@ export const ComputerSchema = z.object({
   host: z.string(),
   port: z.number(),
   ssh_user: z.string(),
+  enabled: z.boolean().default(true),
 });
 export type Computer = z.infer<typeof ComputerSchema>;
 export const ComputerBindingSchema = z.object({

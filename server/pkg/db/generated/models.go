@@ -607,12 +607,13 @@ type Computer struct {
 }
 
 type ComputerAudit struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
-	BindingID pgtype.UUID        `json:"binding_id"`
-	Action    string             `json:"action"`
-	Outcome   string             `json:"outcome"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	BindingID  pgtype.UUID        `json:"binding_id"`
+	Action     string             `json:"action"`
+	Outcome    string             `json:"outcome"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ComputerID pgtype.UUID        `json:"computer_id"`
 }
 
 type ComputerBinding struct {

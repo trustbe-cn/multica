@@ -70,8 +70,8 @@ type Config struct {
 	AllowedEmails       []string
 	AllowedEmailDomains []string
 	// DisableWorkspaceCreation, when true, makes POST /api/workspaces return
-	// 403 for every caller. There is no role/owner exception because the repo
-	// has no platform-admin concept; operators bootstrap the workspace with
+	// 403 for every caller, including instance administrators. Operators
+	// bootstrap the workspace with
 	// the flag off, then flip it on and restart so subsequent users join via
 	// invitation only. The public /api/config endpoint mirrors this flag so
 	// the UI can hide every "Create workspace" affordance — see #3433.

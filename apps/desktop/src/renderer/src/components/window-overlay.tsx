@@ -1,3 +1,4 @@
+import { AdminPage } from "@multica/views/admin";
 import { useQuery } from "@tanstack/react-query";
 import { InvitePage } from "@multica/views/invite";
 import { InvitationsPage } from "@multica/views/invitations";
@@ -85,6 +86,7 @@ function WindowOverlayInner() {
           onBack={onBack}
         />
       )}
+      {overlay.type === "admin" && <AdminPage onBack={close} />}
       {overlay.type === "invitations" && <InvitationsPage />}
       {overlay.type === "onboarding" && (
         <OnboardingFlow

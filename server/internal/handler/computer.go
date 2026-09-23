@@ -8,8 +8,6 @@ import (
 	"github.com/multica-ai/multica/server/internal/computer"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 	"net/http"
-	"os"
-	"strings"
 )
 
 // Computer endpoints are mounted behind human authentication. Operator rights
@@ -30,12 +28,7 @@ func (h *Handler) ComputerSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 503, "Computer provisioning is not configured")
 		return
 	}
-	operator := false
-	for _, id := range strings.Split(os.Getenv("MULTICA_COMPUTER_OPERATOR_IDS"), ",") {
-		if strings.TrimSpace(id) == uid {
-			operator = true
-		}
-	}
+	operator := isInstanceAdmin(uid)
 	switch r.Method {
 	case http.MethodGet:
 		var encrypted []byte
@@ -96,45 +89,21 @@ func (h *Handler) Computers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	operator := false
-	for _, id := range strings.Split(os.Getenv("MULTICA_COMPUTER_OPERATOR_IDS"), ",") {
-		if strings.TrimSpace(id) == uid {
-			operator = true
-		}
-	}
+	operator := isInstanceAdmin(uid)
 	if r.Method == http.MethodPost {
-		if !operator {
-			writeError(w, 403, "Only the configured Computer operator can register machines")
-			return
-		}
-		var input computer.Machine
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input) != nil {
-			writeError(w, 400, "Invalid Computer")
-			return
-		}
-		if err := input.Validate(); err != nil {
-			writeError(w, 400, err.Error())
-			return
-		}
-		var id string
-		err := h.DB.QueryRow(r.Context(), `INSERT INTO computer(name,host,port,ssh_user,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id::text`, input.Name, input.Host, input.Port, input.SSHUser, uid).Scan(&id)
-		if err != nil {
-			writeError(w, 500, "Cannot register Computer")
-			return
-		}
-		writeJSON(w, 201, map[string]string{"id": id})
+		h.AdminComputers(w, r)
 		return
 	}
-	rows, err := h.DB.Query(r.Context(), `SELECT id::text,name,host,port,ssh_user FROM computer WHERE enabled ORDER BY name`)
+	rows, err := h.DB.Query(r.Context(), `SELECT c.id::text,c.name,c.host,c.port,c.ssh_user,c.enabled FROM computer c WHERE c.enabled OR EXISTS(SELECT 1 FROM computer_binding b WHERE b.computer_id=c.id AND b.user_id=$1 AND b.verified) ORDER BY c.name`, uid)
 	if err != nil {
 		writeError(w, 500, "Cannot list Computers")
 		return
 	}
 	defer rows.Close()
-	list := []computer.Machine{}
+	list := []adminComputer{}
 	for rows.Next() {
-		var m computer.Machine
-		if rows.Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser) != nil {
+		var m adminComputer
+		if rows.Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser, &m.Enabled) != nil {
 			writeError(w, 500, "Cannot read Computer")
 			return
 		}
