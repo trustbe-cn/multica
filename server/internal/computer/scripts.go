@@ -14,9 +14,12 @@ u=sys.argv[1]; e=pwd.getpwnam(u)
 groups={g.gr_name for g in grp.getgrall() if u in g.gr_mem or g.gr_gid==e.pw_gid}
 if e.pw_shell.endswith(("/nologin","/false")): sys.exit(43)
 if e.pw_uid<1000 or groups.intersection({"sudo","wheel","admin","docker","lxd","disk"}): sys.exit(43)
-check=subprocess.run(["sudo","-n","-l","-U",u],capture_output=True,timeout=10)
-if check.returncode==0: sys.exit(43)
-if check.returncode!=1: sys.exit(43)
+# sudo -l may return zero even when the user has no privileges (Ubuntu).
+# Accept only its explicit C-locale denial; errors and privilege listings fail closed.
+env=dict(os.environ,LC_ALL="C",LANG="C")
+check=subprocess.run(["sudo","-n","-l","-U",u],capture_output=True,text=True,timeout=10,env=env)
+expected="User "+u+" is not allowed to run sudo on "+os.uname().nodename+"."
+if check.returncode not in (0,1) or check.stderr.strip() or check.stdout.strip()!=expected: sys.exit(43)
 pw=sys.stdin.buffer.read(4097)
 if not pw or len(pw)>4096 or b"\0" in pw: sys.exit(43)
 lib=c.CDLL(ctypes.util.find_library("pam")); libc=c.CDLL(ctypes.util.find_library("c"))
