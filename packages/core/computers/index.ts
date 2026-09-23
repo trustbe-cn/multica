@@ -46,4 +46,4 @@ export function useComputers(userId: string) {
 }
 
 export {useInstanceAccess,useComputerAdmin} from "./admin";
-export type {AdminComputer} from "./admin-schema";
+export type {AdminComputer,ProbeResult,ProbeCheck} from "./admin-schema";

@@ -1424,6 +1424,21 @@
     "bindings_help": "Latest 500 bindings. Linux accounts and employee credentials are not transferred or deleted here.",
     "audit": "Activity log",
     "audit_help": "Latest 200 actions. No passwords, tokens or private keys are shown.",
-    "empty": "No records yet."
+    "empty": "No records yet.",
+    "sections": "Sections d'administration",
+    "add": "Ajouter un Computer",
+    "delete": "Supprimer",
+    "delete_title": "Supprimer ce Computer ?",
+    "delete_confirm": "Le Computer est retiré du registre. Les entrées du journal d'activité sont conservées. Un Computer avec des comptes liés ne peut pas être supprimé ; retirez d'abord ces comptes.",
+    "test_connection": "Tester la connexion",
+    "check_help": "La connexion est vérifiée avant l'enregistrement : accessibilité SSH, sudo sans mot de passe, service PAM de provisionnement et outils système requis. Une vérification n'installe rien.",
+    "check_result": "Résultat de la vérification",
+    "check_passed": "Vérification réussie",
+    "check_failed": "Vérification échouée",
+    "last_check": "Dernière vérification",
+    "never_checked": "Jamais vérifié",
+    "registered_by": "Enregistré par",
+    "registered_at": "Enregistré le",
+    "bound_accounts": "Comptes liés"
   }
 }

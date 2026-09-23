@@ -55,6 +55,29 @@ func (h *Handler) InstanceAccess(w http.ResponseWriter, r *http.Request) {
 type adminComputer struct {
 	computer.Machine
 	Enabled bool `json:"enabled"`
+	// Registration and last-check metadata for the admin list. Secrets never
+	// appear here: only who registered it and how the last probe went.
+	CreatedBy     string     `json:"created_by,omitempty"`
+	CreatedByName string     `json:"created_by_name,omitempty"`
+	CreatedAt     *time.Time `json:"created_at,omitempty"`
+	CheckedAt     *time.Time `json:"checked_at,omitempty"`
+	CheckOK       *bool      `json:"check_ok,omitempty"`
+	CheckDetail   string     `json:"check_detail,omitempty"`
+	Bindings      int        `json:"bindings"`
+}
+
+const adminComputerColumns = `SELECT c.id::text,c.name,c.host,c.port,c.ssh_user,c.enabled,
+ c.created_by::text,COALESCE(u.name,c.created_by::text),c.created_at,
+ c.checked_at,c.check_ok,c.check_detail,
+ (SELECT count(*) FROM computer_binding b WHERE b.computer_id=c.id)
+ FROM computer c LEFT JOIN "user" u ON u.id=c.created_by`
+
+func scanAdminComputer(row pgx.Row) (adminComputer, error) {
+	var m adminComputer
+	err := row.Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser, &m.Enabled,
+		&m.CreatedBy, &m.CreatedByName, &m.CreatedAt,
+		&m.CheckedAt, &m.CheckOK, &m.CheckDetail, &m.Bindings)
+	return m, err
 }
 
 func (h *Handler) AdminComputers(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +95,17 @@ func (h *Handler) AdminComputers(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 400, err.Error())
 			return
 		}
+		// Do not take a registration on trust: a Computer that fails the check
+		// is never stored, so the registry cannot hold unusable machines.
+		probe, probeErr := probeMachine(in)
+		if probeErr != nil {
+			writeError(w, 503, probeErr.Error())
+			return
+		}
+		if !probe.OK {
+			writeJSON(w, 422, map[string]any{"error": "Computer did not pass the connection check", "code": "computer_check_failed", "probe": probe})
+			return
+		}
 		tx, err := h.TxStarter.Begin(r.Context())
 		if err != nil {
 			writeError(w, 500, "Cannot register Computer")
@@ -79,7 +113,7 @@ func (h *Handler) AdminComputers(w http.ResponseWriter, r *http.Request) {
 		}
 		defer tx.Rollback(r.Context())
 		var id string
-		err = tx.QueryRow(r.Context(), `INSERT INTO computer(name,host,port,ssh_user,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id::text`, in.Name, in.Host, in.Port, in.SSHUser, uid).Scan(&id)
+		err = tx.QueryRow(r.Context(), `INSERT INTO computer(name,host,port,ssh_user,created_by,checked_at,check_ok) VALUES($1,$2,$3,$4,$5,now(),true) RETURNING id::text`, in.Name, in.Host, in.Port, in.SSHUser, uid).Scan(&id)
 		if err == nil {
 			_, err = tx.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,'register','success')`, uid, id)
 		}
@@ -90,10 +124,10 @@ func (h *Handler) AdminComputers(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, "Cannot register Computer")
 			return
 		}
-		writeJSON(w, 201, map[string]string{"id": id})
+		writeJSON(w, 201, map[string]any{"id": id, "probe": probe})
 		return
 	}
-	rows, err := h.DB.Query(r.Context(), `SELECT id::text,name,host,port,ssh_user,enabled FROM computer ORDER BY name,id`)
+	rows, err := h.DB.Query(r.Context(), adminComputerColumns+` ORDER BY c.name,c.id`)
 	if err != nil {
 		writeError(w, 500, "Cannot list Computers")
 		return
@@ -101,8 +135,8 @@ func (h *Handler) AdminComputers(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	list := []adminComputer{}
 	for rows.Next() {
-		var m adminComputer
-		if rows.Scan(&m.ID, &m.Name, &m.Host, &m.Port, &m.SSHUser, &m.Enabled) != nil {
+		m, err := scanAdminComputer(rows)
+		if err != nil {
 			writeError(w, 500, "Cannot read Computer")
 			return
 		}
@@ -207,6 +241,155 @@ func (h *Handler) UpdateAdminComputer(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]bool{"saved": true})
 }
+
+// probeMachine is a variable so tests can supply a verdict without a real
+// machine. Production always uses sshProbe.
+var probeMachine = sshProbe
+
+// sshProbe runs the read-only connectivity probe. Only the SSH key is
+// required: a probe installs nothing, so the provisioning artifact and state
+// directory are not needed yet.
+func sshProbe(m computer.Machine) (computer.ProbeResult, error) {
+	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
+	if keyPath == "" {
+		return computer.ProbeResult{}, errors.New("Computer provisioning is not configured")
+	}
+	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 45 * time.Second}
+	return remote.Probe()
+}
+
+// CheckAdminComputerDraft probes connection details that are not saved yet so
+// an admin sees the verdict before registering a Computer.
+func (h *Handler) CheckAdminComputerDraft(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireInstanceAdmin(w, r); !ok {
+		return
+	}
+	var in computer.Machine
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+		writeError(w, 400, "Invalid Computer")
+		return
+	}
+	if err := in.Validate(); err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	res, err := probeMachine(in)
+	if err != nil {
+		writeError(w, 503, err.Error())
+		return
+	}
+	writeJSON(w, 200, res)
+}
+
+// CheckAdminComputer probes a registered Computer and records the verdict.
+func (h *Handler) CheckAdminComputer(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireInstanceAdmin(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Computer ID")
+	if !ok {
+		return
+	}
+	var m computer.Machine
+	err := h.DB.QueryRow(r.Context(), `SELECT host,port,ssh_user FROM computer WHERE id=$1`, id).Scan(&m.Host, &m.Port, &m.SSHUser)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "Computer not found")
+		return
+	}
+	if err != nil {
+		writeError(w, 500, "Cannot read Computer")
+		return
+	}
+	res, err := probeMachine(m)
+	if err != nil {
+		writeError(w, 503, err.Error())
+		return
+	}
+	outcome := "failure"
+	if res.OK {
+		outcome = "success"
+	}
+	if _, err = h.DB.Exec(r.Context(), `UPDATE computer SET checked_at=now(),check_ok=$2,check_detail=$3 WHERE id=$1`, id, res.OK, failedCheckSummary(res)); err != nil {
+		writeError(w, 500, "Cannot record check")
+		return
+	}
+	// A recorded probe is an admin action against a specific Computer.
+	_, _ = h.DB.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,'check',$3)`, uid, id, outcome)
+	writeJSON(w, 200, res)
+}
+
+// failedCheckSummary keeps the stored detail short and only about failures.
+func failedCheckSummary(res computer.ProbeResult) string {
+	parts := []string{}
+	for _, c := range res.Checks {
+		if !c.OK {
+			part := c.Name
+			if c.Detail != "" {
+				part += ": " + c.Detail
+			}
+			parts = append(parts, part)
+		}
+	}
+	summary := strings.Join(parts, "; ")
+	if len(summary) > 500 {
+		summary = summary[:500]
+	}
+	return summary
+}
+
+// DeleteAdminComputer removes a Computer that has no account bound to it.
+// Audit rows are deliberately kept: computer_id has no foreign key, so the
+// history of a removed Computer stays readable.
+func (h *Handler) DeleteAdminComputer(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireInstanceAdmin(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Computer ID")
+	if !ok {
+		return
+	}
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Cannot delete Computer")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	var name string
+	err = tx.QueryRow(r.Context(), `SELECT name FROM computer WHERE id=$1 FOR UPDATE`, id).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "Computer not found")
+		return
+	}
+	if err != nil {
+		writeError(w, 500, "Cannot read Computer")
+		return
+	}
+	// A binding names a real OS account on that machine. Deleting the Computer
+	// would orphan it and leave the account installed with no way back.
+	var bound int
+	if err = tx.QueryRow(r.Context(), `SELECT count(*) FROM computer_binding WHERE computer_id=$1`, id).Scan(&bound); err != nil {
+		writeError(w, 500, "Cannot check bindings")
+		return
+	}
+	if bound > 0 {
+		writeError(w, 409, "Computer still has bound accounts; remove them before deleting")
+		return
+	}
+	if _, err = tx.Exec(r.Context(), `DELETE FROM computer WHERE id=$1`, id); err == nil {
+		_, err = tx.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,'delete','success')`, uid, id)
+	}
+	if err == nil {
+		err = tx.Commit(r.Context())
+	}
+	if err != nil {
+		writeError(w, 500, "Cannot delete Computer")
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"deleted": true})
+}
+
 func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireInstanceAdmin(w, r); !ok {
 		return

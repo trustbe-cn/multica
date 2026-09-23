@@ -1,6 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@multica/ui/components/ui/dropdown-menu";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -14,6 +14,9 @@ const api = vi.hoisted(() => ({
   listComputerAudit: vi.fn(),
   registerComputer: vi.fn(),
   updateAdminComputer: vi.fn(),
+  deleteAdminComputer: vi.fn(),
+  checkAdminComputer: vi.fn(),
+  checkAdminComputerDraft: vi.fn(),
 }));
 const state = vi.hoisted(() => ({
   user: { id: "admin-human" },
@@ -49,7 +52,23 @@ beforeEach(() => {
   api.listComputerAudit.mockResolvedValue([]);
   api.registerComputer.mockResolvedValue(undefined);
   api.updateAdminComputer.mockResolvedValue(undefined);
+  api.deleteAdminComputer.mockResolvedValue(undefined);
+  api.checkAdminComputer.mockResolvedValue({ ok: true, facts: {}, checks: [] });
+  api.checkAdminComputerDraft.mockResolvedValue({ ok: true, facts: {}, checks: [] });
 });
+const MACHINE = {
+  id: "machine",
+  name: "Dev server",
+  host: "dev.invalid",
+  port: 22,
+  ssh_user: "operator",
+  enabled: true,
+  bindings: 0,
+};
+function adminWithMachine(overrides: Record<string, unknown> = {}) {
+  api.getInstanceAccess.mockResolvedValue({ admin: true });
+  api.listAdminComputers.mockResolvedValue([{ ...MACHINE, ...overrides }]);
+}
 describe("instance Admin Area", () => {
   it("denies non-admins before any registry or employee data is loaded", async () => {
     mount();
@@ -69,21 +88,14 @@ describe("instance Admin Area", () => {
     expect(api.listAdminComputers).not.toHaveBeenCalled();
   });
   it("registers and disables a Computer without any workspace context", async () => {
-    api.getInstanceAccess.mockResolvedValue({ admin: true });
-    api.listAdminComputers.mockResolvedValue([
-      {
-        id: "machine",
-        name: "Dev server",
-        host: "dev.invalid",
-        port: 22,
-        ssh_user: "operator",
-        enabled: true,
-      },
-    ]);
+    adminWithMachine();
     mount();
     const user = userEvent.setup();
-    await screen.findByRole("button", { name: "Register Computer" });
-    await user.type(screen.getByLabelText("Name"), "New server");
+    // The list comes first; the form only appears behind the Add button.
+    await screen.findByRole("heading", { name: "Computers" });
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add Computer" }));
+    await user.type(await screen.findByLabelText("Name"), "New server");
     await user.type(screen.getByLabelText("SSH host"), "new.invalid");
     await user.type(screen.getByLabelText("SSH operator username"), "operator");
     await user.click(screen.getByRole("button", { name: "Register Computer" }));
@@ -95,13 +107,115 @@ describe("instance Admin Area", () => {
         ssh_user: "operator",
       }),
     );
-    await user.click(
-      screen.getByRole("button", { name: "Disable" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Disable" }));
     await waitFor(() =>
       expect(api.updateAdminComputer).toHaveBeenCalledWith("machine", {
         enabled: false,
       }),
+    );
+  });
+  it("shows registration and check details for each Computer", async () => {
+    adminWithMachine({
+      created_by_name: "Cindy",
+      created_at: "2026-09-20T02:00:00Z",
+      checked_at: "2026-09-23T02:00:00Z",
+      check_ok: false,
+      check_detail: "sudo: passwordless sudo unavailable",
+      bindings: 2,
+    });
+    mount();
+    expect(await screen.findByText("Cindy")).toBeInTheDocument();
+    expect(screen.getByText("Check failed")).toBeInTheDocument();
+    expect(
+      screen.getByText("sudo: passwordless sudo unavailable"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    // A Computer with bound accounts cannot be deleted from the UI either.
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+  it("switches sections from the sidebar", async () => {
+    adminWithMachine();
+    mount();
+    const user = userEvent.setup();
+    const nav = await screen.findByRole("navigation", {
+      name: "Admin sections",
+    });
+    await user.click(
+      within(nav).getByRole("button", { name: "Account bindings" }),
+    );
+    expect(
+      await screen.findByText(/Latest 500 bindings/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Computers" }),
+    ).not.toBeInTheDocument();
+    await user.click(within(nav).getByRole("button", { name: "Activity log" }));
+    expect(await screen.findByText(/Latest 200 actions/)).toBeInTheDocument();
+  });
+  it("reports why a connection check failed", async () => {
+    adminWithMachine();
+    api.checkAdminComputer.mockResolvedValue({
+      ok: false,
+      facts: { hostname: "tensor" },
+      checks: [
+        { name: "sudo", ok: false, detail: "passwordless sudo unavailable" },
+        { name: "ssh", ok: true },
+      ],
+    });
+    mount();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Test connection" }),
+    );
+    const report = await screen.findByRole("region", {
+      name: "Connection check result",
+    });
+    expect(report).toHaveTextContent("passwordless sudo unavailable");
+    expect(report).toHaveTextContent("tensor");
+  });
+  it("surfaces the reason a registration was refused", async () => {
+    api.getInstanceAccess.mockResolvedValue({ admin: true });
+    api.listAdminComputers.mockResolvedValue([]);
+    const refusal = Object.assign(
+      new Error("Computer did not pass the connection check"),
+      {
+        body: {
+          probe: {
+            ok: false,
+            facts: {},
+            checks: [{ name: "pam", ok: false, detail: "missing" }],
+          },
+        },
+      },
+    );
+    api.registerComputer.mockRejectedValue(refusal);
+    mount();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Add Computer" }),
+    );
+    await user.type(await screen.findByLabelText("Name"), "Bad server");
+    await user.type(screen.getByLabelText("SSH host"), "bad.invalid");
+    await user.type(screen.getByLabelText("SSH operator username"), "operator");
+    await user.click(screen.getByRole("button", { name: "Register Computer" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "did not pass the connection check",
+    );
+    expect(
+      await screen.findByRole("region", { name: "Connection check result" }),
+    ).toHaveTextContent("missing");
+  });
+  it("deletes a Computer only after confirmation", async () => {
+    adminWithMachine();
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Delete this Computer?");
+    expect(api.deleteAdminComputer).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(api.deleteAdminComputer).toHaveBeenCalledWith("machine"),
     );
   });
   it("only shows the standalone link to instance admins", async () => {

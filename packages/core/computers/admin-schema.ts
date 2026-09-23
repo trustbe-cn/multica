@@ -1,8 +1,35 @@
 import { z } from "zod";
 import { ComputerSchema, ComputerBindingSchema } from "./schema";
 export const InstanceAccessSchema = z.object({ admin: z.boolean() });
+export const ProbeCheckSchema = z.object({
+  name: z.string(),
+  ok: z.boolean(),
+  detail: z.string().optional(),
+});
+export const ProbeResultSchema = z.object({
+  ok: z.boolean(),
+  facts: z
+    .object({
+      hostname: z.string().optional(),
+      os: z.string().optional(),
+      kernel: z.string().optional(),
+      cpus: z.number().optional(),
+      memory_mb: z.number().optional(),
+    })
+    .default({}),
+  checks: ProbeCheckSchema.array().default([]),
+});
+export type ProbeCheck = z.infer<typeof ProbeCheckSchema>;
+export type ProbeResult = z.infer<typeof ProbeResultSchema>;
 export const AdminComputerSchema = ComputerSchema.extend({
   enabled: z.boolean(),
+  created_by: z.string().optional(),
+  created_by_name: z.string().optional(),
+  created_at: z.string().optional(),
+  checked_at: z.string().optional(),
+  check_ok: z.boolean().optional(),
+  check_detail: z.string().optional(),
+  bindings: z.number().default(0),
 });
 export type AdminComputer = z.infer<typeof AdminComputerSchema>;
 export const AdminBindingSchema = ComputerBindingSchema.extend({

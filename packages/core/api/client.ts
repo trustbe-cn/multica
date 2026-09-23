@@ -1,4 +1,4 @@
-import { InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, type AdminComputer, type AdminBinding, type ComputerAudit } from "../computers/admin-schema";
+import { InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult } from "../computers/admin-schema";
 import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
@@ -962,6 +962,9 @@ export class ApiClient {
   async listAdminComputerBindings(): Promise<AdminBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-bindings"), AdminBindingSchema.array(), [] as AdminBinding[], {endpoint:"/api/admin/computer-bindings"}); }
   async listComputerAudit(): Promise<ComputerAudit[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-audit"), ComputerAuditSchema.array(), [] as ComputerAudit[], {endpoint:"/api/admin/computer-audit"}); }
   async updateAdminComputer(id:string,input:Partial<Omit<AdminComputer,"id">>) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"PATCH",body:JSON.stringify(input)}); }
+  async deleteAdminComputer(id:string) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"DELETE"}); }
+  async checkAdminComputerDraft(input: Omit<Computer, "id" | "enabled">): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>("/api/admin/computers/check", {method:"POST",body:JSON.stringify(input)})); }
+  async checkAdminComputer(id:string): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/check`, {method:"POST"})); }
   async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }
   async registerComputer(input: Omit<Computer, "id" | "enabled">) { await this.fetch("/api/admin/computers", { method: "POST", body: JSON.stringify(input) }); }
   async listComputerBindings(): Promise<ComputerBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/me/computer-bindings"), ComputerBindingSchema.array(), [] as ComputerBinding[], { endpoint: "/api/me/computer-bindings" }); }

@@ -1424,6 +1424,21 @@
     "bindings_help": "Latest 500 bindings. Linux accounts and employee credentials are not transferred or deleted here.",
     "audit": "Activity log",
     "audit_help": "Latest 200 actions. No passwords, tokens or private keys are shown.",
-    "empty": "No records yet."
+    "empty": "No records yet.",
+    "sections": "Admin sections",
+    "add": "Add Computer",
+    "delete": "Delete",
+    "delete_title": "Delete this Computer?",
+    "delete_confirm": "The Computer is removed from the registry. Its activity log entries are kept. A Computer with bound accounts cannot be deleted; remove those accounts first.",
+    "test_connection": "Test connection",
+    "check_help": "The connection is checked before the Computer is saved: SSH reachability, passwordless sudo, the provisioning PAM service, and the required system tools. Nothing is installed by a check.",
+    "check_result": "Connection check result",
+    "check_passed": "Check passed",
+    "check_failed": "Check failed",
+    "last_check": "Last check",
+    "never_checked": "Never checked",
+    "registered_by": "Registered by",
+    "registered_at": "Registered",
+    "bound_accounts": "Bound accounts"
   }
 }

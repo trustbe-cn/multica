@@ -1417,6 +1417,21 @@
     "bindings_help": "最近 500 条绑定。在此不转移或删除 Linux 账号及员工凭据。",
     "audit": "操作记录",
     "audit_help": "最近 200 条操作，不显示密码、Token 或私钥。",
-    "empty": "暂无记录。"
+    "empty": "暂无记录。",
+    "sections": "管理分区",
+    "add": "添加 Computer",
+    "delete": "删除",
+    "delete_title": "删除这台 Computer？",
+    "delete_confirm": "该 Computer 将从登记表中移除，操作日志会保留。已有账号绑定的 Computer 不能删除，请先移除这些账号。",
+    "test_connection": "测试连接",
+    "check_help": "保存前会实际检查连接：SSH 是否可达、passwordless sudo 是否可用、开通所需的 PAM 服务是否就位、必需的系统工具是否齐备。检查过程不会安装任何东西。",
+    "check_result": "连接检查结果",
+    "check_passed": "检查通过",
+    "check_failed": "检查未通过",
+    "last_check": "上次检查",
+    "never_checked": "尚未检查",
+    "registered_by": "登记人",
+    "registered_at": "登记时间",
+    "bound_accounts": "已绑定账号"
   }
 }

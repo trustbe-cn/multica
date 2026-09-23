@@ -52,5 +52,18 @@ export function useComputerAdmin(userId: string, allowed: boolean) {
       api.updateAdminComputer(id, input),
     onSuccess: refresh,
   });
-  return { computers, bindings, audit, register, update, refresh };
+  const remove = useMutation({
+    mutationFn: (id: string) => api.deleteAdminComputer(id),
+    onSuccess: refresh,
+  });
+  // Checking a draft does not touch the registry, so it must not invalidate.
+  const checkDraft = useMutation({
+    mutationFn: (input: Omit<Computer, "id" | "enabled">) => api.checkAdminComputerDraft(input),
+  });
+  // Checking a registered Computer records the verdict, so the list refreshes.
+  const check = useMutation({
+    mutationFn: (id: string) => api.checkAdminComputer(id),
+    onSuccess: refresh,
+  });
+  return { computers, bindings, audit, register, update, remove, check, checkDraft, refresh };
 }

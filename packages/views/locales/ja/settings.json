@@ -1417,6 +1417,21 @@
     "bindings_help": "Latest 500 bindings. Linux accounts and employee credentials are not transferred or deleted here.",
     "audit": "Activity log",
     "audit_help": "Latest 200 actions. No passwords, tokens or private keys are shown.",
-    "empty": "No records yet."
+    "empty": "No records yet.",
+    "sections": "管理セクション",
+    "add": "Computer を追加",
+    "delete": "削除",
+    "delete_title": "この Computer を削除しますか？",
+    "delete_confirm": "Computer は登録簿から削除されます。操作ログは保持されます。アカウントが紐づいている Computer は削除できません。先にそれらのアカウントを解除してください。",
+    "test_connection": "接続をテスト",
+    "check_help": "保存前に接続を実際に確認します: SSH の到達性、パスワードなし sudo、プロビジョニング用 PAM サービス、必要なシステムツール。確認では何もインストールされません。",
+    "check_result": "接続確認の結果",
+    "check_passed": "確認に成功",
+    "check_failed": "確認に失敗",
+    "last_check": "前回の確認",
+    "never_checked": "未確認",
+    "registered_by": "登録者",
+    "registered_at": "登録日時",
+    "bound_accounts": "紐づくアカウント"
   }
 }

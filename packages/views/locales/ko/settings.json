@@ -1417,6 +1417,21 @@
     "bindings_help": "Latest 500 bindings. Linux accounts and employee credentials are not transferred or deleted here.",
     "audit": "Activity log",
     "audit_help": "Latest 200 actions. No passwords, tokens or private keys are shown.",
-    "empty": "No records yet."
+    "empty": "No records yet.",
+    "sections": "관리 섹션",
+    "add": "Computer 추가",
+    "delete": "삭제",
+    "delete_title": "이 Computer를 삭제할까요?",
+    "delete_confirm": "Computer가 등록 목록에서 제거됩니다. 활동 기록은 유지됩니다. 계정이 연결된 Computer는 삭제할 수 없으며, 먼저 해당 계정을 제거해야 합니다.",
+    "test_connection": "연결 테스트",
+    "check_help": "저장 전에 연결을 실제로 확인합니다: SSH 연결 가능 여부, 비밀번호 없는 sudo, 프로비저닝 PAM 서비스, 필요한 시스템 도구. 확인 과정에서는 아무것도 설치하지 않습니다.",
+    "check_result": "연결 확인 결과",
+    "check_passed": "확인 통과",
+    "check_failed": "확인 실패",
+    "last_check": "마지막 확인",
+    "never_checked": "확인하지 않음",
+    "registered_by": "등록자",
+    "registered_at": "등록 시각",
+    "bound_accounts": "연결된 계정"
   }
 }
