@@ -596,14 +596,17 @@ type CommentReaction struct {
 }
 
 type Computer struct {
-	ID        pgtype.UUID        `json:"id"`
-	Name      string             `json:"name"`
-	Host      string             `json:"host"`
-	Port      int32              `json:"port"`
-	SshUser   string             `json:"ssh_user"`
-	Enabled   bool               `json:"enabled"`
-	CreatedBy pgtype.UUID        `json:"created_by"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Host        string             `json:"host"`
+	Port        int32              `json:"port"`
+	SshUser     string             `json:"ssh_user"`
+	Enabled     bool               `json:"enabled"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CheckedAt   pgtype.Timestamptz `json:"checked_at"`
+	CheckOk     pgtype.Bool        `json:"check_ok"`
+	CheckDetail string             `json:"check_detail"`
 }
 
 type ComputerAudit struct {
