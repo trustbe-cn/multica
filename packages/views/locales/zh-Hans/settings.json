@@ -1349,5 +1349,50 @@
     "status_loading": "正在检查...",
     "status_unknown": "状态暂不可用",
     "channel_hint": "在 {{channel}} 中与智能体对话、创建任务。"
+  },
+  "computers": {
+    "title": "Computer",
+    "credentials": "个人凭据",
+    "credentials_help": "只有本人能读取这些凭据。保存后，请对已有 Computer 执行「同步凭据」。",
+    "git_name": "Git 作者姓名",
+    "git_email": "Git 作者邮箱",
+    "gitlab_url": "GitLab 地址",
+    "gitlab_token": "GitLab Token",
+    "multica_pat": "本人的 Multica 个人访问令牌",
+    "model_keys": "模型 API Key（每行 KEY=value）",
+    "save": "保存凭据",
+    "reveal": "显示秘密",
+    "hide": "隐藏秘密",
+    "loading": "加载中…",
+    "setup": "个人运行环境",
+    "setup_help": "使用当前工作区。复用已有 Linux 用户必须输入其现有密码；密码错误不会重置账号。",
+    "choose": "选择 Computer",
+    "username": "Linux 用户名",
+    "password": "Linux 密码",
+    "action": "操作",
+    "execute": "执行",
+    "remove_help": "停止并禁用运行环境，保留 Linux 用户、文件和代码。",
+    "register": "登记 Computer",
+    "port": "SSH 端口",
+    "accepted": "请求已接受，请查看下方运行状态。",
+    "failed": "操作失败",
+    "actions": {
+      "provision": "创建或复用账号",
+      "sync": "同步凭据",
+      "upgrade": "升级运行环境",
+      "remove": "移除运行环境"
+    },
+    "machine_fields": {
+      "name": "名称",
+      "host": "SSH 主机",
+      "ssh_user": "SSH 运维用户名"
+    },
+    "ssh_key": "GitLab SSH 私钥（可选，代替 Token）",
+    "known_hosts": "SSH 主机公钥（使用私钥时必填）",
+    "model_example": "OPENAI_API_KEY=…",
+    "ready": "可用",
+    "running": "处理中",
+    "removed": "已卸载",
+    "hidden": "点击「显示秘密」查看或编辑"
   }
 }
