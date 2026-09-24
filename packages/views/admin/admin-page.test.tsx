@@ -167,11 +167,16 @@ describe("instance Admin Area", () => {
     await user.click(
       await screen.findByRole("button", { name: "Test connection" }),
     );
-    const report = await screen.findByRole("region", {
+    const dialog = await screen.findByRole("dialog");
+    const report = await within(dialog).findByRole("region", {
       name: "Connection check result",
     });
     expect(report).toHaveTextContent("passwordless sudo unavailable");
     expect(report).toHaveTextContent("tensor");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.queryByRole("region", { name: "Connection check result" }),
+    ).not.toBeInTheDocument();
   });
   it("surfaces the reason a registration was refused", async () => {
     api.getInstanceAccess.mockResolvedValue({ admin: true });
@@ -217,6 +222,22 @@ describe("instance Admin Area", () => {
     await waitFor(() =>
       expect(api.deleteAdminComputer).toHaveBeenCalledWith("machine"),
     );
+  });
+  it("test connection in add dialog does not show a Saved notice on success", async () => {
+    api.getInstanceAccess.mockResolvedValue({ admin: true });
+    api.listAdminComputers.mockResolvedValue([]);
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Add Computer" }));
+    await user.type(await screen.findByLabelText("Name"), "Test server");
+    await user.type(screen.getByLabelText("SSH host"), "test.invalid");
+    await user.type(screen.getByLabelText("SSH operator username"), "operator");
+    await user.click(screen.getByRole("button", { name: "Test connection" }));
+    await waitFor(() =>
+      expect(api.checkAdminComputerDraft).toHaveBeenCalled(),
+    );
+    // The probe result should appear, but no "saved" status message.
+    expect(screen.queryByRole("status")).not.toHaveTextContent(/saved/i);
   });
   it("only shows the standalone link to instance admins", async () => {
     api.getInstanceAccess.mockResolvedValue({ admin: true });

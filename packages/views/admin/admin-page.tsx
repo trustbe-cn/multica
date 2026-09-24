@@ -128,16 +128,25 @@ function AdminSections({
   const [form, setForm] = useState(EMPTY_FORM);
   const [dialog, setDialog] = useState<"closed" | "add" | string>("closed");
   const [confirmDelete, setConfirmDelete] = useState<AdminComputer | null>(null);
+  const [checkTarget, setCheckTarget] = useState<AdminComputer | null>(null);
+  const [rowProbe, setRowProbe] = useState<ProbeResult | null>(null);
+  const [rowError, setRowError] = useState("");
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // data.check is the per-row dialog check; it must not freeze the rest of
+  // the list while that dialog is open.
   const busy =
     data.register.isPending ||
     data.update.isPending ||
     data.remove.isPending ||
-    data.check.isPending ||
     data.checkDraft.isPending;
   const dialogClosed = dialog === "closed";
+  useEffect(() => {
+    setCheckTarget(null);
+    setRowProbe(null);
+    setRowError("");
+  }, [section]);
   const closeDialog = () => {
     setDialog("closed");
     setForm(EMPTY_FORM);
@@ -172,16 +181,22 @@ function AdminSections({
   return (
     <>
       {/* While the form dialog is open it owns the feedback: a modal hides the
-          page behind it, so an error rendered here would be unreachable. */}
-      {(error || fetchError) && dialogClosed && (
+          page behind it, so an error rendered here would be unreachable.
+          Probe and action notices stay inside Computers so a sidebar change
+          drops them. */}
+      {fetchError && dialogClosed && (
         <p role="alert" className="text-destructive">
-          {error || fetchError?.message}
+          {fetchError.message}
         </p>
       )}
-      {notice && dialogClosed && <p role="status">{notice}</p>}
-      {probe && dialogClosed && <ProbeReport probe={probe} />}
       {section === "computers" && (
         <section className="space-y-4" aria-labelledby="computer-registry">
+          {error && dialogClosed && (
+            <p role="alert" className="text-destructive">
+              {error}
+            </p>
+          )}
+          {notice && dialogClosed && <p role="status">{notice}</p>}
           <div className="flex items-center justify-between gap-3">
             <h2 id="computer-registry" className="text-lg font-semibold">
               {t(($) => $.computers.title)}
@@ -223,10 +238,19 @@ function AdminSections({
                   )
                 }
                 onCheck={() => {
-                  setProbe(null);
-                  void perform(async () =>
-                    setProbe(await data.check.mutateAsync(m.id)),
-                  );
+                  setCheckTarget(m);
+                  setRowProbe(null);
+                  setRowError("");
+                  void data.check.mutateAsync(m.id).then(setRowProbe, (e) => {
+                    const body = (e as { body?: { probe?: ProbeResult } } | null)
+                      ?.body;
+                    if (body?.probe) setRowProbe(body.probe);
+                    setRowError(
+                      e instanceof Error
+                        ? e.message
+                        : t(($) => $.computers.failed),
+                    );
+                  });
                 }}
                 onDelete={() => setConfirmDelete(m)}
               />
@@ -283,8 +307,14 @@ function AdminSections({
         probe={probe}
         onTest={() => {
           setProbe(null);
-          void perform(async () =>
-            setProbe(await data.checkDraft.mutateAsync(form)),
+          setError("");
+          void data.checkDraft.mutateAsync(form).then(
+            (res) => setProbe(res),
+            (e) => {
+              const body = (e as { body?: { probe?: unknown } } | null)?.body;
+              if (body?.probe) setProbe(body.probe as ProbeResult);
+              setError(e instanceof Error ? e.message : t(($) => $.computers.failed));
+            },
           );
         }}
         onSubmit={() =>
@@ -297,6 +327,46 @@ function AdminSections({
           )
         }
       />
+      <Dialog
+        open={checkTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCheckTarget(null);
+            setRowProbe(null);
+            setRowError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {checkTarget?.name} · {t(($) => $.admin.test_connection)}
+            </DialogTitle>
+          </DialogHeader>
+          {data.check.isPending && (
+            <p role="status">{t(($) => $.computers.loading)}</p>
+          )}
+          {rowError && (
+            <p role="alert" className="text-destructive">
+              {rowError}
+            </p>
+          )}
+          {rowProbe && <ProbeReport probe={rowProbe} />}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCheckTarget(null);
+                setRowProbe(null);
+                setRowError("");
+              }}
+            >
+              {t(($) => $.admin.cancel)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DeleteComputerDialog
         machine={confirmDelete}
         busy={busy}
