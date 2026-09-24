@@ -30,10 +30,33 @@ Server configuration:
   service account, mode 0700. Contains per-machine/account locks and failed PAM
   attempt counters. Do not share it with employees or place it in their homes.
 
-The server needs OpenSSH client access. Target Computers need Linux, Python 3,
-PAM (`pam_unix.so`), `sudo`, `runuser`, user management tools and systemd. The
-registered SSH operator requires passwordless sudo. Model CLIs must already be
-available to each target user; this feature installs Multica, not vendor CLIs.
+The server needs OpenSSH client access. Target Computers need Debian/Ubuntu
+(with `apt-get`), Python 3, PAM (`pam_unix.so`), `sudo`, `runuser`, user
+management tools and systemd. The registered SSH operator requires passwordless
+sudo. The connection check rejects machines without `apt-get`. New accounts
+require successful installation of zsh, htop, curl, git and oh-my-zsh; a tool
+installation failure fails provisioning. System packages are installed before
+creating the account, and failures during password or shell setup delete the
+new account. Both installer process groups are terminated on timeout, including their children.
+Account creation allows eight minutes for installation and cleanup.
+
+Administrators can install vendor CLIs from the Computer runtime panel after
+entering a target Linux username. npm-based runtimes require Node.js and npm in
+`/usr/local/bin`, `/usr/bin` or `/bin`; installation checks these prerequisites
+and uses the target user's `~/.local` prefix. Installs and version checks use the
+same user and PATH, without reading login-shell or nvm configuration. Managed
+daemon units include `~/.local/bin`, `~/.kimi-code/bin` and `~/.grok/bin`; use Upgrade
+runtime for existing bindings to apply this unit change. A failed SSH or version
+check is reported separately from a missing executable.
+
+Grok and Kimi receive the requested version (or `latest`) through their installer
+arguments. Oh-My-Pi uses the official installer with `--binary` and a release tag,
+so it does not depend on an independently installed Bun interpreter. Installers are downloaded
+completely over HTTPS before execution as the target user; any download or
+installer failure fails the operation. The installed command must also pass
+`--version` before success is recorded. These upstream installers (and the
+oh-my-zsh installer) remain trusted network dependencies; there is no pinned
+checksum or independent signature verification in this workflow.
 
 Before registering a target, its operator must install the fixed PAM service once
 (outside request handling), owned by root and not writable by other users:

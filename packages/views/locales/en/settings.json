@@ -1445,6 +1445,8 @@
     "copy_ssh_pubkey_failed": "Failed to copy SSH public key",
     "runtimes_title": "Runtimes",
     "runtimes_version": "Version",
+    "runtimes_latest": "Latest only",
+    "runtimes_prerequisites": "npm installs require Node.js and npm in /usr/local/bin or /usr/bin. Login-shell and nvm paths are not loaded. Oh-My-Pi uses a standalone binary.",
     "runtimes_not_installed": "Not installed",
     "runtimes_install": "Install",
     "runtimes_update": "Update",
@@ -1452,6 +1454,9 @@
     "runtimes_version_placeholder": "e.g. 1.2.3",
     "runtimes_installing": "Installing…",
     "runtimes_install_success": "Runtime installed successfully",
-    "runtimes_install_failed": "Install failed"
+    "runtimes_install_failed": "Install failed",
+    "runtimes_version_label": "{{runtime}} version",
+    "runtimes_probe_failed": "Version check failed",
+    "runtimes_empty": "No runtimes are available."
   }
 }

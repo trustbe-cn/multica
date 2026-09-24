@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -339,8 +342,17 @@ func (h *Handler) AdminSshPubKey(w http.ResponseWriter, r *http.Request) {
 	pubPath := keyPath + ".pub"
 	data, err := os.ReadFile(pubPath)
 	if err != nil {
-		writeError(w, 503, "SSH public key file not found")
-		return
+		if !errors.Is(err, os.ErrNotExist) {
+			writeError(w, 503, "SSH public key file cannot be read")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		data, err = exec.CommandContext(ctx, "ssh-keygen", "-y", "-P", "", "-f", keyPath).Output()
+		if err != nil {
+			writeError(w, 503, "SSH public key could not be derived")
+			return
+		}
 	}
 	writeJSON(w, 200, map[string]string{"pubkey": strings.TrimSpace(string(data))})
 }
@@ -446,13 +458,14 @@ func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, 200, list)
 }
+
 // runtimeVersionRE accepts only the characters npm/semver versions use.
 // It prevents shell-special characters from reaching the install command.
 var runtimeVersionRE = regexp.MustCompile(`^[0-9A-Za-z.\-+]+$`)
 
 // AdminComputerRuntimes lists all built-in runtimes and their installed versions
-// on the target computer. Version detection is best-effort: if a runtime binary
-// is not on PATH for the SSH user the entry is returned with an empty version.
+// on the target computer. When linux_user is supplied, probing runs in that
+// user's environment so it matches the installation endpoint.
 func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireInstanceAdmin(w, r); !ok {
 		return
@@ -477,32 +490,62 @@ func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
+	linuxUser := strings.TrimSpace(r.URL.Query().Get("linux_user"))
+	if linuxUser != "" {
+		if err := computer.ValidateLinuxUsername(linuxUser); err != nil {
+			writeError(w, 400, "Invalid linux_user: "+err.Error())
+			return
+		}
+	}
 
 	type runtimeInfo struct {
 		ID               string `json:"id"`
 		DisplayName      string `json:"display_name"`
 		InstalledVersion string `json:"installed_version"`
 		CanInstall       bool   `json:"can_install"`
+		VersionRequired  bool   `json:"version_required"`
+		ProbeError       string `json:"probe_error,omitempty"`
 	}
-	probeRuntime := func(id, displayName, defaultCmd, installCmd string) runtimeInfo {
+	probeRuntime := func(id, displayName, defaultCmd, installCmd string, versionRequired bool) runtimeInfo {
 		info := runtimeInfo{
-			ID:          id,
-			DisplayName: displayName,
-			CanInstall:  installCmd != "",
+			ID:              id,
+			DisplayName:     displayName,
+			CanInstall:      installCmd != "",
+			VersionRequired: versionRequired,
 		}
-		out, err := remote.RunCommand(defaultCmd + " --version 2>&1")
+		probe := "if command -v " + defaultCmd + " >/dev/null 2>&1; then " + defaultCmd + " --version || { echo 'Executable found, but --version failed' >&2; exit 1; }; fi"
+		if linuxUser != "" {
+			probe = "sudo -n runuser -u " + linuxUser + " -- sh -c " + computerShellQuote("export PATH=\"$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin\"; "+probe)
+		}
+		out, err := remote.RunCommandContext(r.Context(), probe)
 		if err == nil {
 			info.InstalledVersion = strings.TrimSpace(out)
+		} else {
+			info.ProbeError = "Version check failed: " + err.Error()
 		}
 		return info
 	}
-	list := make([]runtimeInfo, 0, len(agent.BuiltinRuntimes)+len(agent.ProtocolFamilyInstalls))
+	type runtimeTarget struct {
+		id, displayName, defaultCmd, installCmd string
+		versionRequired                         bool
+	}
+	targets := make([]runtimeTarget, 0, len(agent.BuiltinRuntimes)+len(agent.ProtocolFamilyInstalls))
 	for _, rt := range agent.BuiltinRuntimes {
-		list = append(list, probeRuntime(rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand))
+		targets = append(targets, runtimeTarget{rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand, !rt.LatestOnly})
 	}
 	for _, rt := range agent.ProtocolFamilyInstalls {
-		list = append(list, probeRuntime(rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand))
+		targets = append(targets, runtimeTarget{rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand, !rt.LatestOnly})
 	}
+	list := make([]runtimeInfo, len(targets))
+	var wg sync.WaitGroup
+	for i, target := range targets {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			list[i] = probeRuntime(target.id, target.displayName, target.defaultCmd, target.installCmd, target.versionRequired)
+		}()
+	}
+	wg.Wait()
 	writeJSON(w, 200, list)
 }
 
@@ -532,8 +575,10 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 	}
 	rt, exists := agent.BuiltinRuntimeByID(in.RuntimeID)
 	var installCmd string
+	versionRequired := true
 	if exists {
 		installCmd = rt.InstallCommand
+		versionRequired = !rt.LatestOnly
 	} else {
 		pf, pfExists := agent.ProtocolFamilyInstallByID(in.RuntimeID)
 		if !pfExists {
@@ -541,6 +586,7 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 			return
 		}
 		installCmd = pf.InstallCommand
+		versionRequired = !pf.LatestOnly
 	}
 	if installCmd == "" {
 		writeError(w, 422, fmt.Sprintf("Runtime %q does not support installation via the admin UI", in.RuntimeID))
@@ -550,9 +596,16 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 		writeError(w, 400, "Invalid linux_user: "+err.Error())
 		return
 	}
-	if !runtimeVersionRE.MatchString(in.Version) || in.Version == "" {
+	if versionRequired && (!runtimeVersionRE.MatchString(in.Version) || in.Version == "") {
 		writeError(w, 400, "Invalid version: only alphanumeric, dot, hyphen, and plus are allowed")
 		return
+	}
+	if !versionRequired {
+		if in.Version != "" && in.Version != "latest" {
+			writeError(w, 422, "This runtime only supports latest; omit version or use latest")
+			return
+		}
+		in.Version = "latest"
 	}
 
 	var m computer.Machine
@@ -574,20 +627,27 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 	cmd := strings.ReplaceAll(installCmd, "{{user}}", in.LinuxUser)
 	cmd = strings.ReplaceAll(cmd, "{{version}}", in.Version)
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 5 * time.Minute}
-	_, installErr := remote.RunCommand("sudo -n " + cmd)
+	_, installErr := remote.RunCommandContext(r.Context(), "sudo -n "+cmd)
 
 	outcome := "success"
 	if installErr != nil {
 		outcome = "failure"
 	}
 	action := "runtime_install:" + in.RuntimeID + "@" + in.Version
-	_, _ = h.DB.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,$3,$4)`, uid, id, action, outcome)
+	// A disconnected client must not erase the audit of its remote operation.
+	auditCtx, cancelAudit := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancelAudit()
+	_, _ = h.DB.Exec(auditCtx, `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,$3,$4)`, uid, id, action, outcome)
 
 	if installErr != nil {
 		writeError(w, 502, "Install failed: "+installErr.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"installed": true})
+}
+
+func computerShellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
 func (h *Handler) AdminComputerAudit(w http.ResponseWriter, r *http.Request) {

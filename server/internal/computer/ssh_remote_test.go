@@ -1,8 +1,13 @@
 package computer
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type recordRunner struct {
@@ -91,5 +96,41 @@ func TestSSHRejectsDotHost(t *testing.T) {
 	remote := SSHRemote{Host: "..", Port: 22, User: "bastion", KeyPath: "/tmp/key"}
 	if _, err := remote.UserExists("zhang"); err == nil {
 		t.Fatal("accepted .. host")
+	}
+}
+
+func TestAdminCommandHonorsRequestCancellation(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte("#!/bin/sh\nexec sleep 5\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":/usr/bin:/bin")
+	remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", Timeout: time.Minute}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := remote.RunCommandContext(ctx, "not executed"); err == nil {
+		t.Fatal("cancellation ignored")
+	}
+	if time.Since(start) > time.Second {
+		t.Fatal("SSH outlived the request budget")
+	}
+}
+
+func TestRemoteFailureIncludesBoundedRedactedDiagnostics(t *testing.T) {
+	cause := errors.New("exit status 127")
+	runner := &recordRunner{out: strings.Repeat("x", 5000) + " bun: command not found; fake-secret", err: cause}
+	remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", RunCmd: runner}
+	out, err := remote.run("unused", "", "fake-secret")
+	if out != "" || !errors.Is(err, cause) || !strings.Contains(err.Error(), "bun: command not found") || strings.Contains(err.Error(), "fake-secret") || len(err.Error()) > 4200 {
+		t.Fatalf("unsafe or missing diagnostics: %q %v", out, err)
+	}
+}
+
+func TestDaemonPathIncludesNativeInstallDirectories(t *testing.T) {
+	for _, path := range []string{"/home/%i/.local/bin", "/home/%i/.kimi-code/bin", "/home/%i/.grok/bin"} {
+		if !strings.Contains(DaemonUnit, path) {
+			t.Fatalf("daemon cannot resolve %s", path)
+		}
 	}
 }

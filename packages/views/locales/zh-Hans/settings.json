@@ -1438,6 +1438,8 @@
     "copy_ssh_pubkey_failed": "复制 SSH 公钥失败",
     "runtimes_title": "运行时",
     "runtimes_version": "版本",
+    "runtimes_latest": "仅支持最新版",
+    "runtimes_prerequisites": "npm 安装要求 /usr/local/bin 或 /usr/bin 中有 Node.js 和 npm。不会加载登录 shell 或 nvm 的路径。Oh-My-Pi 使用独立二进制文件。",
     "runtimes_not_installed": "未安装",
     "runtimes_install": "安装",
     "runtimes_update": "更新",
@@ -1445,6 +1447,9 @@
     "runtimes_version_placeholder": "如 1.2.3",
     "runtimes_installing": "安装中…",
     "runtimes_install_success": "运行时安装成功",
-    "runtimes_install_failed": "安装失败"
+    "runtimes_install_failed": "安装失败",
+    "runtimes_version_label": "{{runtime}} 版本",
+    "runtimes_probe_failed": "版本检查失败",
+    "runtimes_empty": "暂无可用的运行时。"
   }
 }

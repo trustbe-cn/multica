@@ -55,5 +55,9 @@ export const AdminComputerRuntimeSchema = z.object({
   display_name: z.string(),
   installed_version: z.string(),
   can_install: z.boolean(),
+  version_required: z.boolean().default(true),
+  probe_error: z.string().default(""),
 });
 export type AdminComputerRuntime = z.infer<typeof AdminComputerRuntimeSchema>;
+
+export const AdminSshPubKeySchema = z.object({ pubkey: z.string().trim().min(1) });

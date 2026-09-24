@@ -1,6 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@multica/ui/components/ui/dropdown-menu";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -18,6 +18,8 @@ const api = vi.hoisted(() => ({
   checkAdminComputer: vi.fn(),
   checkAdminComputerDraft: vi.fn(),
   getAdminSshPubKey: vi.fn(),
+  listAdminComputerRuntimes: vi.fn(),
+  installAdminComputerRuntime: vi.fn(),
 }));
 const state = vi.hoisted(() => ({
   user: { id: "admin-human" },
@@ -56,6 +58,8 @@ beforeEach(() => {
   api.deleteAdminComputer.mockResolvedValue(undefined);
   api.checkAdminComputer.mockResolvedValue({ ok: true, facts: {}, checks: [] });
   api.checkAdminComputerDraft.mockResolvedValue({ ok: true, facts: {}, checks: [] });
+  api.listAdminComputerRuntimes.mockResolvedValue([]);
+  api.installAdminComputerRuntime.mockResolvedValue(undefined);
   api.getAdminSshPubKey.mockResolvedValue("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA mock-key admin@multica");
 });
 const MACHINE = {
@@ -260,5 +264,89 @@ describe("instance Admin Area", () => {
     await waitFor(() => {
       expect(api.getAdminSshPubKey).toHaveBeenCalled();
     });
+  });
+});
+
+
+describe("admin runtime installation", () => {
+  it("keeps the account editable after a failed query and installs latest for the selected user", async () => {
+    adminWithMachine();
+    api.listAdminComputerRuntimes.mockRejectedValueOnce(new Error("SSH unavailable"));
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Runtimes" }));
+    const input = screen.getByRole("textbox", { name: "Linux username" });
+    await user.type(input, "alice");
+    expect(await screen.findByRole("alert")).toHaveTextContent("SSH unavailable");
+    expect(screen.getByRole("textbox", { name: "Linux username" })).toBe(input);
+    api.listAdminComputerRuntimes.mockResolvedValue([
+      { id: "grok", display_name: "Grok", installed_version: "", can_install: true, version_required: false },
+    ]);
+    await user.clear(input);
+    await user.type(input, "bob");
+    expect(await screen.findByText("Latest only")).toBeInTheDocument();
+    expect(api.listAdminComputerRuntimes).toHaveBeenLastCalledWith("machine", "bob", expect.any(AbortSignal));
+    expect(screen.queryByRole("textbox", { name: "Version" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(api.installAdminComputerRuntime).toHaveBeenCalledWith("machine", "grok", "latest", "bob"));
+    await waitFor(() => expect(api.listComputerAudit).toHaveBeenCalledTimes(2));
+  });
+
+  it("requires a version for pinned runtimes and shows probe failures without claiming not installed", async () => {
+    adminWithMachine();
+    api.listAdminComputerRuntimes.mockResolvedValue([
+      { id: "omp", display_name: "Oh-My-Pi", installed_version: "", can_install: true, version_required: true, probe_error: "SSH failed" },
+    ]);
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Runtimes" }));
+    await user.type(screen.getByRole("textbox", { name: "Linux username" }), "alice");
+    await screen.findByText("Oh-My-Pi");
+    expect(screen.queryByText("Not installed")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    await user.type(screen.getByRole("textbox", { name: "Oh-My-Pi version" }), "1.2.3");
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(api.installAdminComputerRuntime).toHaveBeenCalledWith("machine", "omp", "1.2.3", "alice"));
+  });
+});
+
+
+describe("runtime row installation state", () => {
+  it("keeps each row independent and locks the account until all installs finish", async () => {
+    adminWithMachine();
+    api.listAdminComputerRuntimes.mockResolvedValue([
+      { id: "codex", display_name: "Codex", installed_version: "", can_install: true, version_required: true },
+      { id: "kimi", display_name: "Kimi", installed_version: "", can_install: true, version_required: true },
+    ]);
+    let finishCodex!: () => void;
+    let failKimi!: (error: Error) => void;
+    api.installAdminComputerRuntime.mockImplementation((_computer: string, runtime: string) =>
+      runtime === "codex" ? new Promise<void>((resolve) => { finishCodex = resolve; })
+        : new Promise<void>((_resolve, reject) => { failKimi = reject; }),
+    );
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Runtimes" }));
+    const account = screen.getByRole("textbox", { name: "Linux username" });
+    await user.type(account, "alice");
+    const codexVersion = await screen.findByRole("textbox", { name: "Codex version" });
+    const kimiVersion = screen.getByRole("textbox", { name: "Kimi version" });
+    await user.type(codexVersion, "1.2.3");
+    await user.type(kimiVersion, "0.5.0");
+    const codexRow = within(codexVersion.closest("li")!);
+    const kimiRow = within(kimiVersion.closest("li")!);
+    await user.click(codexRow.getByRole("button", { name: "Install" }));
+    expect(await codexRow.findByRole("button", { name: "Installing…" })).toBeDisabled();
+    expect(kimiRow.getByRole("button", { name: "Install" })).toBeEnabled();
+    expect(account).toBeDisabled();
+    await user.click(kimiRow.getByRole("button", { name: "Install" }));
+    await act(async () => finishCodex());
+    await waitFor(() => expect(codexRow.getByRole("button", { name: "Install" })).toBeEnabled());
+    expect(kimiRow.getByRole("button", { name: "Installing…" })).toBeDisabled();
+    expect(account).toBeDisabled();
+    await act(async () => failKimi(new Error("kimi: missing shared library")));
+    expect(await kimiRow.findByRole("alert")).toHaveTextContent("missing shared library");
+    expect(codexRow.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(account).toBeEnabled());
   });
 });

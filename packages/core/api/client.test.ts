@@ -3054,3 +3054,33 @@ describe("ApiClient shared credential across windows", () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe("admin Computer API compatibility", () => {
+  it("rejects malformed public keys before they reach the clipboard", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ pubkey: 42 }))));
+    await expect(new ApiClient("https://api.example.test").getAdminSshPubKey()).rejects.toThrow("SSH public key response is invalid");
+  });
+
+  it("fails closed for malformed connection checks", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ok: "true", checks: null })))));
+    const client = new ApiClient("https://api.example.test");
+    expect(await client.checkAdminComputer("machine")).toEqual({ ok: false, facts: {}, checks: [] });
+    expect(await client.checkAdminComputerDraft({ name: "Host", host: "host", port: 22, ssh_user: "operator" })).toEqual({ ok: false, facts: {}, checks: [] });
+  });
+
+  it("defaults older runtime responses and sends the selected Linux user", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { id: "omp", display_name: "Oh-My-Pi", installed_version: "", can_install: true },
+    ])));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new ApiClient("https://api.example.test").listAdminComputerRuntimes("machine", "alice");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/admin/computers/machine/runtimes?linux_user=alice");
+    expect(result[0]).toMatchObject({ version_required: true, probe_error: "" });
+  });
+
+  it("reports malformed runtime responses as errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ runtimes: null }))));
+    await expect(new ApiClient("https://api.example.test").listAdminComputerRuntimes("machine", "alice")).rejects.toThrow("Runtime list response is invalid");
+  });
+});

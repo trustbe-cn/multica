@@ -1438,6 +1438,8 @@
     "copy_ssh_pubkey_failed": "SSH 공개 키 복사 실패",
     "runtimes_title": "런타임",
     "runtimes_version": "버전",
+    "runtimes_latest": "최신 버전만",
+    "runtimes_prerequisites": "npm 설치에는 /usr/local/bin 또는 /usr/bin의 Node.js와 npm이 필요합니다. 로그인 셸과 nvm 경로는 불러오지 않습니다. Oh-My-Pi는 독립 실행 바이너리를 사용합니다.",
     "runtimes_not_installed": "설치되지 않음",
     "runtimes_install": "설치",
     "runtimes_update": "업데이트",
@@ -1445,6 +1447,9 @@
     "runtimes_version_placeholder": "예: 1.2.3",
     "runtimes_installing": "설치 중…",
     "runtimes_install_success": "런타임이 설치되었습니다",
-    "runtimes_install_failed": "설치 실패"
+    "runtimes_install_failed": "설치 실패",
+    "runtimes_version_label": "{{runtime}} 버전",
+    "runtimes_probe_failed": "버전 확인 실패",
+    "runtimes_empty": "사용 가능한 런타임이 없습니다."
   }
 }

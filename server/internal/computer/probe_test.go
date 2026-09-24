@@ -88,7 +88,7 @@ func TestProbeScriptRunsLocally(t *testing.T) {
 	for _, c := range res.Checks {
 		names[c.Name] = true
 	}
-	for _, want := range []string{"ssh", "python3", "sudo", "pam", "systemctl", "useradd", "runuser"} {
+	for _, want := range []string{"ssh", "python3", "sudo", "pam", "systemctl", "useradd", "runuser", "apt-get"} {
 		if !names[want] {
 			t.Fatalf("check %q missing from %+v", want, res.Checks)
 		}

@@ -115,6 +115,7 @@ func TestCreateUserCompensatesPasswordFailure(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "created")
 	for name, script := range map[string]string{
+		"apt-get":  "#!/bin/sh\nexit 0\n",
 		"useradd":  "#!/bin/sh\n: > \"$COMPUTER_TEST_MARKER\"\n",
 		"chpasswd": "#!/bin/sh\ncat >/dev/null\nexit 1\n",
 		"userdel":  "#!/bin/sh\nrm -- \"$COMPUTER_TEST_MARKER\"\n",
@@ -233,6 +234,66 @@ subprocess.run=run
 			err := cmd.Run()
 			if (err == nil) != tc.allow {
 				t.Fatalf("unexpected policy decision: %v", err)
+			}
+		})
+	}
+}
+
+func TestCreateUserInstallerFailures(t *testing.T) {
+	for _, stage := range []string{"apt", "apt-timeout", "download", "timeout"} {
+		t.Run(stage, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, script := range map[string]string{
+				"apt-get": `if [ "$FAIL_STAGE" = apt-timeout ]; then
+(sh -c 'sleep 0.4; touch "$TEST_DIR/child-survived"') &
+wait
+else test "$FAIL_STAGE" != apt; fi`,
+				"useradd":  `touch "$TEST_DIR/account"; touch "$TEST_DIR/created"`,
+				"userdel":  `rm "$TEST_DIR/account"`,
+				"chpasswd": `cat >/dev/null`,
+				"runuser":  `shift 3; exec "$@"`,
+				"curl": `while [ "$#" -gt 0 ]; do
+if [ "$1" = "-o" ]; then shift; if [ "$FAIL_STAGE" = timeout ]; then printf 'sleep 60\n' > "$1"; else printf 'touch "$TEST_DIR/executed"\n' > "$1"; fi; break; fi
+shift
+done
+if [ "$FAIL_STAGE" = timeout ]; then exit 0; fi
+exit 22`,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rec := &recordRunner{}
+			remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", RunCmd: rec}
+			if err := remote.CreateUser("alice", "test-password"); err != nil {
+				t.Fatal(err)
+			}
+			command := strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n ")
+			command = strings.ReplaceAll(command, "p.wait(timeout=120)", "p.wait(timeout=0.1)")
+			cmd := exec.Command("sh", "-c", command)
+			cmd.Env = append(os.Environ(), "PATH="+dir+":/usr/bin:/bin", "FAIL_STAGE="+stage, "TEST_DIR="+dir)
+			cmd.Stdin = strings.NewReader(rec.stdin)
+			if out, err := cmd.CombinedOutput(); err == nil {
+				t.Fatalf("failure accepted: %s", out)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "account")); !os.IsNotExist(err) {
+				t.Fatal("left a partially initialized account")
+			}
+			if _, err := os.Stat(filepath.Join(dir, "executed")); !os.IsNotExist(err) {
+				t.Fatal("executed a partial script")
+			}
+			if stage == "apt-timeout" {
+				time.Sleep(500 * time.Millisecond)
+				if _, err := os.Stat(filepath.Join(dir, "child-survived")); !os.IsNotExist(err) {
+					t.Fatal("apt child survived installer timeout")
+				}
+			}
+			_, created := os.Stat(filepath.Join(dir, "created"))
+			if strings.HasPrefix(stage, "apt") && !os.IsNotExist(created) {
+				t.Fatal("created an account before system prerequisites succeeded")
+			}
+			if !strings.HasPrefix(stage, "apt") && created != nil {
+				t.Fatal("test did not reach user setup")
 			}
 		})
 	}

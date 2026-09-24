@@ -76,7 +76,14 @@ func (s SSHRemote) run(remote, stdin string, secrets ...string) (string, error) 
 	out, err := runner.Run(argv, stdin)
 	out = redactText(out, secrets...)
 	if err != nil {
+		detail := strings.TrimSpace(out)
+		if len(detail) > 4096 {
+			detail = "…" + detail[len(detail)-4096:]
+		}
 		err = fmt.Errorf("remote operation failed: %w", err)
+		if detail != "" {
+			err = fmt.Errorf("%w: %s", err, detail)
+		}
 		out = ""
 	}
 	return out, err
@@ -89,6 +96,15 @@ func (s SSHRemote) run(remote, stdin string, secrets ...string) (string, error) 
 func (s SSHRemote) RunCommand(cmd string) (string, error) {
 	out, err := s.run(cmd, "")
 	return strings.TrimSpace(out), err
+}
+
+// RunCommandContext bounds remote admin commands by both the request lifetime
+// and the configured SSH timeout.
+func (s SSHRemote) RunCommandContext(ctx context.Context, cmd string) (string, error) {
+	if s.RunCmd == nil {
+		s.RunCmd = execRunner{timeout: s.Timeout, context: ctx}
+	}
+	return s.RunCommand(cmd)
 }
 
 func (s SSHRemote) UserExists(username string) (bool, error) {
@@ -142,18 +158,47 @@ func (s SSHRemote) CreateUser(username, password string) error {
 	if username == s.User {
 		return fmt.Errorf("operator account cannot be provisioned")
 	}
-	script := `import subprocess,sys
+	// Leave time for the two 120-second installers, account setup, rollback,
+	// and connection establishment. Other operations retain their normal limit.
+	if s.Timeout < 8*time.Minute {
+		s.Timeout = 8 * time.Minute
+	}
+	script := `import os,shutil,signal,subprocess,sys
+# SSH hangups and shutdowns should unwind through the account rollback path.
+def interrupted(signum, frame):
+    raise RuntimeError("provisioning interrupted")
+signal.signal(signal.SIGHUP, interrupted)
+signal.signal(signal.SIGTERM, interrupted)
+def run_installer(argv, **kwargs):
+    p=subprocess.Popen(argv,start_new_session=True, **kwargs)
+    try:
+        if p.wait(timeout=120):
+            raise RuntimeError("installer failed")
+    except BaseException:
+        try: os.killpg(p.pid,signal.SIGTERM)
+        except ProcessLookupError: pass
+        try: p.wait(timeout=10)
+        except subprocess.TimeoutExpired: pass
+        finally:
+            # Kill descendants even if the group leader already exited.
+            try: os.killpg(p.pid,signal.SIGKILL)
+            except ProcessLookupError: pass
+        p.wait(timeout=5)
+        raise
 u=sys.argv[1]; pw=sys.stdin.read()
+# This provisioning path uses Debian/Ubuntu's package names. The connection
+# probe checks apt-get before an account is created, so a failed package
+# prerequisite cannot leave an account with a missing login shell.
+if shutil.which("apt-get") is None:
+    raise RuntimeError("apt-get is required to provision a new account")
+run_installer(["apt-get","install","-y","--no-install-recommends","zsh","htop","curl","git"],
+    env=dict(os.environ,DEBIAN_FRONTEND="noninteractive"))
 subprocess.run(["useradd","--create-home","--shell","/usr/bin/zsh",u],check=True,timeout=30)
 try:
     subprocess.run(["chpasswd"],input=u+":"+pw+"\n",text=True,check=True,timeout=15)
-    # Install common tools: htop, curl, git, and oh-my-zsh for the new user.
-    subprocess.run(["apt-get","install","-y","--no-install-recommends","zsh","htop","curl","git"],
-        check=True,timeout=120,capture_output=True)
-    subprocess.run(["runuser","-u",u,"--",
-        "sh","-c",
-        'RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"'],
-        check=True,timeout=120)
+    run_installer(["runuser","-u",u,"--",
+        "bash","-c",
+        '''set -eu; export RUNZSH=no CHSH=no; installer=$(mktemp); trap 'rm -f "$installer"' EXIT; curl --connect-timeout 10 --max-time 60 -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; bash "$installer"'''])
 except BaseException:
     subprocess.run(["userdel","-r",u],check=True,timeout=30)
     raise
@@ -233,6 +278,7 @@ func (s SSHRemote) InstallDaemon(username string) error {
 
 type execRunner struct {
 	timeout time.Duration
+	context context.Context
 }
 
 func (e execRunner) Run(argv []string, stdin string) (string, error) {
@@ -240,9 +286,14 @@ func (e execRunner) Run(argv []string, stdin string) (string, error) {
 	if timeout <= 0 {
 		timeout = 90 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	parent := e.context
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.WaitDelay = time.Second
 	cmd.Stdin = strings.NewReader(stdin)
 	var out bytes.Buffer
 	cmd.Stdout = &out

@@ -62,9 +62,11 @@ type BuiltinRuntime struct {
 	// InstallCommand is the shell command to install or upgrade this runtime
 	// to a specific version on a target Linux user account.
 	// The placeholders {{version}} and {{user}} are replaced at runtime.
-	// Example: "runuser -u {{user}} -- npm install -g omp@{{version}}"
+	// Example: "runuser -u {{user}} -- npm install -g package@{{version}}"
 	// When empty, installation via the admin UI is not supported for this runtime.
 	InstallCommand string
+	// LatestOnly opts out of version pinning. The zero value requires a version.
+	LatestOnly bool
 
 	// ModelDiscovery is the strategy for discovering available models.
 	// When set, it replaces the protocol family's discovery entirely — omp
@@ -103,9 +105,8 @@ var BuiltinRuntimes = []BuiltinRuntime{
 		DefaultExecutable: "omp",
 		ProviderLabel:     "omp",
 		ModelDiscovery:    discoverOmpModels,
-		// Install the omp CLI into the Linux user's private npm prefix so
-		// nothing touches the system-wide PATH or requires root.
-		InstallCommand: "runuser -u {{user}} -- npm install -g omp@{{version}}",
+		// Use the official standalone binary; the npm entry point requires Bun.
+		InstallCommand: ompRuntimeInstall(),
 	},
 }
 
@@ -123,9 +124,10 @@ type ProtocolFamilyInstall struct {
 	// DefaultCommand is the bare CLI name used to probe the installed version.
 	DefaultCommand string
 	// InstallCommand is the shell command template. {{user}} and {{version}}
-	// are substituted at runtime. For curl-based installers that don't accept
-	// a version pin, {{version}} is accepted but unused by the script.
+	// are substituted at runtime. Latest-only installers omit {{version}}.
 	InstallCommand string
+	// LatestOnly opts out of version pinning. The zero value requires a version.
+	LatestOnly bool
 }
 
 // ProtocolFamilyInstalls lists install descriptors for first-class protocol
@@ -136,40 +138,39 @@ var ProtocolFamilyInstalls = []ProtocolFamilyInstall{
 		ID:             "claude",
 		DisplayName:    "Claude Code",
 		DefaultCommand: "claude",
-		InstallCommand: "runuser -u {{user}} -- npm install -g @anthropic-ai/claude-code@{{version}}",
+		InstallCommand: npmRuntimeInstall("@anthropic-ai/claude-code", "claude"),
 	},
 	{
 		ID:             "codex",
 		DisplayName:    "Codex",
 		DefaultCommand: "codex",
-		InstallCommand: "runuser -u {{user}} -- npm install -g @openai/codex@{{version}}",
+		InstallCommand: npmRuntimeInstall("@openai/codex", "codex"),
 	},
 	{
 		ID:             "opencode",
 		DisplayName:    "OpenCode",
 		DefaultCommand: "opencode",
-		InstallCommand: "runuser -u {{user}} -- npm install -g opencode-ai@{{version}}",
+		InstallCommand: npmRuntimeInstall("opencode-ai", "opencode"),
 	},
 	{
 		ID:             "pi",
 		DisplayName:    "Pi",
 		DefaultCommand: "pi",
-		InstallCommand: "runuser -u {{user}} -- npm install -g @earendil-works/pi-coding-agent@{{version}}",
+		InstallCommand: npmRuntimeInstall("@earendil-works/pi-coding-agent", "pi"),
 	},
 	{
 		ID:             "grok",
 		DisplayName:    "Grok",
 		DefaultCommand: "grok",
-		// Grok distributes via a curl installer; {{version}} is accepted by
-		// the template engine but unused — the script always installs latest.
-		InstallCommand: "curl -fsSL https://x.ai/cli/install.sh | runuser -u {{user}} -- bash",
+		// The installer accepts a version as its first positional argument.
+		InstallCommand: scriptRuntimeInstall("https://x.ai/cli/install.sh", `bash "$installer" "{{version}}"`, "grok"),
 	},
 	{
 		ID:             "kimi",
 		DisplayName:    "Kimi",
 		DefaultCommand: "kimi",
-		// Kimi distributes via a curl installer; same note as grok above.
-		InstallCommand: "curl -fsSL https://code.kimi.com/kimi-code/install.sh | runuser -u {{user}} -- bash",
+		// Keep the native installation directory and pass pinned versions explicitly.
+		InstallCommand: scriptRuntimeInstall("https://code.kimi.com/kimi-code/install.sh", `export KIMI_INSTALL_DIR="$HOME/.kimi-code" KIMI_VERSION=; if [ "{{version}}" = latest ]; then bash "$installer"; else bash "$installer" --version "{{version}}"; fi`, "kimi"),
 	},
 }
 
@@ -284,4 +285,27 @@ func RuntimeProtocolFamily(runtimeType string) (string, bool) {
 		return desc.ProtocolFamily, true
 	}
 	return runtimeType, IsSupportedType(runtimeType)
+}
+
+// Admin installations and probes include the user-local and vendor bin directories.
+// npm runtimes use system Node/npm. The operator's shell configuration must not affect installs.
+func runtimeUserCommand(script string) string {
+	script = `set -eu; export PATH="$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin"; cd "$HOME"; mkdir -p "$HOME/.local/bin"; ` + script
+	return "runuser -u {{user}} -- sh -c " + shellQuote(script)
+}
+
+func npmRuntimeInstall(pkg, command string) string {
+	return runtimeUserCommand(`command -v node >/dev/null && command -v npm >/dev/null || { echo "Install Node.js and npm in /usr/local/bin or /usr/bin; login-shell and nvm paths are not loaded" >&2; exit 127; }; ` +
+		`NPM_CONFIG_PREFIX="$HOME/.local" npm install --prefix "$HOME/.local" -g ` + pkg + `@{{version}}; ` + command + ` --version >/dev/null`)
+}
+
+func scriptRuntimeInstall(url, invocation, command string) string {
+	// Download completely before execution. A truncated response must never be
+	// run, even when curl has already written a valid shell prefix.
+	return runtimeUserCommand(`installer=$(mktemp); trap 'rm -f "$installer"' EXIT; curl --connect-timeout 10 --max-time 60 -fsSL ` + url + ` -o "$installer"; ` + invocation + `; ` + command + ` --version >/dev/null`)
+}
+
+func ompRuntimeInstall() string {
+	return scriptRuntimeInstall("https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh",
+		`export PI_INSTALL_DIR="$HOME/.local/bin"; version="{{version}}"; if [ "$version" = latest ]; then sh "$installer" --binary; else sh "$installer" --binary --ref "v${version#v}"; fi`, "omp")
 }

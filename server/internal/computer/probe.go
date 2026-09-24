@@ -59,7 +59,7 @@ if rc==0:
     add("pam",prc==0 and pout=="ok","" if pout=="ok" else {"missing":"/etc/pam.d/multica-provision is absent","unsafe":"/etc/pam.d/multica-provision is not a root-owned regular file","content":"/etc/pam.d/multica-provision content is unexpected"}.get(pout,perr or "pam check failed"))
 else:
     add("pam",False,"skipped: sudo unavailable")
-for tool in ("systemctl","useradd","userdel","runuser","chpasswd"):
+for tool in ("systemctl","useradd","userdel","runuser","chpasswd","apt-get"):
     add(tool,shutil.which(tool) is not None,"" if shutil.which(tool) else "not found in PATH")
 u=os.uname()
 facts={"hostname":u.nodename,"kernel":u.release,"cpus":os.cpu_count() or 0}

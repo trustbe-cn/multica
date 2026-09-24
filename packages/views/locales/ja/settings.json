@@ -1438,6 +1438,8 @@
     "copy_ssh_pubkey_failed": "SSH公開鍵のコピーに失敗しました",
     "runtimes_title": "ランタイム",
     "runtimes_version": "バージョン",
+    "runtimes_latest": "最新版のみ",
+    "runtimes_prerequisites": "npm によるインストールには /usr/local/bin または /usr/bin に Node.js と npm が必要です。ログインシェルや nvm のパスは読み込まれません。Oh-My-Pi は単体バイナリを使用します。",
     "runtimes_not_installed": "未インストール",
     "runtimes_install": "インストール",
     "runtimes_update": "更新",
@@ -1445,6 +1447,9 @@
     "runtimes_version_placeholder": "例: 1.2.3",
     "runtimes_installing": "インストール中…",
     "runtimes_install_success": "ランタイムをインストールしました",
-    "runtimes_install_failed": "インストールに失敗しました"
+    "runtimes_install_failed": "インストールに失敗しました",
+    "runtimes_version_label": "{{runtime}} のバージョン",
+    "runtimes_probe_failed": "バージョン確認に失敗しました",
+    "runtimes_empty": "利用できるランタイムはありません。"
   }
 }

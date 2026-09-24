@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/computer"
@@ -234,5 +236,99 @@ func TestDisabledComputerVisibleOnlyForOwnerCleanup(t *testing.T) {
 		if m.ID == machine {
 			t.Fatal("non-owner can see disabled Computer")
 		}
+	}
+}
+
+func TestAdminRuntimeUserVersionAndAudit(t *testing.T) {
+	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", testUserID)
+	t.Setenv("MULTICA_COMPUTER_SSH_KEY", adminTestKey(t))
+	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "runtime-test", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM computer_audit WHERE computer_id=$1`, machine)
+	})
+	dir := t.TempDir()
+	// SSH is a test-owned executable; these tests never resolve vendor CLIs.
+	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(`#!/bin/sh
+for command do :; done
+case "$command" in
+  *"runuser -u alice"*) ;;
+  *) exit 44;;
+esac
+case "$command" in
+  *"--version"*) printf '1.2.3\n';;
+  *) exit 45;;
+esac
+`), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	request := func(method, url string, body any) *http.Request {
+		return withURLParam(computerTestRequest(method, url, body), "id", machine)
+	}
+	var runtimes []struct {
+		ID               string `json:"id"`
+		InstalledVersion string `json:"installed_version"`
+		VersionRequired  bool   `json:"version_required"`
+		ProbeError       string `json:"probe_error"`
+	}
+	testutil.Call(t, testHandler.AdminComputerRuntimes, request("GET", "/?linux_user=alice", nil)).Want(200).JSON(&runtimes)
+	if len(runtimes) != 7 {
+		t.Fatalf("runtimes = %+v", runtimes)
+	}
+	for _, rt := range runtimes {
+		if rt.InstalledVersion != "1.2.3" || rt.ProbeError != "" {
+			t.Fatalf("wrong target user: %+v", rt)
+		}
+		if !rt.VersionRequired {
+			t.Fatalf("wrong version capability: %+v", rt)
+		}
+	}
+	for _, tc := range []struct {
+		runtime, version, user string
+		status                 int
+	}{
+		{"omp", "1.2.3\n", "alice", 400},
+		{"omp", "1.2.3", "alice;id", 400},
+		{"unknown", "1.2.3", "alice", 400},
+		{"grok", "", "alice", 400},
+		{"grok", "latest", "alice", 200},
+	} {
+		testutil.Call(t, testHandler.AdminComputerRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": tc.runtime, "version": tc.version, "linux_user": tc.user})).Want(tc.status)
+	}
+	var count int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM computer_audit WHERE computer_id=$1 AND action='runtime_install:grok@latest' AND outcome='success'`, machine).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("latest audit: count=%d err=%v", count, err)
+	}
+	// Transport failures remain distinct from executables missing on PATH.
+	testutil.Call(t, testHandler.AdminComputerRuntimes, request("GET", "/?linux_user=bob", nil)).Want(200).JSON(&runtimes)
+	for _, rt := range runtimes {
+		if rt.ProbeError == "" || rt.InstalledVersion != "" {
+			t.Fatalf("lost probe failure: %+v", rt)
+		}
+	}
+}
+
+func TestAdminSshPublicKeyDerivation(t *testing.T) {
+	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", testUserID)
+	key := filepath.Join(t.TempDir(), "id_ed25519")
+	if out, err := exec.Command("ssh-keygen", "-t", "ed25519", "-N", "", "-f", key).CombinedOutput(); err != nil {
+		t.Fatalf("generate test key: %v: %s", err, out)
+	}
+	expected, err := os.ReadFile(key + ".pub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(key + ".pub"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MULTICA_COMPUTER_SSH_KEY", key)
+	var result struct {
+		Pubkey string `json:"pubkey"`
+	}
+	testutil.Call(t, testHandler.AdminSshPubKey, computerTestRequest("GET", "/", nil)).Want(200).JSON(&result)
+	want := strings.Fields(string(expected))
+	got := strings.Fields(result.Pubkey)
+	if len(got) < 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatal("derived public key does not match")
 	}
 }

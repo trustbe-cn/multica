@@ -1,4 +1,4 @@
-import { InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
+import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
 import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
@@ -963,12 +963,23 @@ export class ApiClient {
   async listComputerAudit(): Promise<ComputerAudit[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-audit"), ComputerAuditSchema.array(), [] as ComputerAudit[], {endpoint:"/api/admin/computer-audit"}); }
   async updateAdminComputer(id:string,input:Partial<Omit<AdminComputer,"id">>) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"PATCH",body:JSON.stringify(input)}); }
   async deleteAdminComputer(id:string) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"DELETE"}); }
-  async checkAdminComputerDraft(input: Omit<Computer, "id" | "enabled">): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>("/api/admin/computers/check", {method:"POST",body:JSON.stringify(input)})); }
-  async checkAdminComputer(id:string): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/check`, {method:"POST"})); }
-  async listAdminComputerRuntimes(id: string): Promise<AdminComputerRuntime[]> { return parseWithFallback(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/runtimes`), AdminComputerRuntimeSchema.array(), [] as AdminComputerRuntime[], {endpoint:"/api/admin/computers/{id}/runtimes"}); }
+  async checkAdminComputerDraft(input: Omit<Computer, "id" | "enabled">): Promise<ProbeResult> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computers/check", {method:"POST",body:JSON.stringify(input)}), ProbeResultSchema, { ok: false, facts: {}, checks: [] }, { endpoint: "/api/admin/computers/check" }); }
+  async checkAdminComputer(id:string): Promise<ProbeResult> { return parseWithFallback(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/check`, {method:"POST"}), ProbeResultSchema, { ok: false, facts: {}, checks: [] }, { endpoint: "/api/admin/computers/{id}/check" }); }
+  async listAdminComputerRuntimes(id: string, linuxUser?: string, signal?: AbortSignal): Promise<AdminComputerRuntime[]> {
+    const query = linuxUser ? `?linux_user=${encodeURIComponent(linuxUser)}` : "";
+    const result = parseWithFallback<AdminComputerRuntime[] | null>(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/runtimes${query}`, { signal }), AdminComputerRuntimeSchema.array(), null, {endpoint:"/api/admin/computers/{id}/runtimes"});
+    if (!result) throw new Error("Runtime list response is invalid; retry the version check");
+    return result;
+  }
   async installAdminComputerRuntime(id: string, runtimeId: string, version: string, linuxUser: string): Promise<void> { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}/runtime-install`, {method:"POST",body:JSON.stringify({runtime_id:runtimeId,version,linux_user:linuxUser})}); }
   async getAdminSshPubKey(): Promise<string> {
-    const res = await this.fetch<{pubkey: string}>("/api/admin/computer-ssh-pubkey");
+    const res = parseWithFallback<{ pubkey: string } | null>(
+      await this.fetch<unknown>("/api/admin/computer-ssh-pubkey"),
+      AdminSshPubKeySchema,
+      null,
+      { endpoint: "/api/admin/computer-ssh-pubkey" },
+    );
+    if (!res) throw new Error("SSH public key response is invalid");
     return res.pubkey;
   }
   async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }

@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { Computer } from "./schema";
-import type { AdminComputer } from "./admin-schema";
+import type { AdminComputer, AdminComputerRuntime } from "./admin-schema";
 
 export function useInstanceAccess(userId: string) {
   return useQuery({
@@ -66,4 +66,28 @@ export function useComputerAdmin(userId: string, allowed: boolean) {
     onSuccess: refresh,
   });
   return { computers, bindings, audit, register, update, remove, check, checkDraft, refresh };
+}
+
+export function useAdminComputerRuntimes(userId: string, computerId: string, linuxUser: string) {
+  const isInstalling = useIsMutating({ mutationKey: ["admin-runtime-install", userId, computerId] }) > 0;
+  const enabled = !!userId && !!computerId && !!linuxUser;
+  const runtimes = useQuery<AdminComputerRuntime[]>({
+    queryKey: ["computer-admin", userId, "runtimes", computerId, linuxUser],
+    enabled,
+    queryFn: ({ signal }) => api.listAdminComputerRuntimes(computerId, linuxUser, signal),
+    retry: false,
+  });
+  return { runtimes, isInstalling };
+}
+
+export function useAdminRuntimeInstall(userId: string, computerId: string, linuxUser: string, runtimeId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ["admin-runtime-install", userId, computerId, linuxUser, runtimeId],
+    mutationFn: (version: string) =>
+      api.installAdminComputerRuntime(computerId, runtimeId, version, linuxUser),
+    onSettled: async () => {
+      await client.invalidateQueries({ queryKey: ["computer-admin", userId] });
+    },
+  });
 }
