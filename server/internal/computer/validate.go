@@ -30,6 +30,10 @@ func validateUsername(name string) error {
 	return nil
 }
 
+// ValidateLinuxUsername is the exported form of validateUsername for callers
+// outside this package that need to pre-validate before building SSH commands.
+func ValidateLinuxUsername(name string) error { return validateUsername(name) }
+
 // rejectControls refuses NUL and every other ASCII control character.
 // These values are copied into NUL-separated payloads, shell stdin, and files.
 func rejectControls(label, v string) error {

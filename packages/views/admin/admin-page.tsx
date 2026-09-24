@@ -6,6 +6,7 @@ import {
   useInstanceAccess,
   useComputerAdmin,
   type AdminComputer,
+  type AdminComputerRuntime,
   type ProbeResult,
 } from "@multica/core/computers";
 import { api } from "@multica/core/api";
@@ -430,78 +431,190 @@ function ComputerRow({
 }) {
   const { t } = useT("settings");
   const when = (v?: string) => (v ? new Date(v).toLocaleString() : "");
+  const [showRuntimes, setShowRuntimes] = useState(false);
   return (
-    <li className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4">
-      <div className="min-w-0 space-y-1">
-        <p className="flex flex-wrap items-center gap-2 font-medium">
-          {m.name}
-          <Badge variant={m.enabled ? "secondary" : "outline"}>
-            {m.enabled ? t(($) => $.admin.enabled) : t(($) => $.admin.disabled)}
-          </Badge>
-          {m.check_ok === true && (
-            <Badge variant="secondary">{t(($) => $.admin.check_passed)}</Badge>
-          )}
-          {m.check_ok === false && (
-            <Badge variant="destructive">{t(($) => $.admin.check_failed)}</Badge>
-          )}
-        </p>
-        <p className="break-all text-sm text-muted-foreground">
-          {m.ssh_user}@{m.host}:{m.port}
-        </p>
-        <dl className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
-          <div className="flex gap-1">
-            <dt>{t(($) => $.admin.bound_accounts)}:</dt>
-            <dd>{m.bindings}</dd>
-          </div>
-          {m.created_by_name && (
+    <li className="flex flex-col gap-3 rounded-lg border p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="flex flex-wrap items-center gap-2 font-medium">
+            {m.name}
+            <Badge variant={m.enabled ? "secondary" : "outline"}>
+              {m.enabled ? t(($) => $.admin.enabled) : t(($) => $.admin.disabled)}
+            </Badge>
+            {m.check_ok === true && (
+              <Badge variant="secondary">{t(($) => $.admin.check_passed)}</Badge>
+            )}
+            {m.check_ok === false && (
+              <Badge variant="destructive">{t(($) => $.admin.check_failed)}</Badge>
+            )}
+          </p>
+          <p className="break-all text-sm text-muted-foreground">
+            {m.ssh_user}@{m.host}:{m.port}
+          </p>
+          <dl className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
             <div className="flex gap-1">
-              <dt>{t(($) => $.admin.registered_by)}:</dt>
-              <dd className="truncate">{m.created_by_name}</dd>
+              <dt>{t(($) => $.admin.bound_accounts)}:</dt>
+              <dd>{m.bindings}</dd>
             </div>
-          )}
-          {m.created_at && (
+            {m.created_by_name && (
+              <div className="flex gap-1">
+                <dt>{t(($) => $.admin.registered_by)}:</dt>
+                <dd className="truncate">{m.created_by_name}</dd>
+              </div>
+            )}
+            {m.created_at && (
+              <div className="flex gap-1">
+                <dt>{t(($) => $.admin.registered_at)}:</dt>
+                <dd>
+                  <time dateTime={m.created_at}>{when(m.created_at)}</time>
+                </dd>
+              </div>
+            )}
             <div className="flex gap-1">
-              <dt>{t(($) => $.admin.registered_at)}:</dt>
+              <dt>{t(($) => $.admin.last_check)}:</dt>
               <dd>
-                <time dateTime={m.created_at}>{when(m.created_at)}</time>
+                {m.checked_at ? (
+                  <time dateTime={m.checked_at}>{when(m.checked_at)}</time>
+                ) : (
+                  t(($) => $.admin.never_checked)
+                )}
               </dd>
             </div>
+          </dl>
+          {m.check_ok === false && m.check_detail && (
+            <p className="break-all text-sm text-destructive">{m.check_detail}</p>
           )}
-          <div className="flex gap-1">
-            <dt>{t(($) => $.admin.last_check)}:</dt>
-            <dd>
-              {m.checked_at ? (
-                <time dateTime={m.checked_at}>{when(m.checked_at)}</time>
-              ) : (
-                t(($) => $.admin.never_checked)
-              )}
-            </dd>
-          </div>
-        </dl>
-        {m.check_ok === false && m.check_detail && (
-          <p className="break-all text-sm text-destructive">{m.check_detail}</p>
-        )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={busy} onClick={onCheck}>
+            {t(($) => $.admin.test_connection)}
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => setShowRuntimes((v) => !v)}>
+            {t(($) => $.admin.runtimes_title)}
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={onEdit}>
+            {t(($) => $.admin.edit)}
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={onToggle}>
+            {m.enabled ? t(($) => $.admin.disable) : t(($) => $.admin.enable)}
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive"
+            disabled={busy || m.bindings > 0}
+            onClick={onDelete}
+          >
+            {t(($) => $.admin.delete)}
+          </Button>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={busy} onClick={onCheck}>
-          {t(($) => $.admin.test_connection)}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={onEdit}>
-          {t(($) => $.admin.edit)}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={onToggle}>
-          {m.enabled ? t(($) => $.admin.disable) : t(($) => $.admin.enable)}
-        </Button>
-        <Button
-          variant="outline"
-          className="text-destructive"
-          disabled={busy || m.bindings > 0}
-          onClick={onDelete}
-        >
-          {t(($) => $.admin.delete)}
-        </Button>
-      </div>
+      {showRuntimes && <ComputerRuntimesPanel computerId={m.id} />}
     </li>
+  );
+}
+
+/** Expandable panel showing runtime versions for a computer, with install/update. */
+function ComputerRuntimesPanel({ computerId }: { computerId: string }) {
+  const { t } = useT("settings");
+  const [runtimes, setRuntimes] = useState<AdminComputerRuntime[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [installState, setInstallState] = useState<Record<string, { user: string; version: string; busy: boolean }>>({});
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.listAdminComputerRuntimes(computerId).then((list) => {
+      if (active) {
+        setRuntimes(list);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (active) {
+        setRuntimes([]);
+        setLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, [computerId]);
+
+  const handleInstall = async (runtimeId: string) => {
+    const state = installState[runtimeId];
+    if (!state?.user || !state?.version) return;
+    setInstallState((prev) => ({ ...prev, [runtimeId]: { ...prev[runtimeId]!, busy: true } }));
+    try {
+      await api.installAdminComputerRuntime(computerId, runtimeId, state.version, state.user);
+      toast.success(t(($) => $.admin.runtimes_install_success));
+      // Refresh the runtime list after install.
+      const updated = await api.listAdminComputerRuntimes(computerId);
+      setRuntimes(updated);
+    } catch {
+      toast.error(t(($) => $.admin.runtimes_install_failed));
+    } finally {
+      setInstallState((prev) => ({ ...prev, [runtimeId]: { ...prev[runtimeId]!, busy: false } }));
+    }
+  };
+
+  if (loading) {
+    return <div className="mt-2 text-sm text-muted-foreground">{t(($) => $.admin.runtimes_installing)}</div>;
+  }
+  if (!runtimes || runtimes.length === 0) {
+    return null;
+  }
+  return (
+    <div className="mt-2 space-y-3 rounded-md border p-3">
+      <p className="text-sm font-medium">{t(($) => $.admin.runtimes_title)}</p>
+      <ul className="space-y-2">
+        {runtimes.map((rt) => {
+          const s = installState[rt.id] ?? { user: "", version: "", busy: false };
+          return (
+            <li key={rt.id} className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="w-24 font-medium">{rt.display_name}</span>
+              <span className="text-muted-foreground">
+                {rt.installed_version
+                  ? `${t(($) => $.admin.runtimes_version)}: ${rt.installed_version}`
+                  : t(($) => $.admin.runtimes_not_installed)}
+              </span>
+              {rt.can_install && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    className="h-7 w-32 text-xs"
+                    placeholder={t(($) => $.admin.runtimes_linux_user_placeholder)}
+                    value={s.user}
+                    onChange={(e) =>
+                      setInstallState((prev) => ({ ...prev, [rt.id]: { ...prev[rt.id] ?? { user: "", version: "", busy: false }, user: e.target.value } }))
+                    }
+                    disabled={s.busy}
+                    aria-label={`${rt.display_name} linux user`}
+                  />
+                  <Input
+                    className="h-7 w-24 text-xs"
+                    placeholder={t(($) => $.admin.runtimes_version_placeholder)}
+                    value={s.version}
+                    onChange={(e) =>
+                      setInstallState((prev) => ({ ...prev, [rt.id]: { ...prev[rt.id] ?? { user: "", version: "", busy: false }, version: e.target.value } }))
+                    }
+                    disabled={s.busy}
+                    aria-label={`${rt.display_name} version`}
+                  />
+                  <Button
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={s.busy || !s.user || !s.version}
+                    onClick={() => void handleInstall(rt.id)}
+                  >
+                    {s.busy
+                      ? t(($) => $.admin.runtimes_installing)
+                      : rt.installed_version
+                        ? t(($) => $.admin.runtimes_update)
+                        : t(($) => $.admin.runtimes_install)}
+                  </Button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

@@ -1442,6 +1442,16 @@
     "bound_accounts": "Comptes liés",
     "copy_ssh_pubkey": "Copier la clé publique SSH",
     "copy_ssh_pubkey_copied": "Clé publique SSH copiée",
-    "copy_ssh_pubkey_failed": "Échec de la copie de la clé publique SSH"
+    "copy_ssh_pubkey_failed": "Échec de la copie de la clé publique SSH",
+    "runtimes_title": "Environnements d'exécution",
+    "runtimes_version": "Version",
+    "runtimes_not_installed": "Non installé",
+    "runtimes_install": "Installer",
+    "runtimes_update": "Mettre à jour",
+    "runtimes_linux_user_placeholder": "Nom d'utilisateur Linux",
+    "runtimes_version_placeholder": "ex. 1.2.3",
+    "runtimes_installing": "Installation…",
+    "runtimes_install_success": "Environnement installé avec succès",
+    "runtimes_install_failed": "L'installation a échoué"
   }
 }

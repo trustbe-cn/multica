@@ -49,3 +49,11 @@ export const ComputerAuditSchema = z.object({
 
 export type AdminBinding = z.infer<typeof AdminBindingSchema>;
 export type ComputerAudit = z.infer<typeof ComputerAuditSchema>;
+
+export const AdminComputerRuntimeSchema = z.object({
+  id: z.string(),
+  display_name: z.string(),
+  installed_version: z.string(),
+  can_install: z.boolean(),
+});
+export type AdminComputerRuntime = z.infer<typeof AdminComputerRuntimeSchema>;

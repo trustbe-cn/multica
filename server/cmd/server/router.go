@@ -1624,6 +1624,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Patch("/api/admin/computers/{id}", h.UpdateAdminComputer)
 		r.With(handler.RequireHumanActor).Delete("/api/admin/computers/{id}", h.DeleteAdminComputer)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers/{id}/check", h.CheckAdminComputer)
+		r.With(handler.RequireHumanActor).Get("/api/admin/computers/{id}/runtimes", h.AdminComputerRuntimes)
+		r.With(handler.RequireHumanActor).Post("/api/admin/computers/{id}/runtime-install", h.AdminComputerRuntimeInstall)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computer-bindings", h.AdminComputerBindings)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computer-audit", h.AdminComputerAudit)
 		r.With(handler.RequireHumanActor).Get("/api/computers", h.Computers)

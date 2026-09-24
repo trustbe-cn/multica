@@ -82,6 +82,15 @@ func (s SSHRemote) run(remote, stdin string, secrets ...string) (string, error) 
 	return out, err
 }
 
+// RunCommand executes cmd on the remote machine as the configured SSH user and
+// returns the trimmed output. The command string is passed verbatim as the SSH
+// remote argument — the caller must ensure safe quoting and validation of any
+// interpolated values.
+func (s SSHRemote) RunCommand(cmd string) (string, error) {
+	out, err := s.run(cmd, "")
+	return strings.TrimSpace(out), err
+}
+
 func (s SSHRemote) UserExists(username string) (bool, error) {
 	if err := validateUsername(username); err != nil {
 		return false, err

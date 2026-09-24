@@ -1442,6 +1442,16 @@
     "bound_accounts": "Bound accounts",
     "copy_ssh_pubkey": "Copy SSH public key",
     "copy_ssh_pubkey_copied": "SSH public key copied",
-    "copy_ssh_pubkey_failed": "Failed to copy SSH public key"
+    "copy_ssh_pubkey_failed": "Failed to copy SSH public key",
+    "runtimes_title": "Runtimes",
+    "runtimes_version": "Version",
+    "runtimes_not_installed": "Not installed",
+    "runtimes_install": "Install",
+    "runtimes_update": "Update",
+    "runtimes_linux_user_placeholder": "Linux username",
+    "runtimes_version_placeholder": "e.g. 1.2.3",
+    "runtimes_installing": "Installing…",
+    "runtimes_install_success": "Runtime installed successfully",
+    "runtimes_install_failed": "Install failed"
   }
 }

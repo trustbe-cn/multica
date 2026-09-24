@@ -1435,6 +1435,16 @@
     "bound_accounts": "연결된 계정",
     "copy_ssh_pubkey": "SSH 공개 키 복사",
     "copy_ssh_pubkey_copied": "SSH 공개 키가 복사되었습니다",
-    "copy_ssh_pubkey_failed": "SSH 공개 키 복사 실패"
+    "copy_ssh_pubkey_failed": "SSH 공개 키 복사 실패",
+    "runtimes_title": "런타임",
+    "runtimes_version": "버전",
+    "runtimes_not_installed": "설치되지 않음",
+    "runtimes_install": "설치",
+    "runtimes_update": "업데이트",
+    "runtimes_linux_user_placeholder": "Linux 사용자 이름",
+    "runtimes_version_placeholder": "예: 1.2.3",
+    "runtimes_installing": "설치 중…",
+    "runtimes_install_success": "런타임이 설치되었습니다",
+    "runtimes_install_failed": "설치 실패"
   }
 }

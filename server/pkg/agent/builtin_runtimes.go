@@ -59,6 +59,13 @@ type BuiltinRuntime struct {
 	// piBackend.providerLabel).
 	ProviderLabel string
 
+	// InstallCommand is the shell command to install or upgrade this runtime
+	// to a specific version on a target Linux user account.
+	// The placeholders {{version}} and {{user}} are replaced at runtime.
+	// Example: "runuser -u {{user}} -- npm install -g omp@{{version}}"
+	// When empty, installation via the admin UI is not supported for this runtime.
+	InstallCommand string
+
 	// ModelDiscovery is the strategy for discovering available models.
 	// When set, it replaces the protocol family's discovery entirely — omp
 	// uses `omp models --json`, a different command and output shape from
@@ -96,6 +103,9 @@ var BuiltinRuntimes = []BuiltinRuntime{
 		DefaultExecutable: "omp",
 		ProviderLabel:     "omp",
 		ModelDiscovery:    discoverOmpModels,
+		// Install the omp CLI into the Linux user's private npm prefix so
+		// nothing touches the system-wide PATH or requires root.
+		InstallCommand: "runuser -u {{user}} -- npm install -g omp@{{version}}",
 	},
 }
 
