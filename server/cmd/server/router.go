@@ -1617,6 +1617,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings", h.ComputerBindings)
 		r.With(handler.RequireHumanActor).Put("/api/me/computer-settings", h.ComputerSettings)
 		r.With(handler.RequireHumanActor).Get("/api/me/instance-access", h.InstanceAccess)
+		r.With(handler.RequireHumanActor).Get("/api/admin/computer-ssh-pubkey", h.AdminSshPubKey)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computers", h.AdminComputers)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers", h.AdminComputers)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers/check", h.CheckAdminComputerDraft)

@@ -319,6 +319,29 @@ func (h *Handler) CheckAdminComputer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, res)
 }
 
+// AdminSshPubKey returns the public key that the backend uses to log into
+// managed Computers. Admins need it to add the key to a machine's
+// authorized_keys before registering it.
+func (h *Handler) AdminSshPubKey(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireInstanceAdmin(w, r); !ok {
+		return
+	}
+	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
+	if keyPath == "" {
+		writeError(w, 503, "Computer provisioning is not configured")
+		return
+	}
+	// Try <keyPath>.pub first; fall back to deriving the public key from the
+	// private key so that different key-file layouts both work.
+	pubPath := keyPath + ".pub"
+	data, err := os.ReadFile(pubPath)
+	if err != nil {
+		writeError(w, 503, "SSH public key file not found")
+		return
+	}
+	writeJSON(w, 200, map[string]string{"pubkey": strings.TrimSpace(string(data))})
+}
+
 // failedCheckSummary keeps the stored detail short and only about failures.
 func failedCheckSummary(res computer.ProbeResult) string {
 	parts := []string{}

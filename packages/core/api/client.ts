@@ -965,6 +965,10 @@ export class ApiClient {
   async deleteAdminComputer(id:string) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"DELETE"}); }
   async checkAdminComputerDraft(input: Omit<Computer, "id" | "enabled">): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>("/api/admin/computers/check", {method:"POST",body:JSON.stringify(input)})); }
   async checkAdminComputer(id:string): Promise<ProbeResult> { return ProbeResultSchema.parse(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/check`, {method:"POST"})); }
+  async getAdminSshPubKey(): Promise<string> {
+    const res = await this.fetch<{pubkey: string}>("/api/admin/computer-ssh-pubkey");
+    return res.pubkey;
+  }
   async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }
   async registerComputer(input: Omit<Computer, "id" | "enabled">) { await this.fetch("/api/admin/computers", { method: "POST", body: JSON.stringify(input) }); }
   async listComputerBindings(): Promise<ComputerBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/me/computer-bindings"), ComputerBindingSchema.array(), [] as ComputerBinding[], { endpoint: "/api/me/computer-bindings" }); }

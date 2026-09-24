@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   deleteAdminComputer: vi.fn(),
   checkAdminComputer: vi.fn(),
   checkAdminComputerDraft: vi.fn(),
+  getAdminSshPubKey: vi.fn(),
 }));
 const state = vi.hoisted(() => ({
   user: { id: "admin-human" },
@@ -55,6 +56,7 @@ beforeEach(() => {
   api.deleteAdminComputer.mockResolvedValue(undefined);
   api.checkAdminComputer.mockResolvedValue({ ok: true, facts: {}, checks: [] });
   api.checkAdminComputerDraft.mockResolvedValue({ ok: true, facts: {}, checks: [] });
+  api.getAdminSshPubKey.mockResolvedValue("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA mock-key admin@multica");
 });
 const MACHINE = {
   id: "machine",
@@ -248,5 +250,15 @@ describe("instance Admin Area", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Admin Area" }),
     ).toHaveAttribute("href", "/admin");
+  });
+  it("copies SSH public key to clipboard when Copy SSH public key is clicked", async () => {
+    api.getInstanceAccess.mockResolvedValue({ admin: true });
+    mount();
+    const user = userEvent.setup();
+    const copyBtn = await screen.findByRole("button", { name: "Copy SSH public key" });
+    await user.click(copyBtn);
+    await waitFor(() => {
+      expect(api.getAdminSshPubKey).toHaveBeenCalled();
+    });
   });
 });
