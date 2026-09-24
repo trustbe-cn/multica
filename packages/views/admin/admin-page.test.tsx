@@ -237,7 +237,10 @@ describe("instance Admin Area", () => {
       expect(api.checkAdminComputerDraft).toHaveBeenCalled(),
     );
     // The probe result should appear, but no "saved" status message.
-    expect(screen.queryByRole("status")).not.toHaveTextContent(/saved/i);
+    const status = screen.queryByRole("status");
+    if (status) {
+      expect(status).not.toHaveTextContent(/saved/i);
+    }
   });
   it("only shows the standalone link to instance admins", async () => {
     api.getInstanceAccess.mockResolvedValue({ admin: true });
