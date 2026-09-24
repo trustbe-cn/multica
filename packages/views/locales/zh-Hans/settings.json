@@ -1432,6 +1432,9 @@
     "never_checked": "尚未检查",
     "registered_by": "登记人",
     "registered_at": "登记时间",
-    "bound_accounts": "已绑定账号"
+    "bound_accounts": "已绑定账号",
+    "copy_ssh_pubkey": "复制 SSH 公钥",
+    "copy_ssh_pubkey_copied": "SSH 公钥已复制",
+    "copy_ssh_pubkey_failed": "复制 SSH 公钥失败"
   }
 }

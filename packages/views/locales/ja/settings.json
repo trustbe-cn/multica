@@ -1432,6 +1432,9 @@
     "never_checked": "未確認",
     "registered_by": "登録者",
     "registered_at": "登録日時",
-    "bound_accounts": "紐づくアカウント"
+    "bound_accounts": "紐づくアカウント",
+    "copy_ssh_pubkey": "SSH公開鍵をコピー",
+    "copy_ssh_pubkey_copied": "SSH公開鍵をコピーしました",
+    "copy_ssh_pubkey_failed": "SSH公開鍵のコピーに失敗しました"
   }
 }

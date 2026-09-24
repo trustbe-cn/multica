@@ -8,6 +8,7 @@ import {
   type AdminComputer,
   type ProbeResult,
 } from "@multica/core/computers";
+import { api } from "@multica/core/api";
 import { paths } from "@multica/core/paths";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
@@ -24,6 +25,8 @@ import { Input } from "@multica/ui/components/ui/input";
 import { AppLink, useNavigation } from "../navigation";
 import { DragStrip } from "../platform";
 import { useT } from "../i18n";
+import { copyText } from "@multica/ui/lib/clipboard";
+import { toast } from "sonner";
 
 export function AdminAreaLink() {
   const user = useAuthStore((s) => s.user);
@@ -202,6 +205,7 @@ function AdminSections({
               {t(($) => $.computers.title)}
             </h2>
             <div className="flex gap-2">
+              <CopySshPubKeyButton />
               <Button variant="outline" onClick={() => void data.refresh()}>
                 {t(($) => $.admin.refresh)}
               </Button>
@@ -380,6 +384,31 @@ function AdminSections({
         }}
       />
     </>
+  );
+}
+
+function CopySshPubKeyButton() {
+  const { t } = useT("settings");
+  const [busy, setBusy] = useState(false);
+  const handleCopy = async () => {
+    setBusy(true);
+    try {
+      const key = await api.getAdminSshPubKey();
+      if (await copyText(key)) {
+        toast.success(t(($) => $.admin.copy_ssh_pubkey_copied));
+      } else {
+        toast.error(t(($) => $.admin.copy_ssh_pubkey_failed));
+      }
+    } catch {
+      toast.error(t(($) => $.admin.copy_ssh_pubkey_failed));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button variant="outline" disabled={busy} onClick={() => void handleCopy()}>
+      {t(($) => $.admin.copy_ssh_pubkey)}
+    </Button>
   );
 }
 

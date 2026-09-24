@@ -1439,6 +1439,9 @@
     "never_checked": "Never checked",
     "registered_by": "Registered by",
     "registered_at": "Registered",
-    "bound_accounts": "Bound accounts"
+    "bound_accounts": "Bound accounts",
+    "copy_ssh_pubkey": "Copy SSH public key",
+    "copy_ssh_pubkey_copied": "SSH public key copied",
+    "copy_ssh_pubkey_failed": "Failed to copy SSH public key"
   }
 }

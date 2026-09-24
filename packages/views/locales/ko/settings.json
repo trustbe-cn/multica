@@ -1432,6 +1432,9 @@
     "never_checked": "확인하지 않음",
     "registered_by": "등록자",
     "registered_at": "등록 시각",
-    "bound_accounts": "연결된 계정"
+    "bound_accounts": "연결된 계정",
+    "copy_ssh_pubkey": "SSH 공개 키 복사",
+    "copy_ssh_pubkey_copied": "SSH 공개 키가 복사되었습니다",
+    "copy_ssh_pubkey_failed": "SSH 공개 키 복사 실패"
   }
 }

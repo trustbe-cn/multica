@@ -1439,6 +1439,9 @@
     "never_checked": "Jamais vérifié",
     "registered_by": "Enregistré par",
     "registered_at": "Enregistré le",
-    "bound_accounts": "Comptes liés"
+    "bound_accounts": "Comptes liés",
+    "copy_ssh_pubkey": "Copier la clé publique SSH",
+    "copy_ssh_pubkey_copied": "Clé publique SSH copiée",
+    "copy_ssh_pubkey_failed": "Échec de la copie de la clé publique SSH"
   }
 }
