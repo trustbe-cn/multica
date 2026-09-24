@@ -144,9 +144,16 @@ func (s SSHRemote) CreateUser(username, password string) error {
 	}
 	script := `import subprocess,sys
 u=sys.argv[1]; pw=sys.stdin.read()
-subprocess.run(["useradd","--create-home","--shell","/bin/bash",u],check=True,timeout=30)
+subprocess.run(["useradd","--create-home","--shell","/usr/bin/zsh",u],check=True,timeout=30)
 try:
     subprocess.run(["chpasswd"],input=u+":"+pw+"\n",text=True,check=True,timeout=15)
+    # Install common tools: htop, curl, git, and oh-my-zsh for the new user.
+    subprocess.run(["apt-get","install","-y","--no-install-recommends","zsh","htop","curl","git"],
+        check=True,timeout=120,capture_output=True)
+    subprocess.run(["runuser","-u",u,"--",
+        "sh","-c",
+        'RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"'],
+        check=True,timeout=120)
 except BaseException:
     subprocess.run(["userdel","-r",u],check=True,timeout=30)
     raise

@@ -484,19 +484,24 @@ func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) 
 		InstalledVersion string `json:"installed_version"`
 		CanInstall       bool   `json:"can_install"`
 	}
-	list := make([]runtimeInfo, 0, len(agent.BuiltinRuntimes))
-	for _, rt := range agent.BuiltinRuntimes {
+	probeRuntime := func(id, displayName, defaultCmd, installCmd string) runtimeInfo {
 		info := runtimeInfo{
-			ID:          rt.ID,
-			DisplayName: rt.DisplayName,
-			CanInstall:  rt.InstallCommand != "",
+			ID:          id,
+			DisplayName: displayName,
+			CanInstall:  installCmd != "",
 		}
-		// Run the binary with --version; treat any error as "not installed".
-		out, err := remote.RunCommand(rt.DefaultCommand + " --version 2>&1")
+		out, err := remote.RunCommand(defaultCmd + " --version 2>&1")
 		if err == nil {
 			info.InstalledVersion = strings.TrimSpace(out)
 		}
-		list = append(list, info)
+		return info
+	}
+	list := make([]runtimeInfo, 0, len(agent.BuiltinRuntimes)+len(agent.ProtocolFamilyInstalls))
+	for _, rt := range agent.BuiltinRuntimes {
+		list = append(list, probeRuntime(rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand))
+	}
+	for _, rt := range agent.ProtocolFamilyInstalls {
+		list = append(list, probeRuntime(rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand))
 	}
 	writeJSON(w, 200, list)
 }
@@ -526,11 +531,18 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 		return
 	}
 	rt, exists := agent.BuiltinRuntimeByID(in.RuntimeID)
-	if !exists {
-		writeError(w, 400, fmt.Sprintf("Unknown runtime %q", in.RuntimeID))
-		return
+	var installCmd string
+	if exists {
+		installCmd = rt.InstallCommand
+	} else {
+		pf, pfExists := agent.ProtocolFamilyInstallByID(in.RuntimeID)
+		if !pfExists {
+			writeError(w, 400, fmt.Sprintf("Unknown runtime %q", in.RuntimeID))
+			return
+		}
+		installCmd = pf.InstallCommand
 	}
-	if rt.InstallCommand == "" {
+	if installCmd == "" {
 		writeError(w, 422, fmt.Sprintf("Runtime %q does not support installation via the admin UI", in.RuntimeID))
 		return
 	}
@@ -559,7 +571,7 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cmd := strings.ReplaceAll(rt.InstallCommand, "{{user}}", in.LinuxUser)
+	cmd := strings.ReplaceAll(installCmd, "{{user}}", in.LinuxUser)
 	cmd = strings.ReplaceAll(cmd, "{{version}}", in.Version)
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 5 * time.Minute}
 	_, installErr := remote.RunCommand("sudo -n " + cmd)

@@ -109,6 +109,80 @@ var BuiltinRuntimes = []BuiltinRuntime{
 	},
 }
 
+// ProtocolFamilyInstall describes how to install a first-class protocol family
+// (one that is in SupportedTypes) on a target Linux user account.
+// These are separate from BuiltinRuntimes because protocol families are
+// dispatched directly by New(), not through NewRuntime(), and adding them to
+// BuiltinRuntimes would break ResolveBackend by routing them through the wrong
+// factory. InstallCommand supports {{user}} and {{version}} placeholders.
+type ProtocolFamilyInstall struct {
+	// ID matches a value in SupportedTypes.
+	ID string
+	// DisplayName is the human-facing runtime name shown in the admin UI.
+	DisplayName string
+	// DefaultCommand is the bare CLI name used to probe the installed version.
+	DefaultCommand string
+	// InstallCommand is the shell command template. {{user}} and {{version}}
+	// are substituted at runtime. For curl-based installers that don't accept
+	// a version pin, {{version}} is accepted but unused by the script.
+	InstallCommand string
+}
+
+// ProtocolFamilyInstalls lists install descriptors for first-class protocol
+// families. The admin UI merges this with BuiltinRuntimes to show all
+// installable runtimes for a Computer.
+var ProtocolFamilyInstalls = []ProtocolFamilyInstall{
+	{
+		ID:             "claude",
+		DisplayName:    "Claude Code",
+		DefaultCommand: "claude",
+		InstallCommand: "runuser -u {{user}} -- npm install -g @anthropic-ai/claude-code@{{version}}",
+	},
+	{
+		ID:             "codex",
+		DisplayName:    "Codex",
+		DefaultCommand: "codex",
+		InstallCommand: "runuser -u {{user}} -- npm install -g @openai/codex@{{version}}",
+	},
+	{
+		ID:             "opencode",
+		DisplayName:    "OpenCode",
+		DefaultCommand: "opencode",
+		InstallCommand: "runuser -u {{user}} -- npm install -g opencode-ai@{{version}}",
+	},
+	{
+		ID:             "pi",
+		DisplayName:    "Pi",
+		DefaultCommand: "pi",
+		InstallCommand: "runuser -u {{user}} -- npm install -g @earendil-works/pi-coding-agent@{{version}}",
+	},
+	{
+		ID:             "grok",
+		DisplayName:    "Grok",
+		DefaultCommand: "grok",
+		// Grok distributes via a curl installer; {{version}} is accepted by
+		// the template engine but unused — the script always installs latest.
+		InstallCommand: "curl -fsSL https://x.ai/cli/install.sh | runuser -u {{user}} -- bash",
+	},
+	{
+		ID:             "kimi",
+		DisplayName:    "Kimi",
+		DefaultCommand: "kimi",
+		// Kimi distributes via a curl installer; same note as grok above.
+		InstallCommand: "curl -fsSL https://code.kimi.com/kimi-code/install.sh | runuser -u {{user}} -- bash",
+	},
+}
+
+// ProtocolFamilyInstallByID looks up an install descriptor for a protocol family.
+func ProtocolFamilyInstallByID(id string) (ProtocolFamilyInstall, bool) {
+	for _, p := range ProtocolFamilyInstalls {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return ProtocolFamilyInstall{}, false
+}
+
 // BuiltinRuntimeByID returns the descriptor for the given runtime identity,
 // or false if no such built-in runtime exists.
 func BuiltinRuntimeByID(id string) (BuiltinRuntime, bool) {
