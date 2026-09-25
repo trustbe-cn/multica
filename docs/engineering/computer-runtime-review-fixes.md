@@ -225,4 +225,6 @@ SSH runner 显式接收 context，默认执行器与注入执行器使用统一�
 
 删除 Linux 用户后保留 removed + missing 的语义；回归验证了删除成功后复用同一 binding 重建账号，而不是引入新的绑定状态。人工验收步骤见[验收清单](computer-runtime-acceptance.md)。
 
-验证：独立 PostgreSQL 上的 Computer/Admin/runtime handler 定向测试通过并启用 -race；Computer 包完整 -race 测试通过；go vet、全后端编译、make sqlc、文档链接与 git diff --check 通过。测试使用临时 SSH/CLI 命令桩，没有执行真实远端建号、真实 CLI 安装或模型任务。生产部署结果随后记录。
+验证：独立 PostgreSQL 上的 Computer/Admin/runtime handler 定向测试（31 个顶层用例、10 个子用例）通过并启用 -race；Computer 包完整 -race 测试通过；go vet、全后端编译、make sqlc、文档链接与 git diff --check 通过。测试使用临时 SSH/CLI 命令桩，没有执行真实远端建号、真实 CLI 安装或模型任务。已于 2026-09-25 17:53（北京时间）部署后端 `c3c761d45`；前端复用 `b528fd809` 镜像，Compose 随后端依赖变化重建了前端容器。两个应用容器均健康、重启次数为 0；两个健康检查返回 `c3c761d45`。登录页、五个静态资源、三个未登录 API 鉴权和 Prefer 预检通过。数据库与网关未重启，无新增迁移，数据库仍到 `545`。
+
+切换前使用短暂数据库写入屏障确认没有活动操作、运行中绑定或 SSH 子进程，再停止旧后端。配置与两份数据库备份位于 `/home/tiger/bench/multica-deploy/backups/pre-computer-recovery-c3c761d45/`，备份目录校验通过。镜像、证据和回滚说明位于 `/home/tiger/bench/multica-deploy/releases/computer-recovery-c3c761d45/DEPLOYMENT.md`；应用回滚恢复后端 `b528fd809` 标签并保留现有数据库。

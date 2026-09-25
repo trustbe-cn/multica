@@ -1,6 +1,6 @@
 # Linux 用户远端操作、资产与清理
 
-本文描述 P0/P1 实现的操作契约，补充[身份模型](computer-runtime-identity-model.md)和[管理入口](linux-user-runtime-management.md)。实现已随 `b528fd809` 部署，部署状态以[发布记录](../engineering/computer-runtime-review-fixes.md#2026-09-25-p0p1-部署)为准。
+本文描述 P0/P1 实现的操作契约，补充[身份模型](computer-runtime-identity-model.md)和[管理入口](linux-user-runtime-management.md)。P0/P1 已随 `b528fd809` 部署，本文的操作恢复加固已随 `c3c761d45` 部署。部署状态以[发布记录](../engineering/computer-runtime-review-fixes.md#2026-09-25-操作恢复-review-修复)为准。
 
 ## 操作记录与执行
 
