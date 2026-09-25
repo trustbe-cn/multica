@@ -13,6 +13,7 @@
 | [Computer provisioning 操作说明](../server/internal/computer/README.md) | 后端配置、目标主机前置条件、PAM 配置和启用前检查。 |
 | [Computer、Linux User 与运行时 TODO](engineering/computer-linux-user-runtime-todo.md) | 下一阶段的可靠性、真实主机验收、操作状态、资产信息和环境兼容性工作清单。 |
 | [Linux 用户与工作区协作 TODO](engineering/linux-user-workspace-collaboration-todo.md) | 个人多账号管理、工作区创建后可选接入、权限回归及非生产主机验收的实施拆分。 |
+| [Linux 用户接入契约判定](engineering/linux-user-workspace-binding-contract.md) | 账号状态、所有权、同名冲突和 Web/Desktop 创建后接入入口的判定依据。 |
 
 - [远端操作、资产与清理设计](design/computer-remote-operations.md)：操作状态、错误恢复、四层状态、异步兼容和删除边界。
 - [P0/P1 实施与验收记录](engineering/computer-p0-p1-implementation.md)：实现范围、本地测试环境和真实验收缺口。
