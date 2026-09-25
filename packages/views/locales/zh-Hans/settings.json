@@ -362,6 +362,7 @@
       "notifications": "通知",
       "tokens": "API Token",
       "general": "常规",
+      "linux_users": "Linux 用户",
       "repositories": "代码仓库",
       "github": "GitHub",
       "integrations": "集成",
@@ -1395,6 +1396,43 @@
     "removed": "已卸载",
     "hidden": "点击「显示秘密」查看或编辑",
     "personal_title": "我的运行环境"
+  },
+  "workspace_linux_users": {
+    "title": "Linux 用户",
+    "prompt_title": "接入 Linux 用户？",
+    "prompt_description": "可以现在接入本人账号，也可以稍后从工作区设置中接入。",
+    "prompt_later": "稍后",
+    "prompt_connect": "接入账号",
+    "connected": "我的账号接入状态",
+    "none_connected": "你还没有向此工作区接入账号。",
+    "connect": "接入 Linux 用户",
+    "mode": "账号来源",
+    "existing": "已有账号",
+    "new": "新建账号",
+    "choose_existing": "我的 Linux 用户",
+    "none_existing": "暂无可复用账号。选择“新建账号”即可创建。",
+    "credentials_required": "接入前请先保存个人凭据。",
+    "open_personal": "打开我的运行环境",
+    "no_computers": "没有可用 Computer，请联系实例管理员添加。",
+    "connect_action": "接入账号",
+    "accepted": "已开始接入。账号状态会在下方更新；离开页面后也可返回查看。",
+    "manage_personal": "到“我的运行环境”管理账号、CLI 和操作记录",
+    "eligibility": {
+      "available": "可接入，请输入此账号现有的 Linux 密码。",
+      "current_workspace": "已接入此工作区。",
+      "busy": "有操作正在进行，请等待完成，或到“我的运行环境”恢复。",
+      "other_workspace": "正在服务其他工作区。请先在原工作区移除受管 daemon；原工作区将暂时无法使用此账号执行任务。",
+      "unverified": "账号尚未验证，请按新账号流程创建。",
+      "computer_unavailable": "此 Computer 已停用或不可用。",
+      "account_unavailable": "无法检查账号，请先到“我的运行环境”处理。"
+    },
+    "errors": {
+      "username_unavailable": "此 Computer 上的用户名已被占用，请换一个用户名。",
+      "operation_busy": "另一个账号操作正在进行，请等待完成后重试。",
+      "binding_workspace_conflict": "此账号仍接入其他工作区，请先到原工作区移除受管 daemon。",
+      "binding_conflict": "账号可用状态已变化，请刷新后重试。",
+      "generic": "接入失败，请查看操作记录后重试。"
+    }
   },
   "admin": {
     "title": "管理后台",

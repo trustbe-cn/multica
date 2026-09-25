@@ -7,6 +7,8 @@ export type {
   ComputerSettings,
   ComputerOperation,
 } from "./schema";
+export { bindingEligibility } from "./eligibility";
+export type { BindingEligibility } from "./eligibility";
 
 export function useComputers(userId: string) {
   const client = useQueryClient();
@@ -29,7 +31,7 @@ export function useComputers(userId: string) {
     queryKey: [...key, "bindings"],
     queryFn: () => api.listComputerBindings(),
     refetchInterval: (q) =>
-      q.state.data?.some((b) => b.state === "running") ? 2000 : false,
+      q.state.data?.some((b) => b.state === "running" || b.operation_busy) ? 2000 : false,
   });
   const refresh = () => client.invalidateQueries({ queryKey: key });
   const save = useMutation({

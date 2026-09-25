@@ -33,6 +33,7 @@ import { PreferencesTab } from "./preferences-tab";
 import { ComputersTab } from "./computers-tab";
 import { TokensTab } from "./tokens-tab";
 import { WorkspaceTab } from "./workspace-tab";
+import { WorkspaceLinuxUsersTab } from "./workspace-linux-users-tab";
 import { MembersTab } from "./members-tab";
 import { RepositoriesTab } from "./repositories-tab";
 import { IntegrationsTab } from "./integrations-tab";
@@ -129,6 +130,7 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           Settings,
           <WorkspaceTab />,
         ),
+        entry("linux-users", t(($) => $.page.tabs.linux_users), Server, <WorkspaceLinuxUsersTab />),
         entry(
           "members",
           t(($) => $.page.tabs.members),

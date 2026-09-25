@@ -174,3 +174,29 @@ func TestComputerBindingClaimIsExclusive(t *testing.T) {
 		t.Fatalf("in-flight account claim was replaceable: %v", err)
 	}
 }
+
+func TestComputerBindingConflictClassification(t *testing.T) {
+	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "conflict-test", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	other := "10000000-0000-0000-0000-000000000099"
+	oldWorkspace := testWorkspaceID
+	newWorkspace := dbfx.Workspace(t, "New workspace", "binding-conflict-test")
+	binding := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": oldWorkspace, "username": "alice", "verified": true, "state": "ready"})
+	check := func(uid, want string) {
+		t.Helper()
+		tx, err := testPool.Begin(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(context.Background())
+		code, _, err := classifyComputerBindingConflict(context.Background(), tx, machine, "alice", uid, newWorkspace)
+		if err != nil || code != want {
+			t.Fatalf("conflict code = %q, err = %v; want %q", code, err, want)
+		}
+	}
+	check(testUserID, "binding_workspace_conflict")
+	check(other, "username_unavailable")
+	dbfx.Exec(t, `UPDATE computer_binding SET state='running' WHERE id=$1`, binding)
+	check(testUserID, "operation_busy")
+	dbfx.Exec(t, `UPDATE computer_binding SET verified=false,state='failed' WHERE id=$1`, binding)
+	check(other, "binding_conflict")
+}

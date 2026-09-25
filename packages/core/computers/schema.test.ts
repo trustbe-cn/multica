@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { InstanceAccessSchema, AdminComputerSchema } from "./admin-schema";
 import { describe, it, expect, vi } from "vitest";
-import { parseComputerSettings } from "./schema";
+import { ComputerBindingSchema, parseComputerSettings } from "./schema";
 import { setSchemaLogger } from "../api/schema";
 
 describe("Computer settings response", () => {
@@ -51,4 +51,21 @@ it("keeps unfamiliar operation and asset states explicitly unknown", async () =>
   const { AdminComputerRuntimeSchema } = await import("./admin-schema");
   expect(RemoteOperationSchema.parse({id:"op",binding_id:"b",kind:"new-operation",state:"future-state",created_at:"now"}).state).toBe("interrupted");
   expect(AdminComputerRuntimeSchema.parse({id:"codex",display_name:"Codex",installed_version:"",can_install:true,probe_state:"future-state",registration_state:"future-state"})).toMatchObject({probe_state:"unknown",registration_state:"not_discovered"});
+});
+
+it("defaults new Linux User eligibility fields for older servers", () => {
+  const binding = ComputerBindingSchema.parse({
+    id: "binding",
+    computer_id: "computer",
+    workspace_id: "workspace",
+    username: "alice",
+    state: "removed",
+    last_error: "",
+  });
+  expect(binding).toMatchObject({
+    verified: false,
+    account_state: "unknown",
+    operation_busy: false,
+  });
+  expect(ComputerBindingSchema.parse({ ...binding, account_state: "future" }).account_state).toBe("unknown");
 });

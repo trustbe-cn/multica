@@ -119,6 +119,18 @@ it("installs a CLI runtime through the owner's ready binding", async () => {
   await waitFor(() => expect(api.installComputerBindingRuntime).toHaveBeenCalledWith("binding-1", "codex", "1.2.3"));
 });
 
+it("shows separate Linux User rows for different usernames on the same Computer", async () => {
+  api.listComputerBindings.mockResolvedValue([
+    { id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice-dev", state: "ready", last_error: "" },
+    { id: "binding-2", computer_id: "machine-1", workspace_id: "workspace-2", username: "alice-build", state: "removed", last_error: "" },
+  ]);
+  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
+  mount();
+  expect(await screen.findByText(/Dev server · alice-dev/)).toBeInTheDocument();
+  expect(screen.getByText(/Dev server · alice-build/)).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Linux User details" })).toHaveLength(2);
+});
+
 it("does not offer runtime installation for removed bindings", async () => {
   api.listComputerBindings.mockResolvedValue([{ id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice", state: "removed", last_error: "" }]);
   api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);

@@ -290,6 +290,8 @@ function PersonalComputersTab() {
             {t(($) => $.computers.execute)}
           </Button>
         </form>
+      </SettingsSection>
+      <SettingsSection title={t(($) => $.workspace_linux_users.choose_existing)}>
         <ul className="space-y-3" aria-live="polite">
           {data.bindings.data?.map((b) => (
             <BindingRow key={b.id} binding={b} machineName={data.machines.data?.find((m) => m.id === b.computer_id)?.name ?? b.computer_id} userId={user?.id ?? ""} onConfigure={(nextAction) => { setMachine(b.computer_id);setUsername(b.username);setAction(nextAction);setWorkspaceTarget(nextAction === "provision" ? "" : b.workspace_id);setPassword("");setNotice(t(($) => $.linux_user.prompt_password));passwordInput.current?.focus(); }} />

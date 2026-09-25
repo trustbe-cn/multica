@@ -15,13 +15,16 @@ import (
 )
 
 type computerBinding struct {
-	HealthPort  int    `json:"-"`
-	ID          string `json:"id"`
-	ComputerID  string `json:"computer_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Username    string `json:"username"`
-	State       string `json:"state"`
-	LastError   string `json:"last_error"`
+	HealthPort    int    `json:"-"`
+	ID            string `json:"id"`
+	ComputerID    string `json:"computer_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	Username      string `json:"username"`
+	State         string `json:"state"`
+	LastError     string `json:"last_error"`
+	Verified      bool   `json:"verified"`
+	AccountState  string `json:"account_state"`
+	OperationBusy bool   `json:"operation_busy"`
 }
 
 func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +34,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodGet {
-		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE state END,last_error FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
+		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE state END,last_error,verified,account_state,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>now()) FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
 		if err != nil {
 			writeError(w, 500, "Cannot read your Computers")
 			return
@@ -40,7 +43,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		list := []computerBinding{}
 		for rows.Next() {
 			var b computerBinding
-			if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError) != nil {
+			if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.Verified, &b.AccountState, &b.OperationBusy) != nil {
 				writeError(w, 500, "Cannot read binding")
 				return
 			}
@@ -151,7 +154,12 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	var b computerBinding
 	err = tx.QueryRow(r.Context(), claimComputerBindingSQL, m.ID, uid, in.WorkspaceID, in.Username, in.Action).Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.HealthPort)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, 409, "This account is already bound or an operation is running")
+		code, message, classifyErr := classifyComputerBindingConflict(r.Context(), tx, m.ID, in.Username, uid, in.WorkspaceID)
+		if classifyErr != nil {
+			writeError(w, 500, "Cannot check Linux User availability")
+			return
+		}
+		writeErrorCode(w, 409, code, message)
 		return
 	}
 	if err != nil {
@@ -176,6 +184,28 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		return "", h.runComputerOperation(ctx, operationID, uid, b, remote, &computer.FileStore{Dir: lockDir}, req, action)
 	})
 	writeJSON(w, 202, b)
+}
+
+func classifyComputerBindingConflict(ctx context.Context, tx pgx.Tx, computerID, username, uid, workspaceID string) (string, string, error) {
+	var ownerID, boundWorkspaceID, state string
+	var verified, busy bool
+	err := tx.QueryRow(ctx, `SELECT user_id::text,COALESCE(workspace_id::text,''),state,verified,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>now()) FROM computer_binding WHERE computer_id=$1 AND username=$2`, computerID, username).Scan(&ownerID, &boundWorkspaceID, &state, &verified, &busy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "binding_conflict", "Linux User availability changed; retry.", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if ownerID != uid && verified {
+		return "username_unavailable", "This Linux username is unavailable on this Computer.", nil
+	}
+	if busy || state == "running" {
+		return "operation_busy", "Another operation is active for this Linux user.", nil
+	}
+	if ownerID == uid && boundWorkspaceID != workspaceID && state != "removed" && state != "detached" {
+		return "binding_workspace_conflict", "Remove this Linux User's managed daemon from its current workspace before reconnecting it.", nil
+	}
+	return "binding_conflict", "Linux User availability changed; retry.", nil
 }
 
 func (h *Handler) runComputerOperation(ctx context.Context, operationID, uid string, b computerBinding, remote computer.SSHRemote, store *computer.FileStore, req computer.Request, action string) (operationErr error) {

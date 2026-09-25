@@ -362,6 +362,7 @@
       "notifications": "Notifications",
       "tokens": "Jetons d'API",
       "general": "Général",
+      "linux_users": "Utilisateurs Linux",
       "repositories": "Dépôts",
       "github": "GitHub",
       "integrations": "Intégrations",
@@ -1402,6 +1403,43 @@
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
     "personal_title": "Mes environnements"
+  },
+  "workspace_linux_users": {
+    "title": "Utilisateurs Linux",
+    "prompt_title": "Connecter un compte Linux ?",
+    "prompt_description": "Connectez l'un de vos comptes maintenant ou plus tard dans les paramètres de l'espace de travail.",
+    "prompt_later": "Plus tard",
+    "prompt_connect": "Connecter un compte",
+    "connected": "Connexions de mes comptes",
+    "none_connected": "Aucun de vos comptes n'est connecté à cet espace de travail.",
+    "connect": "Connecter un compte Linux",
+    "mode": "Origine du compte",
+    "existing": "Compte existant",
+    "new": "Nouveau compte",
+    "choose_existing": "Mes comptes Linux",
+    "none_existing": "Aucun compte réutilisable. Choisissez Nouveau compte pour en créer un.",
+    "credentials_required": "Enregistrez vos identifiants personnels avant de connecter un compte.",
+    "open_personal": "Ouvrir mes environnements",
+    "no_computers": "Aucun Computer disponible. Contactez un administrateur de l'instance.",
+    "connect_action": "Connecter le compte",
+    "accepted": "Connexion démarrée. Son état sera mis à jour ci-dessous ; vous pourrez revenir plus tard.",
+    "manage_personal": "Gérer le compte, le CLI et l'historique dans Mes environnements",
+    "eligibility": {
+      "available": "Disponible. Saisissez le mot de passe Linux actuel du compte.",
+      "current_workspace": "Déjà connecté à cet espace de travail.",
+      "busy": "Une opération est en cours. Attendez ou récupérez-la dans Mes environnements.",
+      "other_workspace": "Connecté à un autre espace. Supprimez d'abord son daemon géré ; cet espace perdra la capacité d'exécution de ce compte.",
+      "unverified": "Compte non vérifié. Créez-le comme nouveau compte.",
+      "computer_unavailable": "Ce Computer est désactivé ou indisponible.",
+      "account_unavailable": "Compte invérifiable. Résolvez le problème dans Mes environnements."
+    },
+    "errors": {
+      "username_unavailable": "Ce nom Linux est déjà utilisé sur ce Computer. Choisissez-en un autre.",
+      "operation_busy": "Une autre opération est en cours. Réessayez après sa fin.",
+      "binding_workspace_conflict": "Ce compte est connecté ailleurs. Supprimez d'abord son daemon géré dans l'ancien espace.",
+      "binding_conflict": "La disponibilité a changé. Actualisez et réessayez.",
+      "generic": "Connexion impossible. Consultez l'historique des opérations et réessayez."
+    }
   },
   "admin": {
     "title": "Admin Area",

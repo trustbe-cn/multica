@@ -362,6 +362,7 @@
       "notifications": "알림",
       "tokens": "API 토큰",
       "general": "일반",
+      "linux_users": "Linux 사용자",
       "repositories": "저장소",
       "github": "GitHub",
       "integrations": "연동",
@@ -1395,6 +1396,43 @@
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
     "personal_title": "내 실행 환경"
+  },
+  "workspace_linux_users": {
+    "title": "Linux 사용자",
+    "prompt_title": "Linux 사용자를 연결하시겠습니까?",
+    "prompt_description": "지금 내 계정을 연결하거나 나중에 워크스페이스 설정에서 연결할 수 있습니다.",
+    "prompt_later": "나중에",
+    "prompt_connect": "계정 연결",
+    "connected": "내 계정 연결 상태",
+    "none_connected": "이 워크스페이스에 연결된 내 계정이 없습니다.",
+    "connect": "Linux 사용자 연결",
+    "mode": "계정 종류",
+    "existing": "기존 계정",
+    "new": "새 계정",
+    "choose_existing": "내 Linux 사용자",
+    "none_existing": "재사용할 수 있는 계정이 없습니다. 새 계정을 선택해 만드세요.",
+    "credentials_required": "연결하기 전에 개인 인증 정보를 저장하세요.",
+    "open_personal": "내 실행 환경 열기",
+    "no_computers": "사용 가능한 Computer가 없습니다. 인스턴스 관리자에게 추가를 요청하세요.",
+    "connect_action": "계정 연결",
+    "accepted": "연결을 시작했습니다. 아래에서 상태가 갱신되며 나중에 다시 확인할 수 있습니다.",
+    "manage_personal": "내 실행 환경에서 계정, CLI 및 작업 기록 관리",
+    "eligibility": {
+      "available": "연결할 수 있습니다. 현재 Linux 암호를 입력하세요.",
+      "current_workspace": "이 워크스페이스에 이미 연결됨.",
+      "busy": "다른 작업이 진행 중입니다. 완료를 기다리거나 내 실행 환경에서 복구하세요.",
+      "other_workspace": "다른 워크스페이스에 연결되어 있습니다. 먼저 해당 워크스페이스에서 관리 daemon을 제거하세요. 해당 계정의 실행 기능이 중단됩니다.",
+      "unverified": "확인되지 않은 계정입니다. 새 계정으로 만드세요.",
+      "computer_unavailable": "이 Computer는 비활성화되었거나 사용할 수 없습니다.",
+      "account_unavailable": "계정을 확인할 수 없습니다. 내 실행 환경에서 해결하세요."
+    },
+    "errors": {
+      "username_unavailable": "이 Computer에서 이미 사용 중인 이름입니다. 다른 이름을 선택하세요.",
+      "operation_busy": "다른 계정 작업이 진행 중입니다. 완료 후 다시 시도하세요.",
+      "binding_workspace_conflict": "다른 워크스페이스에 연결되어 있습니다. 먼저 해당 daemon을 제거하세요.",
+      "binding_conflict": "계정 상태가 바뀌었습니다. 새로고침 후 다시 시도하세요.",
+      "generic": "계정을 연결할 수 없습니다. 작업 기록을 확인하고 다시 시도하세요."
+    }
   },
   "admin": {
     "title": "Admin Area",

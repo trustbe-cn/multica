@@ -32,6 +32,9 @@ export const ComputerBindingSchema = z.object({
   username: z.string(),
   state: z.string(),
   last_error: z.string(),
+  verified: z.boolean().default(false),
+  account_state: z.enum(["unknown", "present", "missing", "unavailable"]).catch("unknown"),
+  operation_busy: z.boolean().default(false),
 });
 export type ComputerBinding = z.infer<typeof ComputerBindingSchema>;
 export type ComputerOperation = {

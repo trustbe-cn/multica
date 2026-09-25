@@ -362,6 +362,7 @@
       "notifications": "Notifications",
       "tokens": "API Tokens",
       "general": "General",
+      "linux_users": "Linux Users",
       "repositories": "Repositories",
       "github": "GitHub",
       "integrations": "Integrations",
@@ -1402,6 +1403,43 @@
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
     "personal_title": "My environments"
+  },
+  "workspace_linux_users": {
+    "title": "Linux Users",
+    "prompt_title": "Connect a Linux User?",
+    "prompt_description": "You can connect one of your Linux accounts to this workspace now or later in Workspace settings.",
+    "prompt_later": "Later",
+    "prompt_connect": "Connect account",
+    "connected": "Your account connections",
+    "none_connected": "You have no account connection in this workspace.",
+    "connect": "Connect a Linux User",
+    "mode": "Account source",
+    "existing": "Existing account",
+    "new": "New account",
+    "choose_existing": "Your Linux Users",
+    "none_existing": "No reusable accounts yet. Choose New account to create one.",
+    "credentials_required": "Save your personal credentials before connecting an account.",
+    "open_personal": "Open my environments",
+    "no_computers": "No Computer is available. Ask an instance administrator to add one.",
+    "connect_action": "Connect account",
+    "accepted": "Connection started. The account status will update below; you can leave this page and return later.",
+    "manage_personal": "Manage account, CLI and operation history in My environments",
+    "eligibility": {
+      "available": "Available. Enter this account's current Linux password.",
+      "current_workspace": "Already connected to this workspace.",
+      "busy": "Another operation is in progress. Wait for it to finish or recover it in My environments.",
+      "other_workspace": "Connected to another workspace. Remove its managed daemon there first; that workspace will lose this account's execution capacity.",
+      "unverified": "This account has not been verified. Create it as a new account instead.",
+      "computer_unavailable": "This Computer is disabled or unavailable.",
+      "account_unavailable": "The account could not be checked. Resolve it in My environments before connecting."
+    },
+    "errors": {
+      "username_unavailable": "This username is already in use on the Computer. Choose a different username.",
+      "operation_busy": "Another account operation is running. Wait for it to finish and retry.",
+      "binding_workspace_conflict": "This account is connected to another workspace. Remove its managed daemon there before connecting it here.",
+      "binding_conflict": "Account availability changed. Refresh and try again.",
+      "generic": "Could not connect this account. Review its operation history and retry."
+    }
   },
   "admin": {
     "title": "Admin Area",

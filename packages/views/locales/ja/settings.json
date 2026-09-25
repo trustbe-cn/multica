@@ -362,6 +362,7 @@
       "notifications": "通知",
       "tokens": "API トークン",
       "general": "一般",
+      "linux_users": "Linux ユーザー",
       "repositories": "リポジトリ",
       "github": "GitHub",
       "integrations": "連携",
@@ -1395,6 +1396,43 @@
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
     "personal_title": "自分の実行環境"
+  },
+  "workspace_linux_users": {
+    "title": "Linux ユーザー",
+    "prompt_title": "Linux ユーザーを接続しますか？",
+    "prompt_description": "自分のアカウントを今接続するか、後でワークスペース設定から接続できます。",
+    "prompt_later": "後で",
+    "prompt_connect": "アカウントを接続",
+    "connected": "アカウントの接続状況",
+    "none_connected": "このワークスペースへのアカウント接続はありません。",
+    "connect": "Linux ユーザーを接続",
+    "mode": "アカウントの種類",
+    "existing": "既存のアカウント",
+    "new": "新しいアカウント",
+    "choose_existing": "自分の Linux ユーザー",
+    "none_existing": "再利用できるアカウントがありません。新規アカウントを選んで作成してください。",
+    "credentials_required": "接続前に個人の認証情報を保存してください。",
+    "open_personal": "自分の実行環境を開く",
+    "no_computers": "利用可能な Computer がありません。管理者に追加を依頼してください。",
+    "connect_action": "アカウントを接続",
+    "accepted": "接続を開始しました。状態は下に更新されます。後で戻って確認できます。",
+    "manage_personal": "アカウント、CLI、操作履歴は自分の実行環境で管理",
+    "eligibility": {
+      "available": "接続可能です。現在の Linux パスワードを入力してください。",
+      "current_workspace": "このワークスペースに接続済みです。",
+      "busy": "別の操作が進行中です。完了を待つか、自分の実行環境で復旧してください。",
+      "other_workspace": "別のワークスペースに接続中です。先にそこで管理 daemon を削除してください。そのワークスペースの実行能力が失われます。",
+      "unverified": "未確認のアカウントです。新規アカウントとして作成してください。",
+      "computer_unavailable": "この Computer は無効または利用できません。",
+      "account_unavailable": "アカウントを確認できません。自分の実行環境で解決してください。"
+    },
+    "errors": {
+      "username_unavailable": "この Computer ではそのユーザー名は使用中です。別の名前を選んでください。",
+      "operation_busy": "別の操作が進行中です。完了後に再試行してください。",
+      "binding_workspace_conflict": "別のワークスペースに接続中です。先にそこで管理 daemon を削除してください。",
+      "binding_conflict": "利用可能な状態が変わりました。更新して再試行してください。",
+      "generic": "接続できませんでした。操作履歴を確認して再試行してください。"
+    }
   },
   "admin": {
     "title": "Admin Area",
