@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   saveComputerSettings: vi.fn(),
   registerComputer: vi.fn(),
   operateComputer: vi.fn(),
+  listComputerBindingRuntimes: vi.fn(),
+  installComputerBindingRuntime: vi.fn(),
 }));
 vi.mock("@multica/core/api", () => ({ api }));
 vi.mock("@multica/core/auth", () => {
@@ -55,6 +57,8 @@ beforeEach(() => {
   api.listComputers.mockResolvedValue([]);
   api.listComputerBindings.mockResolvedValue([]);
   api.saveComputerSettings.mockResolvedValue(undefined);
+  api.listComputerBindingRuntimes.mockResolvedValue([]);
+  api.installComputerBindingRuntime.mockResolvedValue(undefined);
 });
 describe("Computers settings", () => {
   it("saves personal settings and does not expose operator controls or multiline secrets", async () => {
@@ -96,4 +100,27 @@ describe("Computers settings", () => {
       screen.queryByRole("button", { name: "Save credentials" }),
     ).not.toBeInTheDocument();
   });
+});
+
+it("installs a CLI runtime through the owner's ready binding", async () => {
+  api.listComputerBindings.mockResolvedValue([{ id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice", state: "ready", last_error: "" }]);
+  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
+  api.listComputerBindingRuntimes.mockResolvedValue([{ id: "codex", display_name: "Codex", installed_version: "", can_install: true, version_required: true, probe_error: "" }]);
+  mount();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Runtimes" }));
+  expect(await screen.findByText("Codex")).toBeInTheDocument();
+  expect(api.listComputerBindingRuntimes).toHaveBeenCalledWith("binding-1", expect.anything());
+  await user.type(screen.getByRole("textbox", { name: "Codex version" }), "1.2.3");
+  await user.click(screen.getByRole("button", { name: "Install" }));
+  await waitFor(() => expect(api.installComputerBindingRuntime).toHaveBeenCalledWith("binding-1", "codex", "1.2.3"));
+});
+
+it("does not offer runtime installation for removed bindings", async () => {
+  api.listComputerBindings.mockResolvedValue([{ id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice", state: "removed", last_error: "" }]);
+  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
+  mount();
+  expect(await screen.findByText(/Dev server.*alice/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Runtimes" })).not.toBeInTheDocument();
+  expect(api.listComputerBindingRuntimes).not.toHaveBeenCalled();
 });

@@ -61,3 +61,4 @@ export const AdminComputerRuntimeSchema = z.object({
 export type AdminComputerRuntime = z.infer<typeof AdminComputerRuntimeSchema>;
 
 export const AdminSshPubKeySchema = z.object({ pubkey: z.string().trim().min(1) });
+export const LinuxUserCheckSchema = z.object({ present: z.boolean() });

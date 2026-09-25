@@ -45,5 +45,5 @@ export function useComputers(userId: string) {
   return { settings, machines, bindings, save, operate };
 }
 
-export {useInstanceAccess,useComputerAdmin,useAdminComputerRuntimes,useAdminRuntimeInstall} from "./admin";
+export {useInstanceAccess,useComputerAdmin,useComputerBindingRuntimes,useComputerBindingRuntimeInstall} from "./admin";
 export type {AdminComputer,ProbeResult,ProbeCheck,AdminComputerRuntime} from "./admin-schema";

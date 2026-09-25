@@ -65,29 +65,33 @@ export function useComputerAdmin(userId: string, allowed: boolean) {
     mutationFn: (id: string) => api.checkAdminComputer(id),
     onSuccess: refresh,
   });
-  return { computers, bindings, audit, register, update, remove, check, checkDraft, refresh };
+  const checkLinuxUser = useMutation({
+    mutationFn: (id: string) => api.checkAdminLinuxUser(id),
+    onSettled: () => client.invalidateQueries({ queryKey: [...key, "audit"] }),
+  });
+  return { computers, bindings, audit, register, update, remove, check, checkDraft, checkLinuxUser, refresh };
 }
 
-export function useAdminComputerRuntimes(userId: string, computerId: string, linuxUser: string) {
-  const isInstalling = useIsMutating({ mutationKey: ["admin-runtime-install", userId, computerId] }) > 0;
-  const enabled = !!userId && !!computerId && !!linuxUser;
+export function useComputerBindingRuntimes(userId: string, bindingId: string, enabled = true) {
+  const isInstalling = useIsMutating({ mutationKey: ["binding-runtime-install", userId, bindingId] }) > 0;
   const runtimes = useQuery<AdminComputerRuntime[]>({
-    queryKey: ["computer-admin", userId, "runtimes", computerId, linuxUser],
-    enabled,
-    queryFn: ({ signal }) => api.listAdminComputerRuntimes(computerId, linuxUser, signal),
+    queryKey: ["computers", userId, "runtimes", bindingId],
+    enabled: enabled && !!userId && !!bindingId,
+    queryFn: ({ signal }) => api.listComputerBindingRuntimes(bindingId, signal),
     retry: false,
   });
   return { runtimes, isInstalling };
 }
 
-export function useAdminRuntimeInstall(userId: string, computerId: string, linuxUser: string, runtimeId: string) {
+export function useComputerBindingRuntimeInstall(userId: string, bindingId: string, runtimeId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationKey: ["admin-runtime-install", userId, computerId, linuxUser, runtimeId],
+    mutationKey: ["binding-runtime-install", userId, bindingId, runtimeId],
     mutationFn: (version: string) =>
-      api.installAdminComputerRuntime(computerId, runtimeId, version, linuxUser),
+      api.installComputerBindingRuntime(bindingId, runtimeId, version),
     onSettled: async () => {
-      await client.invalidateQueries({ queryKey: ["computer-admin", userId] });
+      await client.invalidateQueries({ queryKey: ["computers", userId, "runtimes", bindingId] });
+      await client.invalidateQueries({ queryKey: ["computer-admin", userId, "audit"] });
     },
   });
 }

@@ -3069,18 +3069,23 @@ describe("admin Computer API compatibility", () => {
     expect(await client.checkAdminComputerDraft({ name: "Host", host: "host", port: 22, ssh_user: "operator" })).toEqual({ ok: false, facts: {}, checks: [] });
   });
 
-  it("defaults older runtime responses and sends the selected Linux user", async () => {
+  it("defaults older runtime responses and addresses the owned binding", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([
       { id: "omp", display_name: "Oh-My-Pi", installed_version: "", can_install: true },
     ])));
     vi.stubGlobal("fetch", fetchMock);
-    const result = await new ApiClient("https://api.example.test").listAdminComputerRuntimes("machine", "alice");
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/admin/computers/machine/runtimes?linux_user=alice");
+    const result = await new ApiClient("https://api.example.test").listComputerBindingRuntimes("binding");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/me/computer-bindings/binding/runtimes");
     expect(result[0]).toMatchObject({ version_required: true, probe_error: "" });
   });
 
   it("reports malformed runtime responses as errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ runtimes: null }))));
-    await expect(new ApiClient("https://api.example.test").listAdminComputerRuntimes("machine", "alice")).rejects.toThrow("Runtime list response is invalid");
+    await expect(new ApiClient("https://api.example.test").listComputerBindingRuntimes("binding")).rejects.toThrow("Runtime list response is invalid");
+  });
+
+  it("does not report a malformed Linux User check as a missing account", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ present: "false" }))));
+    await expect(new ApiClient("https://api.example.test").checkAdminLinuxUser("binding")).rejects.toThrow("Linux User check response is invalid");
   });
 });

@@ -5,9 +5,6 @@ import { useAuthStore } from "@multica/core/auth";
 import {
   useInstanceAccess,
   useComputerAdmin,
-  useAdminComputerRuntimes,
-  useAdminRuntimeInstall,
-  type AdminComputerRuntime,
   type AdminComputer,
   type ProbeResult,
 } from "@multica/core/computers";
@@ -140,6 +137,9 @@ function AdminSections({
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [bindingSearch, setBindingSearch] = useState("");
+  const [bindingChecks, setBindingChecks] = useState<Record<string, { present?: boolean; error?: string }>>({});
+  const [checkingBinding, setCheckingBinding] = useState("");
   // data.check is the per-row dialog check; it must not freeze the rest of
   // the list while that dialog is open.
   const busy =
@@ -184,6 +184,22 @@ function AdminSections({
     data.computers.data?.find((m) => m.id === id)?.name ?? id;
   const fetchError =
     data.computers.error || data.bindings.error || data.audit.error;
+  const visibleBindings = data.bindings.data?.filter((b) =>
+    [b.username, b.user_name, b.user_id, b.workspace_id, name(b.computer_id), b.state]
+      .some((value) => value.toLowerCase().includes(bindingSearch.trim().toLowerCase())),
+  );
+  const checkBinding = async (id: string) => {
+    setCheckingBinding(id);
+    setBindingChecks((current) => ({ ...current, [id]: {} }));
+    try {
+      const result = await data.checkLinuxUser.mutateAsync(id);
+      setBindingChecks((current) => ({ ...current, [id]: result }));
+    } catch (e) {
+      setBindingChecks((current) => ({ ...current, [id]: { error: e instanceof Error ? e.message : t(($) => $.computers.failed) } }));
+    } finally {
+      setCheckingBinding("");
+    }
+  };
   return (
     <>
       {/* While the form dialog is open it owns the feedback: a modal hides the
@@ -266,22 +282,45 @@ function AdminSections({
         </section>
       )}
       {section === "bindings" && (
-        <section className="space-y-3">
+        <section className="space-y-4">
           <h2 className="text-lg font-semibold">{t(($) => $.admin.bindings)}</h2>
           <p className="text-sm text-muted-foreground">
             {t(($) => $.admin.bindings_help)}
           </p>
+          <Input
+            type="search"
+            value={bindingSearch}
+            onChange={(event) => setBindingSearch(event.target.value)}
+            placeholder={t(($) => $.admin.linux_user_search)}
+            aria-label={t(($) => $.admin.linux_user_search)}
+          />
           <ul className="space-y-2">
-            {data.bindings.data?.map((b) => (
-              <li className="rounded border p-3" key={b.id}>
-                {name(b.computer_id)} · {b.user_name} · {b.username} · {b.state}
-                <p className="text-sm text-muted-foreground">
-                  {b.workspace_id}
-                </p>
+            {visibleBindings?.map((b) => (
+              <li className="rounded border p-3 space-y-2" key={b.id}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 break-all font-medium">{b.username}</p>
+                  <Badge variant={b.state === "ready" ? "secondary" : b.state === "failed" ? "destructive" : "outline"}>
+                    {b.state === "ready" ? t(($) => $.computers.ready) : b.state === "running" ? t(($) => $.computers.running) : b.state === "removed" ? t(($) => $.computers.removed) : b.state === "failed" ? t(($) => $.computers.failed) : b.state}
+                  </Badge>
+                </div>
+                <dl className="grid gap-1 text-sm sm:grid-cols-2">
+                  <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_computer)}</dt><dd className="break-all">{name(b.computer_id)}</dd></div>
+                  <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_owner)}</dt><dd className="break-all">{b.user_name}</dd></div>
+                  <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_workspace)}</dt><dd className="break-all">{b.workspace_id}</dd></div>
+                </dl>
+                {b.last_error && <p className="break-words text-sm text-destructive">{b.last_error}</p>}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="button" variant="outline" size="sm" disabled={checkingBinding !== "" || b.state === "removed"} onClick={() => void checkBinding(b.id)}>
+                    {checkingBinding === b.id ? t(($) => $.computers.loading) : t(($) => $.admin.linux_user_check)}
+                  </Button>
+                  {bindingChecks[b.id]?.present === true && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_present)}</p>}
+                  {bindingChecks[b.id]?.present === false && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_missing)}</p>}
+                  {bindingChecks[b.id]?.error && <p role="alert" className="break-words text-sm text-destructive">{bindingChecks[b.id]?.error}</p>}
+                </div>
               </li>
             ))}
           </ul>
-          {data.bindings.data?.length === 0 && <p>{t(($) => $.admin.empty)}</p>}
+          {visibleBindings?.length === 0 && <p>{bindingSearch ? t(($) => $.admin.linux_user_no_matches) : t(($) => $.admin.empty)}</p>}
         </section>
       )}
       {section === "audit" && (
@@ -433,7 +472,6 @@ function ComputerRow({
 }) {
   const { t } = useT("settings");
   const when = (v?: string) => (v ? new Date(v).toLocaleString() : "");
-  const [showRuntimes, setShowRuntimes] = useState(false);
   return (
     <li className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -491,9 +529,6 @@ function ComputerRow({
           <Button variant="outline" disabled={busy} onClick={onCheck}>
             {t(($) => $.admin.test_connection)}
           </Button>
-          <Button variant="outline" disabled={busy} onClick={() => setShowRuntimes((v) => !v)}>
-            {t(($) => $.admin.runtimes_title)}
-          </Button>
           <Button variant="outline" disabled={busy} onClick={onEdit}>
             {t(($) => $.admin.edit)}
           </Button>
@@ -510,111 +545,6 @@ function ComputerRow({
           </Button>
         </div>
       </div>
-      {showRuntimes && <ComputerRuntimesPanel computerId={m.id} />}
-    </li>
-  );
-}
-
-/** Expandable panel showing runtime versions for a computer, with install/update. */
-function ComputerRuntimesPanel({ computerId }: { computerId: string }) {
-  const user = useAuthStore((s) => s.user);
-  const { t } = useT("settings");
-  const [linuxUser, setLinuxUser] = useState("");
-  const [probedUser, setProbedUser] = useState("");
-  useEffect(() => {
-    const timer = window.setTimeout(() => setProbedUser(linuxUser.trim()), 400);
-    return () => window.clearTimeout(timer);
-  }, [linuxUser]);
-  const { runtimes: runtimesQuery, isInstalling } = useAdminComputerRuntimes(user?.id ?? "", computerId, probedUser);
-
-  const userChanging = linuxUser.trim() !== probedUser;
-  return (
-    <div className="mt-2 space-y-3 rounded-md border p-3">
-      <p className="text-sm font-medium">{t(($) => $.admin.runtimes_title)}</p>
-      <Input
-        className="h-7 w-48 text-xs"
-        placeholder={t(($) => $.admin.runtimes_linux_user_placeholder)}
-        value={linuxUser}
-        disabled={isInstalling}
-        onChange={(e) => setLinuxUser(e.target.value)}
-        aria-label={t(($) => $.admin.runtimes_linux_user_placeholder)}
-      />
-      <p className="text-sm text-muted-foreground">{t(($) => $.admin.runtimes_prerequisites)}</p>
-      {probedUser && runtimesQuery.isPending && <p role="status">{t(($) => $.computers.loading)}</p>}
-      {runtimesQuery.error && <p role="alert" className="text-destructive">{runtimesQuery.error.message}</p>}
-      {probedUser && (
-        <Button variant="outline" disabled={runtimesQuery.isFetching || isInstalling || userChanging} onClick={() => void runtimesQuery.refetch()}>
-          {t(($) => $.admin.refresh)}
-        </Button>
-      )}
-      {runtimesQuery.isSuccess && runtimesQuery.data.length === 0 && <p>{t(($) => $.admin.runtimes_empty)}</p>}
-      <ul className="space-y-2">
-        {runtimesQuery.data?.map((rt) => (
-          <ComputerRuntimeRow
-            key={`${probedUser}:${rt.id}`}
-            runtime={rt}
-            userId={user?.id ?? ""}
-            computerId={computerId}
-            linuxUser={probedUser}
-            userChanging={userChanging}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ComputerRuntimeRow({ runtime: rt, userId, computerId, linuxUser, userChanging }: {
-  runtime: AdminComputerRuntime;
-  userId: string;
-  computerId: string;
-  linuxUser: string;
-  userChanging: boolean;
-}) {
-  const { t } = useT("settings");
-  const [version, setVersion] = useState("");
-  const install = useAdminRuntimeInstall(userId, computerId, linuxUser, rt.id);
-  const handleInstall = async () => {
-    if (install.isPending || userChanging || !linuxUser || (rt.version_required !== false && !version.trim())) return;
-    try {
-      await install.mutateAsync(rt.version_required === false ? "latest" : version.trim());
-      toast.success(t(($) => $.admin.runtimes_install_success));
-    } catch {
-      toast.error(t(($) => $.admin.runtimes_install_failed));
-    }
-  };
-  return (
-    <li className="flex flex-wrap items-center gap-3 text-sm">
-      <span className="w-24 font-medium">{rt.display_name}</span>
-      <span className="text-muted-foreground">
-        {rt.probe_error ? t(($) => $.admin.runtimes_probe_failed) : rt.installed_version
-          ? `${t(($) => $.admin.runtimes_version)}: ${rt.installed_version}`
-          : t(($) => $.admin.runtimes_not_installed)}
-      </span>
-      {rt.version_required === false && <span className="text-muted-foreground">{t(($) => $.admin.runtimes_latest)}</span>}
-      {rt.can_install && (
-        <div className="flex flex-wrap items-center gap-2">
-          {rt.version_required !== false && <Input
-            className="h-7 w-24 text-xs"
-            placeholder={t(($) => $.admin.runtimes_version_placeholder)}
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-            disabled={install.isPending || userChanging}
-            aria-label={t(($) => $.admin.runtimes_version_label, { runtime: rt.display_name })}
-          />}
-          <Button
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={install.isPending || userChanging || (rt.version_required !== false && !version.trim())}
-            onClick={() => void handleInstall()}
-          >
-            {install.isPending ? t(($) => $.admin.runtimes_installing)
-              : rt.installed_version ? t(($) => $.admin.runtimes_update) : t(($) => $.admin.runtimes_install)}
-          </Button>
-        </div>
-      )}
-      {rt.probe_error && <p className="w-full whitespace-pre-wrap break-words text-destructive">{rt.probe_error}</p>}
-      {install.error && <p role="alert" className="w-full whitespace-pre-wrap break-words text-destructive">{install.error.message}</p>}
     </li>
   );
 }

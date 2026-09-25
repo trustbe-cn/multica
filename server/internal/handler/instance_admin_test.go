@@ -239,10 +239,11 @@ func TestDisabledComputerVisibleOnlyForOwnerCleanup(t *testing.T) {
 	}
 }
 
-func TestAdminRuntimeUserVersionAndAudit(t *testing.T) {
+func TestOwnedRuntimeUserVersionAndAudit(t *testing.T) {
 	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", testUserID)
 	t.Setenv("MULTICA_COMPUTER_SSH_KEY", adminTestKey(t))
 	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "runtime-test", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	binding := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice", "state": "ready", "verified": true})
 	t.Cleanup(func() {
 		testPool.Exec(context.Background(), `DELETE FROM computer_audit WHERE computer_id=$1`, machine)
 	})
@@ -263,7 +264,7 @@ esac
 	}
 	t.Setenv("PATH", dir)
 	request := func(method, url string, body any) *http.Request {
-		return withURLParam(computerTestRequest(method, url, body), "id", machine)
+		return withURLParam(computerTestRequest(method, url, body), "id", binding)
 	}
 	var runtimes []struct {
 		ID               string `json:"id"`
@@ -271,7 +272,7 @@ esac
 		VersionRequired  bool   `json:"version_required"`
 		ProbeError       string `json:"probe_error"`
 	}
-	testutil.Call(t, testHandler.AdminComputerRuntimes, request("GET", "/?linux_user=alice", nil)).Want(200).JSON(&runtimes)
+	testutil.Call(t, testHandler.ComputerBindingRuntimes, request("GET", "/", nil)).Want(200).JSON(&runtimes)
 	if len(runtimes) != 7 {
 		t.Fatalf("runtimes = %+v", runtimes)
 	}
@@ -284,28 +285,62 @@ esac
 		}
 	}
 	for _, tc := range []struct {
-		runtime, version, user string
-		status                 int
+		runtime, version string
+		status           int
 	}{
-		{"omp", "1.2.3\n", "alice", 400},
-		{"omp", "1.2.3", "alice;id", 400},
-		{"unknown", "1.2.3", "alice", 400},
-		{"grok", "", "alice", 400},
-		{"grok", "latest", "alice", 200},
+		{"omp", "1.2.3\n", 400},
+		{"unknown", "1.2.3", 400},
+		{"grok", "", 400},
+		{"grok", "latest", 200},
 	} {
-		testutil.Call(t, testHandler.AdminComputerRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": tc.runtime, "version": tc.version, "linux_user": tc.user})).Want(tc.status)
+		testutil.Call(t, testHandler.ComputerBindingRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": tc.runtime, "version": tc.version})).Want(tc.status)
 	}
 	var count int
 	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM computer_audit WHERE computer_id=$1 AND action='runtime_install:grok@latest' AND outcome='success'`, machine).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("latest audit: count=%d err=%v", count, err)
 	}
 	// Transport failures remain distinct from executables missing on PATH.
-	testutil.Call(t, testHandler.AdminComputerRuntimes, request("GET", "/?linux_user=bob", nil)).Want(200).JSON(&runtimes)
-	for _, rt := range runtimes {
-		if rt.ProbeError == "" || rt.InstalledVersion != "" {
-			t.Fatalf("lost probe failure: %+v", rt)
-		}
+	other := request("GET", "/", nil)
+	other.Header.Set("X-User-ID", "10000000-0000-0000-0000-000000000099")
+	testutil.Call(t, testHandler.ComputerBindingRuntimes, other).Want(404)
+	otherInstall := request("POST", "/", map[string]string{"runtime_id": "grok", "version": "latest"})
+	otherInstall.Header.Set("X-User-ID", "10000000-0000-0000-0000-000000000099")
+	testutil.Call(t, testHandler.ComputerBindingRuntimeInstall, otherInstall).Want(404)
+}
+
+func TestAdminCheckLinuxUserAuthorizationAndRemoteAccount(t *testing.T) {
+	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", testUserID)
+	t.Setenv("MULTICA_COMPUTER_SSH_KEY", adminTestKey(t))
+	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "linux-user-check", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	binding := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice"})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM computer_audit WHERE computer_id=$1`, machine)
+	})
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(`#!/bin/sh
+for command do :; done
+case "$command" in
+  *"getent passwd alice"*) printf present;;
+  *) exit 44;;
+esac
+`), 0700); err != nil {
+		t.Fatal(err)
 	}
+	t.Setenv("PATH", dir)
+	request := func(id string) *http.Request {
+		return withURLParam(computerTestRequest("POST", "/", nil), "id", id)
+	}
+	testutil.Call(t, testHandler.AdminCheckLinuxUser, request("invalid")).Want(400)
+	testutil.Call(t, testHandler.AdminCheckLinuxUser, request("10000000-0000-0000-0000-000000000099")).Want(404)
+	var result struct {
+		Present bool `json:"present"`
+	}
+	testutil.Call(t, testHandler.AdminCheckLinuxUser, request(binding)).Want(200).JSON(&result)
+	if !result.Present {
+		t.Fatal("remote account was not reported present")
+	}
+	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", "")
+	testutil.Call(t, testHandler.AdminCheckLinuxUser, request(binding)).Want(403)
 }
 
 func TestAdminSshPublicKeyDerivation(t *testing.T) {

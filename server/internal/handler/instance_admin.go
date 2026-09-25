@@ -459,29 +459,29 @@ func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, 200, list)
 }
 
-// runtimeVersionRE accepts only the characters npm/semver versions use.
-// It prevents shell-special characters from reaching the install command.
-var runtimeVersionRE = regexp.MustCompile(`^[0-9A-Za-z.\-+]+$`)
-
-// AdminComputerRuntimes lists all built-in runtimes and their installed versions
-// on the target computer. When linux_user is supplied, probing runs in that
-// user's environment so it matches the installation endpoint.
-func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) {
-	if _, ok := requireInstanceAdmin(w, r); !ok {
+// AdminCheckLinuxUser checks whether a bound OS account still exists.
+func (h *Handler) AdminCheckLinuxUser(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireInstanceAdmin(w, r)
+	if !ok {
 		return
 	}
-	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Computer ID")
+	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Binding ID")
 	if !ok {
 		return
 	}
 	var m computer.Machine
-	err := h.DB.QueryRow(r.Context(), `SELECT host,port,ssh_user FROM computer WHERE id=$1`, id).Scan(&m.Host, &m.Port, &m.SSHUser)
+	var linuxUser string
+	err := h.DB.QueryRow(r.Context(), `SELECT c.id::text,c.host,c.port,c.ssh_user,b.username FROM computer_binding b JOIN computer c ON c.id=b.computer_id WHERE b.id=$1`, id).Scan(&m.ID, &m.Host, &m.Port, &m.SSHUser, &linuxUser)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, 404, "Computer not found")
+		writeError(w, 404, "Linux User binding not found")
 		return
 	}
 	if err != nil {
-		writeError(w, 500, "Cannot read Computer")
+		writeError(w, 500, "Cannot read Linux User binding")
+		return
+	}
+	if err := computer.ValidateLinuxUsername(linuxUser); err != nil {
+		writeError(w, 500, "Invalid stored Linux username")
 		return
 	}
 	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
@@ -490,13 +490,66 @@ func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
-	linuxUser := strings.TrimSpace(r.URL.Query().Get("linux_user"))
-	if linuxUser != "" {
-		if err := computer.ValidateLinuxUsername(linuxUser); err != nil {
-			writeError(w, 400, "Invalid linux_user: "+err.Error())
-			return
-		}
+	out, checkErr := remote.RunCommandContext(r.Context(), "if getent passwd "+linuxUser+" >/dev/null; then printf present; else printf missing; fi")
+	if checkErr != nil {
+		writeError(w, 502, "Linux User check failed: "+checkErr.Error())
+		return
 	}
+	present := strings.TrimSpace(out) == "present"
+	_, _ = h.DB.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,binding_id,action,outcome) VALUES($1,$2,$3,'linux_user_check',$4)`, uid, m.ID, id, map[bool]string{true: "success", false: "failure"}[present])
+	writeJSON(w, 200, map[string]bool{"present": present})
+}
+
+// runtimeVersionRE accepts only the characters npm/semver versions use.
+// It prevents shell-special characters from reaching the install command.
+var runtimeVersionRE = regexp.MustCompile(`^[0-9A-Za-z.\-+]+$`)
+
+func (h *Handler) ownedRuntimeBinding(w http.ResponseWriter, r *http.Request, uid string) (computer.Machine, string, string, bool) {
+	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Binding ID")
+	if !ok {
+		return computer.Machine{}, "", "", false
+	}
+	var m computer.Machine
+	var linuxUser, state string
+	var verified bool
+	err := h.DB.QueryRow(r.Context(), `SELECT c.id::text,c.host,c.port,c.ssh_user,b.username,b.state,b.verified FROM computer_binding b JOIN computer c ON c.id=b.computer_id WHERE b.id=$1 AND b.user_id=$2`, id, uid).Scan(&m.ID, &m.Host, &m.Port, &m.SSHUser, &linuxUser, &state, &verified)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "Linux User binding not found")
+		return computer.Machine{}, "", "", false
+	}
+	if err != nil {
+		writeError(w, 500, "Cannot read Linux User binding")
+		return computer.Machine{}, "", "", false
+	}
+	if !verified || state != "ready" {
+		writeError(w, 409, "Linux User is not ready")
+		return computer.Machine{}, "", "", false
+	}
+	if err := computer.ValidateLinuxUsername(linuxUser); err != nil {
+		writeError(w, 500, "Invalid stored Linux username")
+		return computer.Machine{}, "", "", false
+	}
+	return m, linuxUser, uuidToString(id), true
+}
+
+// ComputerBindingRuntimes probes CLI versions in the authenticated owner's
+// Linux account. The account name is never accepted from request input.
+func (h *Handler) ComputerBindingRuntimes(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	m, linuxUser, _, ok := h.ownedRuntimeBinding(w, r, uid)
+	if !ok {
+		return
+	}
+	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
+	if keyPath == "" {
+		writeError(w, 503, "Computer provisioning is not configured")
+		return
+	}
+	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
 
 	type runtimeInfo struct {
 		ID               string `json:"id"`
@@ -514,9 +567,7 @@ func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) 
 			VersionRequired: versionRequired,
 		}
 		probe := "if command -v " + defaultCmd + " >/dev/null 2>&1; then " + defaultCmd + " --version || { echo 'Executable found, but --version failed' >&2; exit 1; }; fi"
-		if linuxUser != "" {
-			probe = "sudo -n runuser -u " + linuxUser + " -- sh -c " + computerShellQuote("export PATH=\"$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin\"; "+probe)
-		}
+		probe = "sudo -n runuser -u " + linuxUser + " -- sh -c " + computerShellQuote("export PATH=\"$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin\"; "+probe)
 		out, err := remote.RunCommandContext(r.Context(), probe)
 		if err == nil {
 			info.InstalledVersion = strings.TrimSpace(out)
@@ -549,23 +600,20 @@ func (h *Handler) AdminComputerRuntimes(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, 200, list)
 }
 
-// AdminComputerRuntimeInstall installs or upgrades a built-in runtime to the
-// requested version on the target computer. The install command runs as root
-// via sudo, which then uses runuser to switch to the target Linux user account,
-// keeping the installation in that user's private npm prefix.
-func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Request) {
-	uid, ok := requireInstanceAdmin(w, r)
+// ComputerBindingRuntimeInstall installs into the binding owner's Linux home.
+func (h *Handler) ComputerBindingRuntimeInstall(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireUserID(w, r)
 	if !ok {
 		return
 	}
-	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Computer ID")
+	w.Header().Set("Cache-Control", "no-store")
+	m, linuxUser, bindingID, ok := h.ownedRuntimeBinding(w, r, uid)
 	if !ok {
 		return
 	}
 	var in struct {
 		RuntimeID string `json:"runtime_id"`
 		Version   string `json:"version"`
-		LinuxUser string `json:"linux_user"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	dec.DisallowUnknownFields()
@@ -589,11 +637,7 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 		versionRequired = !pf.LatestOnly
 	}
 	if installCmd == "" {
-		writeError(w, 422, fmt.Sprintf("Runtime %q does not support installation via the admin UI", in.RuntimeID))
-		return
-	}
-	if err := computer.ValidateLinuxUsername(in.LinuxUser); err != nil {
-		writeError(w, 400, "Invalid linux_user: "+err.Error())
+		writeError(w, 422, fmt.Sprintf("Runtime %q does not support installation", in.RuntimeID))
 		return
 	}
 	if versionRequired && (!runtimeVersionRE.MatchString(in.Version) || in.Version == "") {
@@ -608,23 +652,13 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 		in.Version = "latest"
 	}
 
-	var m computer.Machine
-	err := h.DB.QueryRow(r.Context(), `SELECT host,port,ssh_user FROM computer WHERE id=$1`, id).Scan(&m.Host, &m.Port, &m.SSHUser)
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, 404, "Computer not found")
-		return
-	}
-	if err != nil {
-		writeError(w, 500, "Cannot read Computer")
-		return
-	}
 	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
 	if keyPath == "" {
 		writeError(w, 503, "Computer provisioning is not configured")
 		return
 	}
 
-	cmd := strings.ReplaceAll(installCmd, "{{user}}", in.LinuxUser)
+	cmd := strings.ReplaceAll(installCmd, "{{user}}", linuxUser)
 	cmd = strings.ReplaceAll(cmd, "{{version}}", in.Version)
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 5 * time.Minute}
 	_, installErr := remote.RunCommandContext(r.Context(), "sudo -n "+cmd)
@@ -637,7 +671,7 @@ func (h *Handler) AdminComputerRuntimeInstall(w http.ResponseWriter, r *http.Req
 	// A disconnected client must not erase the audit of its remote operation.
 	auditCtx, cancelAudit := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer cancelAudit()
-	_, _ = h.DB.Exec(auditCtx, `INSERT INTO computer_audit(user_id,computer_id,action,outcome) VALUES($1,$2,$3,$4)`, uid, id, action, outcome)
+	_, _ = h.DB.Exec(auditCtx, `INSERT INTO computer_audit(user_id,computer_id,binding_id,action,outcome) VALUES($1,$2,$3,$4,$5)`, uid, m.ID, bindingID, action, outcome)
 
 	if installErr != nil {
 		writeError(w, 502, "Install failed: "+installErr.Error())
