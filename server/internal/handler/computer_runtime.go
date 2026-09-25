@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/computer"
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
@@ -120,12 +121,13 @@ func (h *Handler) runtimeAssets(ctx context.Context, id string) ([]runtimeAsset,
 	}
 	return list, nil
 }
-func (h *Handler) saveRuntimeProbe(ctx context.Context, bindingID string, target runtimeTarget, p computer.RuntimeProbe, version string, installed bool) error {
+func (h *Handler) saveRuntimeProbe(ctx context.Context, operationID, bindingID string, target runtimeTarget, p computer.RuntimeProbe, version string, installed bool) error {
 	dir := ""
 	if p.Path != "" {
 		dir = path.Dir(p.Path)
 	}
-	_, err := h.DB.Exec(ctx, `INSERT INTO computer_runtime_asset(binding_id,runtime_id,executable_path,install_dir,requested_version,actual_version,installer_source,installed_at,probe_state,error_code,probe_environment)
+	return h.withRunningOperation(ctx, operationID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO computer_runtime_asset(binding_id,runtime_id,executable_path,install_dir,requested_version,actual_version,installer_source,installed_at,probe_state,error_code,probe_environment)
  VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $8 THEN now() END,$9,$10,$11)
  ON CONFLICT(binding_id,runtime_id) DO UPDATE SET
  executable_path=CASE WHEN $3<>'' THEN $3 ELSE computer_runtime_asset.executable_path END,
@@ -135,7 +137,8 @@ func (h *Handler) saveRuntimeProbe(ctx context.Context, bindingID string, target
  installer_source=CASE WHEN $8 THEN $7 ELSE computer_runtime_asset.installer_source END,
  installed_at=CASE WHEN $8 THEN now() ELSE computer_runtime_asset.installed_at END,
  checked_at=now(),probe_state=$9,error_code=$10,probe_environment=$11`, bindingID, target.id, p.Path, dir, version, p.Version, target.source, installed, p.State, p.Code, computer.RuntimePath)
-	return err
+		return err
+	})
 }
 
 func (h *Handler) DiscoverComputerBinding(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +169,7 @@ func (h *Handler) DiscoverComputerBinding(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				p = computer.RuntimeProbe{State: "check_failed", Code: computer.ErrorCode(err, "version_check_failed")}
 			}
-			if err = h.saveRuntimeProbe(ctx, id, target, p, "", false); err != nil {
+			if err = h.saveRuntimeProbe(ctx, op, id, target, p, "", false); err != nil {
 				return "", err
 			}
 			if p.Code != "" && p.Code != "cli_missing" && firstCode == "" {
@@ -196,7 +199,7 @@ func (h *Handler) installBindingRuntime(ctx context.Context, op, bindingID, user
 	if probeErr != nil {
 		p = computer.RuntimeProbe{State: "check_failed", Code: computer.ErrorCode(probeErr, "version_check_failed")}
 	}
-	if saveErr := h.saveRuntimeProbe(ctx, bindingID, target, p, version, installErr == nil && p.State == "installed"); saveErr != nil {
+	if saveErr := h.saveRuntimeProbe(ctx, op, bindingID, target, p, version, installErr == nil && p.State == "installed"); saveErr != nil {
 		return p.Version, saveErr
 	}
 	if installErr != nil {

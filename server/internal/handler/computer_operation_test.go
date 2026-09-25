@@ -87,11 +87,16 @@ func TestComputerOperationRecoveryRequiresExpiredOperation(t *testing.T) {
 
 func TestComputerRuntimeProbeFailurePreservesLastKnownAsset(t *testing.T) {
 	_, binding := operationBinding(t)
-	target := runtimeTargets()[0]
-	if err := testHandler.saveRuntimeProbe(context.Background(), binding, target, computer.RuntimeProbe{State: "installed", Path: "/home/alice/.local/bin/omp", Version: "1.2.3"}, "latest", true); err != nil {
+	op, err := testHandler.beginBindingOperation(context.Background(), testUserID, binding, "runtime_discovery", "", "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := testHandler.saveRuntimeProbe(context.Background(), binding, target, computer.RuntimeProbe{State: "check_failed", Code: "ssh_timeout"}, "", false); err != nil {
+	dbfx.Exec(t, `UPDATE computer_operation SET state='running' WHERE id=$1`, op)
+	target := runtimeTargets()[0]
+	if err := testHandler.saveRuntimeProbe(context.Background(), op, binding, target, computer.RuntimeProbe{State: "installed", Path: "/home/alice/.local/bin/omp", Version: "1.2.3"}, "latest", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := testHandler.saveRuntimeProbe(context.Background(), op, binding, target, computer.RuntimeProbe{State: "check_failed", Code: "ssh_timeout"}, "", false); err != nil {
 		t.Fatal(err)
 	}
 	list, err := testHandler.runtimeAssets(context.Background(), binding)

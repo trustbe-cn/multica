@@ -12,9 +12,9 @@ import (
 
 type runtimeProbeRunner struct{ home string }
 
-func (r runtimeProbeRunner) Run(argv []string, _ string) (string, error) {
-	command := strings.TrimPrefix(argv[len(argv)-1], "sudo -n runuser -u tester -- ")
-	cmd := exec.Command("sh", "-c", command)
+func (r runtimeProbeRunner) Run(ctx context.Context, argv []string, _ string) (string, error) {
+	command := strings.TrimPrefix(argv[len(argv)-1], "sudo -n runuser -u 'tester' -- ")
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Env = []string{"HOME=" + r.home, "PATH=/usr/bin:/bin"}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -68,6 +68,19 @@ func TestComputerErrorCodesDoNotExposeRawSecrets(t *testing.T) {
 		}
 		if strings.Contains(ErrorSummary(code), "secret-access-token") {
 			t.Fatal("secret leaked")
+		}
+	}
+}
+
+func TestRuntimeProbeRejectsShellSyntaxBeforeExecution(t *testing.T) {
+	for _, command := range []string{"cli;id", "cli name", "$(id)", "cli\nid", "/tmp/cli", "-cli"} {
+		runner := &recordRunner{}
+		remote := SSHRemote{Host: "fake.invalid", Port: 22, User: "operator", KeyPath: "/fake/key", RunCmd: runner}
+		if _, err := remote.ProbeRuntime(context.Background(), "tester", command); err == nil {
+			t.Fatalf("accepted command %q", command)
+		}
+		if len(runner.argv) != 0 {
+			t.Fatalf("executed invalid command %q", command)
 		}
 	}
 }

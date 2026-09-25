@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
 const RuntimePath = "$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin"
+
+var runtimeCommandRE = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.+-]*$`)
 
 type RuntimeProbe struct {
 	Path    string `json:"path"`
@@ -23,8 +26,8 @@ func (s SSHRemote) ProbeRuntime(ctx context.Context, username, command string) (
 	if err := validateUsername(username); err != nil {
 		return RuntimeProbe{}, err
 	}
-	if err := validateUsername(command); err != nil {
-		return RuntimeProbe{}, err
+	if !runtimeCommandRE.MatchString(command) {
+		return RuntimeProbe{}, errors.New("invalid runtime command name")
 	}
 	script := `import json,shutil,subprocess,sys
 p=shutil.which(sys.argv[1])
@@ -37,7 +40,7 @@ if p:
             r.update(state="installed",code="",version=c.stdout.strip()[:512])
     except (OSError,subprocess.TimeoutExpired): pass
 print(json.dumps(r))`
-	cmd := "sudo -n runuser -u " + username + " -- sh -c " + shellQuote("export PATH=\""+RuntimePath+"\"; exec python3 -c "+shellQuote(script)+" "+command)
+	cmd := "sudo -n runuser -u " + ShellQuote(username) + " -- sh -c " + ShellQuote("export PATH=\""+RuntimePath+"\"; exec python3 -c "+ShellQuote(script)+" "+ShellQuote(command))
 	out, err := s.RunCommandContext(ctx, cmd)
 	if err != nil {
 		return RuntimeProbe{}, err

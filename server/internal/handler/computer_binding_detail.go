@@ -3,11 +3,11 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/computer"
 )
 
@@ -87,7 +87,7 @@ func (h *Handler) ComputerBindingLifecycle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if active || b.State == "running" {
-		operationStartError(w, errors.New("operation_busy"))
+		operationStartError(w, errOperationBusy)
 		return
 	}
 	if in.ConfirmUsername != b.Username {
@@ -189,14 +189,20 @@ func (h *Handler) ComputerBindingLifecycle(w http.ResponseWriter, r *http.Reques
 						return operationFailure("account_delete_failed")
 					}
 				}
-				_, err = h.DB.Exec(ctx, `UPDATE computer_binding SET account_state='missing',checked_at=now(),updated_at=now() WHERE id=$1`, id)
+				err = h.withRunningOperation(ctx, op, func(tx pgx.Tx) error {
+					_, err := tx.Exec(ctx, `UPDATE computer_binding SET account_state='missing',checked_at=now(),updated_at=now() WHERE id=$1`, id)
+					return err
+				})
 				return err
 			}
 			h.operationStep(op, "removing_daemon")
 			if err = remote.RemoveDaemon(b.Username); err != nil {
 				return err
 			}
-			_, err = h.DB.Exec(ctx, `UPDATE computer_binding SET state='removed',daemon_state='stopped',daemon_checked_at=now(),last_error='',updated_at=now() WHERE id=$1`, id)
+			err = h.withRunningOperation(ctx, op, func(tx pgx.Tx) error {
+				_, err := tx.Exec(ctx, `UPDATE computer_binding SET state='removed',daemon_state='stopped',daemon_checked_at=now(),last_error='',updated_at=now() WHERE id=$1`, id)
+				return err
+			})
 			return err
 		})
 		return "", err

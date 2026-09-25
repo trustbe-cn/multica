@@ -83,17 +83,13 @@ func (s SSHRemote) runDiagnostic(remote string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	runner := s.RunCmd
-	if runner == nil {
-		runner = execRunner{timeout: s.Timeout}
-	}
-	return runner.Run(argv, "")
+	return s.execute(argv, "")
 }
 
 // Probe checks one computer without changing it. A transport failure is
 // returned as a failed ssh check so admins see the reason, not a bare error.
 func (s SSHRemote) Probe() (ProbeResult, error) {
-	remote := "python3 -c " + shellQuote(probeScript)
+	remote := "python3 -c " + ShellQuote(probeScript)
 	// Reject a malformed connection up front: that is a bad request, not an
 	// unreachable computer.
 	if _, err := s.argv(remote); err != nil {

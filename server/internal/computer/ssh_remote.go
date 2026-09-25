@@ -16,9 +16,10 @@ import (
 )
 
 // CommandRunner executes one remote command. stdin is the only place a
-// password or token may travel. argv must stay free of secrets.
+// password or token may travel. argv must stay free of secrets. Implementations
+// must stop when ctx is cancelled; SSHRemote supplies the command timeout.
 type CommandRunner interface {
-	Run(argv []string, stdin string) (stdout string, err error)
+	Run(ctx context.Context, argv []string, stdin string) (stdout string, err error)
 }
 
 // SSHRemote talks to one computer as the passwordless sudo account.
@@ -70,11 +71,7 @@ func (s SSHRemote) run(remote, stdin string, secrets ...string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	runner := s.RunCmd
-	if runner == nil {
-		runner = execRunner{timeout: s.Timeout, context: s.Context}
-	}
-	out, err := runner.Run(argv, stdin)
+	out, err := s.execute(argv, stdin)
 	out = redactText(out, secrets...)
 	if err != nil {
 		detail := strings.TrimSpace(out)
@@ -102,9 +99,7 @@ func (s SSHRemote) RunCommand(cmd string) (string, error) {
 // RunCommandContext bounds remote admin commands by both the request lifetime
 // and the configured SSH timeout.
 func (s SSHRemote) RunCommandContext(ctx context.Context, cmd string) (string, error) {
-	if s.RunCmd == nil {
-		s.RunCmd = execRunner{timeout: s.Timeout, context: ctx}
-	}
+	s.Context = ctx
 	return s.RunCommand(cmd)
 }
 
@@ -112,7 +107,7 @@ func (s SSHRemote) UserExists(username string) (bool, error) {
 	if err := validateUsername(username); err != nil {
 		return false, err
 	}
-	out, err := s.run("python3 -c "+shellQuote("import pwd,sys\ntry: pwd.getpwnam(sys.argv[1]); print('yes')\nexcept KeyError: print('no')")+" "+username, "")
+	out, err := s.run("python3 -c "+ShellQuote("import pwd,sys\ntry: pwd.getpwnam(sys.argv[1]); print('yes')\nexcept KeyError: print('no')")+" "+username, "")
 	if err != nil {
 		return false, err
 	}
@@ -136,7 +131,7 @@ func (s SSHRemote) PasswordMatches(username, password string) (bool, error) {
 		return false, fmt.Errorf("operator account cannot be provisioned")
 	}
 	// PAM runs with a fixed service and checks both authentication and account expiry.
-	_, err := s.run("sudo -n python3 -c "+shellQuote(pamScript)+" "+username, password, password)
+	_, err := s.run("sudo -n python3 -c "+ShellQuote(pamScript)+" "+username, password, password)
 	if err == nil {
 		return true, nil
 	}
@@ -147,7 +142,8 @@ func (s SSHRemote) PasswordMatches(username, password string) (bool, error) {
 	return false, err
 }
 
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
+// ShellQuote encodes one literal argument for a POSIX shell.
+func ShellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
 func (s SSHRemote) CreateUser(username, password string) error {
 	if err := validateUsername(username); err != nil {
@@ -204,7 +200,7 @@ except BaseException:
     subprocess.run(["userdel","-r",u],check=True,timeout=30)
     raise
 `
-	_, err := s.run("sudo -n python3 -c "+shellQuote(script)+" "+username, password, password)
+	_, err := s.run("sudo -n python3 -c "+ShellQuote(script)+" "+username, password, password)
 	return err
 }
 
@@ -245,7 +241,7 @@ func (s SSHRemote) WriteFiles(username string, files CredentialFiles) error {
 	data, _ := json.Marshal(cfg)
 	files.MulticaConfig = string(data)
 	payload := files.Gitconfig + "\x00" + files.GitLabToken + "\x00" + files.ModelEnv + "\x00" + files.MulticaConfig + "\x00" + files.GitSSHKey + "\x00" + files.GitKnownHosts
-	script := "sudo -n runuser -u " + username + " -- python3 -c " + shellQuote(writeFilesScript) + " " + shellQuote("computer-"+s.DaemonID)
+	script := "sudo -n runuser -u " + username + " -- python3 -c " + ShellQuote(writeFilesScript) + " " + ShellQuote("computer-"+s.DaemonID)
 
 	_, err := s.run(script, payload, files.GitLabToken, files.MulticaConfig, files.ModelEnv, files.GitSSHKey)
 	return err
@@ -264,7 +260,7 @@ func (s SSHRemote) InstallDaemon(username string) error {
 		unit = strings.ReplaceAll(unit, "/usr/local/bin/multica", "/opt/multica-computers/"+s.DaemonID+"/multica")
 		unit = strings.ReplaceAll(unit, " daemon start --foreground", " --profile computer-"+s.DaemonID+" daemon start --foreground --no-auto-update --daemon-id "+s.DaemonID)
 		script := "import sys,pwd,os\nu=sys.argv[1]; e=pwd.getpwnam(u)\nif not e.pw_dir.startswith('/') or any(c in e.pw_dir for c in '%\\n\\r\\t\"'): raise RuntimeError('unsupported home path')\nb=sys.stdin.read().replace('Group='+u+'\\n','').replace('/home/'+u,e.pw_dir)\np='/etc/systemd/system/multica-daemon@'+u+'.service'\nf=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o644)\nos.write(f,b.encode()); os.close(f)"
-		if _, err := s.run("sudo -n python3 -c "+shellQuote(script)+" "+username, unit); err != nil {
+		if _, err := s.run("sudo -n python3 -c "+ShellQuote(script)+" "+username, unit); err != nil {
 			return err
 		}
 		for _, step := range []string{"systemctl daemon-reload", "systemctl enable multica-daemon@" + username + ".service", "systemctl restart multica-daemon@" + username + ".service"} {
@@ -277,22 +273,35 @@ func (s SSHRemote) InstallDaemon(username string) error {
 	return fmt.Errorf("daemon identity is required")
 }
 
-type execRunner struct {
-	timeout time.Duration
-	context context.Context
-}
-
-func (e execRunner) Run(argv []string, stdin string) (string, error) {
-	timeout := e.timeout
-	if timeout <= 0 {
-		timeout = 90 * time.Second
-	}
-	parent := e.context
+// execute applies the same lifetime and timeout to real and injected runners.
+func (s SSHRemote) execute(argv []string, stdin string) (string, error) {
+	parent := s.Context
 	if parent == nil {
 		parent = context.Background()
 	}
+	timeout := s.Timeout
+	if timeout <= 0 {
+		timeout = 90 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	runner := s.RunCmd
+	if runner == nil {
+		runner = execRunner{}
+	}
+	out, err := runner.Run(ctx, argv, stdin)
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	return out, err
+}
+
+type execRunner struct{}
+
+func (e execRunner) Run(ctx context.Context, argv []string, stdin string) (string, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.WaitDelay = time.Second
 	cmd.Stdin = strings.NewReader(stdin)
@@ -315,7 +324,7 @@ unit="multica-daemon@"+sys.argv[1]+".service"
 p=subprocess.run(["systemctl","show","--property=LoadState","--value",unit],capture_output=True,text=True,check=True,timeout=10)
 if p.stdout.strip()!="not-found": subprocess.run(["systemctl","disable","--now",unit],check=True,timeout=30)
 `
-	_, err := s.run("sudo -n python3 -c "+shellQuote(script)+" "+username, "")
+	_, err := s.run("sudo -n python3 -c "+ShellQuote(script)+" "+username, "")
 	return err
 }
 
@@ -344,7 +353,7 @@ finally:
     if os.path.exists(path): os.unlink(path)
 
 `
-	_, err = s.run("sudo -n python3 -c "+shellQuote(script)+" "+s.DaemonID, base64.StdEncoding.EncodeToString(b))
+	_, err = s.run("sudo -n python3 -c "+ShellQuote(script)+" "+s.DaemonID, base64.StdEncoding.EncodeToString(b))
 	return err
 }
 
@@ -367,6 +376,6 @@ for path in (unit,binary):
     except FileNotFoundError: pass
 subprocess.run(["systemctl","daemon-reload"],check=True,timeout=15)
 `
-	_, err := s.run("sudo -n python3 -c "+shellQuote(script)+" "+username+" "+s.DaemonID, "")
+	_, err := s.run("sudo -n python3 -c "+ShellQuote(script)+" "+username+" "+s.DaemonID, "")
 	return err
 }

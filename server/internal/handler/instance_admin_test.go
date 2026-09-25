@@ -253,7 +253,7 @@ func TestOwnedRuntimeUserVersionAndAudit(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(`#!/bin/sh
 for command do :; done
 case "$command" in
-  *"runuser -u alice"*) ;;
+  *"runuser -u alice"*|*"runuser -u 'alice'"*) ;;
   *) exit 44;;
 esac
 case "$command" in
@@ -335,7 +335,7 @@ func TestAdminCheckLinuxUserAuthorizationAndRemoteAccount(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(`#!/bin/sh
 for command do :; done
 case "$command" in
-  *"getent passwd alice"*) printf 'present\nactive\n';;
+  *"getent passwd 'alice'"*) printf 'present\nactive\n';;
   *) exit 44;;
 esac
 `), 0700); err != nil {

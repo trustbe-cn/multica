@@ -16,6 +16,8 @@
 - [P0/P1 实施与验收记录](engineering/computer-p0-p1-implementation.md)：实现范围、本地测试环境和真实验收缺口。
 - [部署记录模板](engineering/computer-deployment-template.md)：镜像、迁移、健康证据与回滚记录。
 
+- [Computer、Linux 用户与运行时验收](engineering/computer-runtime-acceptance.md)：页面、权限、安装和生命周期验收步骤，以及隔离故障测试的边界。
+
 ## 其他工程文档
 
 - [任务唤醒机制](engineering/issue-wakeups.md)

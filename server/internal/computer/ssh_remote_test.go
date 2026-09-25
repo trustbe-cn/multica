@@ -17,7 +17,7 @@ type recordRunner struct {
 	err   error
 }
 
-func (r *recordRunner) Run(argv []string, stdin string) (string, error) {
+func (r *recordRunner) Run(_ context.Context, argv []string, stdin string) (string, error) {
 	r.argv = append([]string{}, argv...)
 	r.stdin = stdin
 	return r.out, r.err
@@ -47,7 +47,7 @@ type scriptRunner struct {
 	err   error
 }
 
-func (s *scriptRunner) Run(argv []string, stdin string) (string, error) {
+func (s *scriptRunner) Run(_ context.Context, argv []string, stdin string) (string, error) {
 	s.calls = append(s.calls, recordRunner{argv: append([]string{}, argv...), stdin: stdin})
 	if s.err != nil && strings.Contains(stdin, "s3cret-password") {
 		return "leaked " + stdin, s.err
@@ -132,5 +132,57 @@ func TestDaemonPathIncludesNativeInstallDirectories(t *testing.T) {
 		if !strings.Contains(DaemonUnit, path) {
 			t.Fatalf("daemon cannot resolve %s", path)
 		}
+	}
+}
+
+type cancellingRunner struct{ started chan struct{} }
+
+func (r cancellingRunner) Run(ctx context.Context, _ []string, _ string) (string, error) {
+	close(r.started)
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestInjectedSSHRunnerReceivesCancellationAndTimeout(t *testing.T) {
+	for _, tc := range []string{"cancel", "timeout", "already cancelled"} {
+		t.Run(tc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			started := make(chan struct{})
+			remote := SSHRemote{Host: "fake.invalid", Port: 22, User: "operator", KeyPath: "/fake/key", Timeout: time.Second, RunCmd: cancellingRunner{started}}
+			expected := context.Canceled
+			if tc == "timeout" {
+				remote.Timeout = 20 * time.Millisecond
+				expected = context.DeadlineExceeded
+			}
+			if tc == "already cancelled" {
+				cancel()
+			}
+			done := make(chan error, 1)
+			go func() { _, err := remote.RunCommandContext(ctx, "true"); done <- err }()
+			if tc == "cancel" {
+				select {
+				case <-started:
+					cancel()
+				case <-time.After(time.Second):
+					t.Fatal("runner was not called")
+				}
+			}
+			select {
+			case err := <-done:
+				if !errors.Is(err, expected) {
+					t.Fatalf("got %v, want %v", err, expected)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("injected runner ignored context")
+			}
+			if tc == "already cancelled" {
+				select {
+				case <-started:
+					t.Fatal("cancelled command executed")
+				default:
+				}
+			}
+		})
 	}
 }

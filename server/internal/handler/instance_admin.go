@@ -492,7 +492,7 @@ func (h *Handler) checkLinuxUser(w http.ResponseWriter, r *http.Request, admin b
 		return
 	}
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
-	out, checkErr := remote.RunCommandContext(r.Context(), "if getent passwd "+linuxUser+" >/dev/null; then printf present; else printf missing; fi; printf '\\n'; systemctl is-active multica-daemon@"+linuxUser+".service || true")
+	out, checkErr := remote.RunCommandContext(r.Context(), "if getent passwd "+computer.ShellQuote(linuxUser)+" >/dev/null; then printf present; else printf missing; fi; printf '\\n'; systemctl is-active "+computer.ShellQuote("multica-daemon@"+linuxUser+".service")+" || true")
 	if checkErr != nil {
 		code := computer.ErrorCode(checkErr, "account_unavailable")
 		writeJSON(w, 502, map[string]string{"code": code, "error": computer.ErrorSummary(code)})

@@ -213,3 +213,16 @@ pnpm --filter @multica/core typecheck
 | 发布证据 | `/home/tiger/bench/multica-deploy/releases/linux-user-p0-p1-b528fd809/`，含构建日志、源码快照、`before.json`、`verification.json`、`DEPLOYMENT.md`。 |
 | 回滚镜像 | `multica-backend:07f1e09c4` / `multica-web:07f1e09c4`，仍保留。回滚前停止接受新远端操作并等待在途操作完成；保留新增表/字段，勿直接执行 down 或恢复数据库而丢失新操作历史。 |
 | 未验证范围 | 真实非生产 Computer 生命周期、七种 CLI 实装、模型任务和完整浏览器 E2E。已有远端 daemon/units 未自动升级。 |
+
+
+## 2026-09-25 操作恢复 review 修复
+
+保留终态与审计的原子提交；收尾采用最多三次、每次三秒的有限重试，不重放远端副作用。事务失败记录操作 ID 与安全错误分类。提交结果不确定时，重试检查持久终态，避免重复审计。持续失败保留显式恢复机制。
+
+恢复接口将无匹配记录的 409 与数据库异常的 500 区分。同步安装等待识别过期的 queued/running，返回 interrupted 和操作 ID，保留安全锁等待所有者确认。恢复、绑定结果与资产写入按相同顺序锁定 binding 和 operation，拒绝过期或已恢复 worker 的迟到写入。内外两层 panic 都记录堆栈，并统一落为 interrupted；不记录任意 panic 值或数据库错误详情。
+
+SSH runner 显式接收 context，默认执行器与注入执行器使用统一的取消和超时。操作哨兵错误改用 errors.Is；运行时命令名使用独立白名单，探测中的命令、用户名与账号检查的服务名均作为 shell 参数引用。
+
+删除 Linux 用户后保留 removed + missing 的语义；回归验证了删除成功后复用同一 binding 重建账号，而不是引入新的绑定状态。人工验收步骤见[验收清单](computer-runtime-acceptance.md)。
+
+验证：独立 PostgreSQL 上的 Computer/Admin/runtime handler 定向测试通过并启用 -race；Computer 包完整 -race 测试通过；go vet、全后端编译、make sqlc、文档链接与 git diff --check 通过。测试使用临时 SSH/CLI 命令桩，没有执行真实远端建号、真实 CLI 安装或模型任务。生产部署结果随后记录。

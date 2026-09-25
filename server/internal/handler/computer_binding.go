@@ -173,15 +173,16 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	go h.runRemoteOperation(operationID, func(ctx context.Context) (string, error) {
 		remote.Context = ctx
 		req.Step = func(step string) { h.operationStep(operationID, step) }
-		return "", h.runComputerOperation(ctx, uid, b, remote, &computer.FileStore{Dir: lockDir}, req, action)
+		return "", h.runComputerOperation(ctx, operationID, uid, b, remote, &computer.FileStore{Dir: lockDir}, req, action)
 	})
 	writeJSON(w, 202, b)
 }
 
-func (h *Handler) runComputerOperation(ctx context.Context, uid string, b computerBinding, remote computer.SSHRemote, store *computer.FileStore, req computer.Request, action string) (operationErr error) {
+func (h *Handler) runComputerOperation(ctx context.Context, operationID, uid string, b computerBinding, remote computer.SSHRemote, store *computer.FileStore, req computer.Request, action string) (operationErr error) {
 	state := "failed"
 	defer func() {
 		if recover() != nil {
+			logOperationPanic(operationID)
 			operationErr = operationFailure("interrupted")
 		}
 		message := ""
@@ -195,9 +196,20 @@ func (h *Handler) runComputerOperation(ctx context.Context, uid string, b comput
 		}
 		finish, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, err := h.DB.Exec(finish, `UPDATE computer_binding SET state=$2,last_error=$3,updated_at=now(),daemon_state=CASE WHEN $2='ready' THEN 'running' WHEN $2='removed' THEN 'stopped' ELSE daemon_state END,daemon_checked_at=CASE WHEN $2 IN ('ready','removed') THEN now() ELSE daemon_checked_at END WHERE id=$1 AND state='running'`, b.ID, state, message)
-		if err != nil && operationErr == nil {
-			operationErr = err
+		err := h.withRunningOperation(finish, operationID, func(tx pgx.Tx) error {
+			tag, err := tx.Exec(finish, `UPDATE computer_binding SET state=$2,last_error=$3,updated_at=now(),daemon_state=CASE WHEN $2='ready' THEN 'running' WHEN $2='removed' THEN 'stopped' ELSE daemon_state END,daemon_checked_at=CASE WHEN $2 IN ('ready','removed') THEN now() ELSE daemon_checked_at END WHERE id=$1 AND state='running'`, b.ID, state, message)
+			if err == nil && tag.RowsAffected() != 1 {
+				return errOperationSuperseded
+			}
+			return err
+		})
+		if err != nil {
+			if !errors.Is(err, errOperationSuperseded) {
+				logOperationDBError("Cannot finish binding operation", operationID, err)
+			}
+			if operationErr == nil {
+				operationErr = err
+			}
 		}
 	}()
 
@@ -238,9 +250,13 @@ func (h *Handler) runComputerOperation(ctx context.Context, uid string, b comput
 	if result.Action == computer.ActionRename {
 		return operationFailure("password_mismatch")
 	}
-	if _, err := h.DB.Exec(ctx, `UPDATE computer_binding SET verified=true,account_state='present',checked_at=now() WHERE id=$1`, b.ID); err != nil {
+	if err := h.withRunningOperation(ctx, operationID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE computer_binding SET verified=true,account_state='present',checked_at=now() WHERE id=$1`, b.ID)
+		return err
+	}); err != nil {
 		return err
 	}
+
 	if req.Step != nil {
 		req.Step("waiting_registration")
 	}

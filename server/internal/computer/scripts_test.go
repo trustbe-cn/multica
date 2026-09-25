@@ -1,6 +1,7 @@
 package computer
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -99,7 +100,9 @@ func TestPasswordTransportDistinguishesMismatchFromInfrastructure(t *testing.T) 
 }
 func TestExecTimeout(t *testing.T) {
 	start := time.Now()
-	_, err := (execRunner{timeout: 30 * time.Millisecond}).Run([]string{"sleep", "2"}, "")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	_, err := (execRunner{}).Run(ctx, []string{"sleep", "2"}, "")
 	if err == nil || time.Since(start) > time.Second {
 		t.Fatal("command was not bounded")
 	}
