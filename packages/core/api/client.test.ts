@@ -3089,3 +3089,22 @@ describe("admin Computer API compatibility", () => {
     await expect(new ApiClient("https://api.example.test").checkAdminLinuxUser("binding")).rejects.toThrow("Linux User check response is invalid");
   });
 });
+
+it("rejects malformed Linux User detail, operation, lifecycle and discovery responses", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({unexpected:true}, {status:200})));
+  const client = new ApiClient("https://api.example.test");
+  await expect(client.getComputerBindingDetail("binding")).rejects.toThrow("Could not read Linux User details");
+  await expect(client.listComputerOperations("binding")).rejects.toThrow("Could not read remote operations");
+  await expect(client.discoverComputerBinding("binding")).rejects.toThrow("Could not read discovery operation");
+  await expect(client.installComputerBindingRuntime("binding", "codex", "latest")).rejects.toThrow("Could not read the installation operation");
+  await expect(client.checkLinuxUser("binding")).rejects.toThrow("Linux User check response is invalid");
+  await expect(client.computerBindingLifecycle("binding", {action:"archive",confirm_username:"alice"})).rejects.toThrow("Could not read lifecycle operation");
+});
+
+it("requests an asynchronous runtime receipt and retains its durable operation ID", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(Response.json({operation_id:"operation-1",state:"queued"}, {status:202}));
+  vi.stubGlobal("fetch", fetchMock);
+  const result = await new ApiClient("https://api.example.test").installComputerBindingRuntime("binding", "codex", "latest");
+  expect(result).toEqual({operation_id:"operation-1",state:"queued"});
+  expect(new Headers(fetchMock.mock.calls[0]?.[1].headers).get("Prefer")).toBe("respond-async");
+});

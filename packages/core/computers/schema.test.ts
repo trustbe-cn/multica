@@ -1,5 +1,5 @@
-import { InstanceAccessSchema, AdminComputerSchema } from "./admin-schema";
 // @vitest-environment node
+import { InstanceAccessSchema, AdminComputerSchema } from "./admin-schema";
 import { describe, it, expect, vi } from "vitest";
 import { parseComputerSettings } from "./schema";
 import { setSchemaLogger } from "../api/schema";
@@ -44,4 +44,11 @@ describe("instance admin response contracts", () => {
   it("rejects a registry row without its availability state", () => {
     expect(AdminComputerSchema.safeParse({id:"x",name:"Test",host:"test",port:22,ssh_user:"ops"}).success).toBe(false);
   });
+});
+
+it("keeps unfamiliar operation and asset states explicitly unknown", async () => {
+  const { RemoteOperationSchema } = await import("./schema");
+  const { AdminComputerRuntimeSchema } = await import("./admin-schema");
+  expect(RemoteOperationSchema.parse({id:"op",binding_id:"b",kind:"new-operation",state:"future-state",created_at:"now"}).state).toBe("interrupted");
+  expect(AdminComputerRuntimeSchema.parse({id:"codex",display_name:"Codex",installed_version:"",can_install:true,probe_state:"future-state",registration_state:"future-state"})).toMatchObject({probe_state:"unknown",registration_state:"not_discovered"});
 });

@@ -51,6 +51,7 @@ type Request struct {
 	ModelEnv      string
 	MulticaPAT    string
 	FailureLimit  int
+	Step          func(string)
 }
 
 // Apply runs rule A.
@@ -116,6 +117,12 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 		}
 	}()
 
+	step := func(name string) {
+		if req.Step != nil {
+			req.Step(name)
+		}
+	}
+	step("checking_account")
 	exists, err := r.UserExists(req.Username)
 	if err != nil {
 		return Result{}, SafeError(err, secrets...)
@@ -153,6 +160,7 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 		return res, nil
 	}
 
+	step("preparing_daemon")
 	if preparer, ok := r.(interface{ Prepare() error }); ok {
 		if err := preparer.Prepare(); err != nil {
 			return Result{}, err
@@ -160,11 +168,13 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 	}
 	created := false
 	if res.Action == ActionCreate {
+		step("installing_packages")
 		if err := r.CreateUser(req.Username, req.Password); err != nil {
 			return Result{}, SafeError(err, secrets...)
 		}
 		created = true
 	}
+	step("writing_configuration")
 	if err := r.WriteFiles(req.Username, files); err != nil {
 		if created {
 			if derr := r.DeleteUser(req.Username); derr != nil {
@@ -173,6 +183,7 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 		}
 		return Result{}, SafeError(fmt.Errorf("write credentials: %w", err), secrets...)
 	}
+	step("refreshing_daemon")
 	if err := r.InstallDaemon(req.Username); err != nil {
 		if created {
 			if derr := r.DeleteUser(req.Username); derr != nil {

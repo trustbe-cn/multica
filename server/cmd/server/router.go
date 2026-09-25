@@ -69,6 +69,7 @@ var corsAllowedHeaders = []string{
 	"Content-Type",
 	"Idempotency-Key",
 	"If-Match",
+	"Prefer",
 	"X-Workspace-ID",
 	"X-Workspace-Slug",
 	"X-Request-ID",
@@ -1616,6 +1617,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Get("/api/me/computer-bindings", h.ComputerBindings)
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings", h.ComputerBindings)
 		r.With(handler.RequireHumanActor).Get("/api/me/computer-bindings/{id}/runtimes", h.ComputerBindingRuntimes)
+		r.With(handler.RequireHumanActor).Get("/api/me/computer-bindings/{id}", h.ComputerBindingDetail)
+		r.With(handler.RequireHumanActor).Get("/api/me/computer-bindings/{id}/operations", h.ComputerBindingOperations)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/recover", h.RecoverComputerOperation)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/discover", h.DiscoverComputerBinding)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/check", h.CheckLinuxUser)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/lifecycle", h.ComputerBindingLifecycle)
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/runtime-install", h.ComputerBindingRuntimeInstall)
 		r.With(handler.RequireHumanActor).Put("/api/me/computer-settings", h.ComputerSettings)
 		r.With(handler.RequireHumanActor).Get("/api/me/instance-access", h.InstanceAccess)
@@ -1628,6 +1635,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers/{id}/check", h.CheckAdminComputer)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computer-bindings", h.AdminComputerBindings)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computer-bindings/{id}/check", h.AdminCheckLinuxUser)
+		r.With(handler.RequireHumanActor).Get("/api/admin/computer-bindings/{id}", h.AdminBindingDetail)
+		r.With(handler.RequireHumanActor).Get("/api/admin/computer-bindings/{id}/operations", h.AdminBindingOperations)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computer-audit", h.AdminComputerAudit)
 		r.With(handler.RequireHumanActor).Get("/api/computers", h.Computers)
 		r.With(handler.RequireHumanActor).Post("/api/computers", h.Computers)

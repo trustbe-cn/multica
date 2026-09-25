@@ -178,3 +178,20 @@ pnpm --filter @multica/core typecheck
 - unit 与主机检查：[files.go](../../server/internal/computer/files.go)、[probe.go](../../server/internal/computer/probe.go)、[probe_test.go](../../server/internal/computer/probe_test.go)。
 - 解析与 Query：[client.ts](../../packages/core/api/client.ts)、[client.test.ts](../../packages/core/api/client.test.ts)、[admin-schema.ts](../../packages/core/computers/admin-schema.ts)、[admin.ts](../../packages/core/computers/admin.ts)。
 - 界面与交互回归：[admin-page.tsx](../../packages/views/admin/admin-page.tsx)、[admin-page.test.tsx](../../packages/views/admin/admin-page.test.tsx)。
+
+## 2026-09-25 部署核对
+
+本条追加记录保留第 5 节截至 2026-09-24 的历史事实。2026-09-25 已部署后续提交 `07f1e09c4`，它包含 `e8d97ddc8` 的修复及 Linux 用户管理入口调整。本次 P0/P1 开发开始时再次只读核对如下；不代表 P0/P1 工作树已部署。
+
+| 项目 | 2026-09-25 核对结果 |
+| --- | --- |
+| 部署目录 | `/home/tiger/bench/multica-deploy`；主仓库与部署目录的 `AGENTS.md` 均已记录操作边界。 |
+| 后端镜像 / commit | `multica-backend:07f1e09c4`；后端健康响应为 `07f1e09c4`。 |
+| 前端镜像 / 健康检查 | `multica-web:07f1e09c4`；容器 healthy；13000 端口代理的健康接口返回后端 commit `07f1e09c4`。该响应本身不单独证明前端源码版本，前端版本依据 Compose/容器镜像标签。 |
+| 服务健康 | backend/frontend/PostgreSQL healthy，gateway running。未登录访问 13000 端口的 `/api/admin/computers` 返回 401。 |
+| 数据库迁移 | 只读查询确认最新记录为 `539_computer_check`；`e8d97ddc8` 到 `07f1e09c4` 的迁移目录无变更。P0/P1 新增 `540`–`545` 尚未应用到部署数据库。 |
+| 可用的上一轮镜像 | `multica-backend:runtime-fixes-20260924T092411Z` 和 `multica-web:runtime-fixes-20260924T092411Z` 仍在本地。实际回滚前需复核当前迁移和功能差异；不要直接覆盖当前 Compose。 |
+| 远端 daemon | 应用部署不会自动重写已有 systemd unit；原有 binding 需要执行升级才能刷新 PATH。 |
+| 验证范围 | 应用存活、镜像身份与鉴权入口。没有把这些结果当作真实建号、七种 CLI 安装或完整浏览器 E2E 的通过证据。 |
+
+后续每次部署按[部署记录模板](computer-deployment-template.md)记录新旧镜像、迁移、健康证据及回滚边界。本次 P0/P1 的实现与本地验证见[实施记录](computer-p0-p1-implementation.md)。

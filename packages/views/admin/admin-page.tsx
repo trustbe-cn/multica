@@ -1,5 +1,7 @@
 "use client";
 
+import { LinuxUserDetail } from "../computers/linux-user-detail";
+
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@multica/core/auth";
 import {
@@ -128,6 +130,7 @@ function AdminSections({
 }) {
   const { t } = useT("settings");
   const data = useComputerAdmin(userId, true);
+  const [detailBinding, setDetailBinding] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [dialog, setDialog] = useState<"closed" | "add" | string>("closed");
   const [confirmDelete, setConfirmDelete] = useState<AdminComputer | null>(null);
@@ -310,13 +313,15 @@ function AdminSections({
                 </dl>
                 {b.last_error && <p className="break-words text-sm text-destructive">{b.last_error}</p>}
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button type="button" variant="outline" size="sm" disabled={checkingBinding !== "" || b.state === "removed"} onClick={() => void checkBinding(b.id)}>
+                  <Button type="button" variant="outline" size="sm" disabled={checkingBinding !== ""} onClick={() => void checkBinding(b.id)}>
                     {checkingBinding === b.id ? t(($) => $.computers.loading) : t(($) => $.admin.linux_user_check)}
                   </Button>
                   {bindingChecks[b.id]?.present === true && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_present)}</p>}
                   {bindingChecks[b.id]?.present === false && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_missing)}</p>}
                   {bindingChecks[b.id]?.error && <p role="alert" className="break-words text-sm text-destructive">{bindingChecks[b.id]?.error}</p>}
                 </div>
+                <Button variant="outline" size="sm" aria-expanded={detailBinding === b.id} onClick={() => setDetailBinding(detailBinding === b.id ? "" : b.id)}>{t(($) => $.linux_user.details)}</Button>
+                {detailBinding === b.id && <LinuxUserDetail bindingId={b.id} userId={userId} admin />}
               </li>
             ))}
           </ul>

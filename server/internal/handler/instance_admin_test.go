@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/multica-ai/multica/server/internal/computer"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -256,7 +257,7 @@ case "$command" in
   *) exit 44;;
 esac
 case "$command" in
-  *"--version"*) printf '1.2.3\n';;
+  *"--version"*) printf '{"path":"/home/alice/.grok/bin/grok","version":"1.2.3","state":"installed","code":""}\n';;
   *) exit 45;;
 esac
 `), 0700); err != nil {
@@ -277,7 +278,7 @@ esac
 		t.Fatalf("runtimes = %+v", runtimes)
 	}
 	for _, rt := range runtimes {
-		if rt.InstalledVersion != "1.2.3" || rt.ProbeError != "" {
+		if rt.InstalledVersion != "" || rt.ProbeError != "" {
 			t.Fatalf("wrong target user: %+v", rt)
 		}
 		if !rt.VersionRequired {
@@ -295,10 +296,24 @@ esac
 	} {
 		testutil.Call(t, testHandler.ComputerBindingRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": tc.runtime, "version": tc.version})).Want(tc.status)
 	}
+	deadline := time.Now().Add(5 * time.Second)
 	var count int
-	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM computer_audit WHERE computer_id=$1 AND action='runtime_install:grok@latest' AND outcome='success'`, machine).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("latest audit: count=%d err=%v", count, err)
+	for time.Now().Before(deadline) {
+		if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM computer_audit WHERE computer_id=$1 AND action='runtime_install:grok@latest' AND outcome='succeeded'`, machine).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count == 1 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
+	if count != 1 {
+		t.Fatal("asynchronous install audit missing")
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM computer_operation WHERE binding_id=$1`, binding)
+		testPool.Exec(context.Background(), `DELETE FROM computer_runtime_asset WHERE binding_id=$1`, binding)
+	})
 	// Transport failures remain distinct from executables missing on PATH.
 	other := request("GET", "/", nil)
 	other.Header.Set("X-User-ID", "10000000-0000-0000-0000-000000000099")
@@ -320,7 +335,7 @@ func TestAdminCheckLinuxUserAuthorizationAndRemoteAccount(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(`#!/bin/sh
 for command do :; done
 case "$command" in
-  *"getent passwd alice"*) printf present;;
+  *"getent passwd alice"*) printf 'present\nactive\n';;
   *) exit 44;;
 esac
 `), 0700); err != nil {
@@ -338,6 +353,11 @@ esac
 	testutil.Call(t, testHandler.AdminCheckLinuxUser, request(binding)).Want(200).JSON(&result)
 	if !result.Present {
 		t.Fatal("remote account was not reported present")
+	}
+	var detail bindingDetail
+	testutil.Call(t, testHandler.AdminBindingDetail, request(binding)).Want(200).JSON(&detail)
+	if detail.DaemonState != "running" || detail.LastSeenAt != nil {
+		t.Fatalf("service state must not depend on runtime registration: %+v", detail)
 	}
 	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", "")
 	testutil.Call(t, testHandler.AdminCheckLinuxUser, request(binding)).Want(403)

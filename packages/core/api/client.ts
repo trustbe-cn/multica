@@ -1,3 +1,4 @@
+import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
 import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
 import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
@@ -965,6 +966,12 @@ export class ApiClient {
     if (!result) throw new Error("Linux User check response is invalid");
     return result;
   }
+  async checkLinuxUser(id: string) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/check`;
+    const result = parseWithFallback<{present:boolean} | null>(await this.fetch<unknown>(endpoint, {method:"POST"}), LinuxUserCheckSchema, null, {endpoint});
+    if (!result) throw new Error("Linux User check response is invalid");
+    return result;
+  }
   async listComputerAudit(): Promise<ComputerAudit[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-audit"), ComputerAuditSchema.array(), [] as ComputerAudit[], {endpoint:"/api/admin/computer-audit"}); }
   async updateAdminComputer(id:string,input:Partial<Omit<AdminComputer,"id">>) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"PATCH",body:JSON.stringify(input)}); }
   async deleteAdminComputer(id:string) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"DELETE"}); }
@@ -975,7 +982,39 @@ export class ApiClient {
     if (!result) throw new Error("Runtime list response is invalid; retry the version check");
     return result;
   }
-  async installComputerBindingRuntime(id: string, runtimeId: string, version: string): Promise<void> { await this.fetch(`/api/me/computer-bindings/${encodeURIComponent(id)}/runtime-install`, {method:"POST",body:JSON.stringify({runtime_id:runtimeId,version})}); }
+  async installComputerBindingRuntime(id: string, runtimeId: string, version: string) {
+    const result = parseWithFallback<AcceptedComputerOperation | null>(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/runtime-install`, {method:"POST",headers:{Prefer:"respond-async"},body:JSON.stringify({runtime_id:runtimeId,version})}), AcceptedComputerOperationSchema, null, {endpoint:"runtime-install"});
+    if (!result) throw new Error("Could not read the installation operation");
+    return result;
+  }
+  async getComputerBindingDetail(id: string, admin = false) {
+    const endpoint = `/api/${admin ? "admin" : "me"}/computer-bindings/${encodeURIComponent(id)}`;
+    const result = parseWithFallback<ComputerBindingDetail | null>(await this.fetch<unknown>(endpoint), ComputerBindingDetailSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read Linux User details");
+    return result;
+  }
+  async listComputerOperations(id: string, admin = false) {
+    const endpoint = `/api/${admin ? "admin" : "me"}/computer-bindings/${encodeURIComponent(id)}/operations`;
+    const result = parseWithFallback<RemoteOperation[] | null>(await this.fetch<unknown>(endpoint), RemoteOperationSchema.array(), null, {endpoint});
+    if (!result) throw new Error("Could not read remote operations");
+    return result;
+  }
+  async discoverComputerBinding(id: string) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/discover`;
+    const result = parseWithFallback<AcceptedComputerOperation | null>(await this.fetch<unknown>(endpoint, {method:"POST"}), AcceptedComputerOperationSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read discovery operation");
+    return result;
+  }
+  async recoverComputerOperation(id: string, operationId: string, action: "cancel" | "acknowledge") {
+    await this.fetch(`/api/me/computer-bindings/${encodeURIComponent(id)}/recover`, {method:"POST", body:JSON.stringify({operation_id:operationId, action})});
+  }
+  async computerBindingLifecycle(id: string, input: ComputerLifecycleInput) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/lifecycle`;
+    const data = await this.fetch<unknown>(endpoint, {method:"POST",body:JSON.stringify(input)});
+    const result = parseWithFallback<ComputerLifecycleResult | null>(data, ComputerLifecycleResultSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read lifecycle operation");
+    return result;
+  }
   async getAdminSshPubKey(): Promise<string> {
     const res = parseWithFallback<{ pubkey: string } | null>(
       await this.fetch<unknown>("/api/admin/computer-ssh-pubkey"),

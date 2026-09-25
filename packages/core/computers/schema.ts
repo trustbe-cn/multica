@@ -59,3 +59,25 @@ export function parseComputerSettings(data: unknown) {
     { endpoint: "/api/me/computer-settings" },
   );
 }
+
+export const RemoteOperationSchema = z.object({
+  id: z.string(), binding_id: z.string(), kind: z.string(),
+  runtime_id: z.string().default(""), requested_version: z.string().default(""), actual_version: z.string().default(""),
+  state: z.enum(["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]).catch("interrupted"),
+  step: z.string().default(""), error_code: z.string().default(""), error_summary: z.string().default(""),
+  created_at: z.string(), started_at: z.string().nullable().default(null), finished_at: z.string().nullable().default(null),
+});
+export type RemoteOperation = z.infer<typeof RemoteOperationSchema>;
+export const ComputerBindingDetailSchema = ComputerBindingSchema.extend({
+  computer_name: z.string(), workspace_name: z.string().default(""), daemon_id: z.string(),
+  account_state: z.enum(["unknown", "present", "missing", "unavailable"]).catch("unknown"),
+  daemon_state: z.enum(["running", "stopped", "failed", "unknown"]).catch("unknown"),
+  daemon_checked_at: z.string().nullable().default(null),
+  checked_at: z.string().nullable().default(null), archived_at: z.string().nullable().default(null), last_seen_at: z.string().nullable().default(null),
+});
+export const AcceptedComputerOperationSchema = z.object({ operation_id: z.string(), state: z.string() });
+export type ComputerLifecycleInput = { action: "remove" | "delete_user" | "archive"; password?: string; confirm_username: string };
+export type ComputerBindingDetail = z.infer<typeof ComputerBindingDetailSchema>;
+export type AcceptedComputerOperation = z.infer<typeof AcceptedComputerOperationSchema>;
+export const ComputerLifecycleResultSchema = z.union([AcceptedComputerOperationSchema, z.object({ saved: z.literal(true) })]);
+export type ComputerLifecycleResult = z.infer<typeof ComputerLifecycleResultSchema>;

@@ -78,6 +78,7 @@ export function useComputerBindingRuntimes(userId: string, bindingId: string, en
     queryKey: ["computers", userId, "runtimes", bindingId],
     enabled: enabled && !!userId && !!bindingId,
     queryFn: ({ signal }) => api.listComputerBindingRuntimes(bindingId, signal),
+    refetchInterval: 3000,
     retry: false,
   });
   return { runtimes, isInstalling };
@@ -90,7 +91,7 @@ export function useComputerBindingRuntimeInstall(userId: string, bindingId: stri
     mutationFn: (version: string) =>
       api.installComputerBindingRuntime(bindingId, runtimeId, version),
     onSettled: async () => {
-      await client.invalidateQueries({ queryKey: ["computers", userId, "runtimes", bindingId] });
+      await client.invalidateQueries({ queryKey: ["computers", userId] });
       await client.invalidateQueries({ queryKey: ["computer-admin", userId, "audit"] });
     },
   });

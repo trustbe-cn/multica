@@ -31,7 +31,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodGet {
-		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE state END,last_error FROM computer_binding WHERE user_id=$1 ORDER BY updated_at DESC`, uid)
+		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE state END,last_error FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
 		if err != nil {
 			writeError(w, 500, "Cannot read your Computers")
 			return
@@ -158,6 +158,11 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Cannot start operation")
 		return
 	}
+	operationID, err := insertComputerOperation(r.Context(), tx, uid, b.ID, in.Action, "", "")
+	if err != nil {
+		operationStartError(w, err)
+		return
+	}
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Cannot start operation")
 		return
@@ -165,24 +170,37 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, BinaryPath: binary, DaemonID: b.ID, HealthPort: b.HealthPort, WorkspaceID: b.WorkspaceID, Timeout: 90 * time.Second}
 	req := computer.Request{ComputerID: m.ID, ServerURL: serverURL, Username: in.Username, Password: in.Password, GitName: settings.GitName, GitEmail: settings.GitEmail, GitLabURL: settings.GitLabURL, GitLabToken: settings.GitLabToken, GitSSHKey: settings.GitSSHKey, GitKnownHosts: settings.GitKnownHosts, ModelEnv: settings.ModelEnv, MulticaPAT: settings.MulticaPAT, FailureLimit: 5}
 	action := in.Action
-	go h.runComputerOperation(uid, b, remote, &computer.FileStore{Dir: lockDir}, req, action)
+	go h.runRemoteOperation(operationID, func(ctx context.Context) (string, error) {
+		remote.Context = ctx
+		req.Step = func(step string) { h.operationStep(operationID, step) }
+		return "", h.runComputerOperation(ctx, uid, b, remote, &computer.FileStore{Dir: lockDir}, req, action)
+	})
 	writeJSON(w, 202, b)
 }
 
-func (h *Handler) runComputerOperation(uid string, b computerBinding, remote computer.SSHRemote, store *computer.FileStore, req computer.Request, action string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	state, message := "failed", "Operation failed; check the Computer connection and configuration, then retry"
+func (h *Handler) runComputerOperation(ctx context.Context, uid string, b computerBinding, remote computer.SSHRemote, store *computer.FileStore, req computer.Request, action string) (operationErr error) {
+	state := "failed"
 	defer func() {
 		if recover() != nil {
-			state = "failed"
-			message = "Operation interrupted; retry after checking the Computer"
+			operationErr = operationFailure("interrupted")
+		}
+		message := ""
+		if operationErr != nil {
+			code := computer.ErrorCode(operationErr, "remote_step_failed")
+			var coded *computerOperationError
+			if errors.As(operationErr, &coded) {
+				code = coded.code
+			}
+			message = computer.ErrorSummary(code)
 		}
 		finish, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, _ = h.DB.Exec(finish, `UPDATE computer_binding SET state=$2,last_error=$3,updated_at=now() WHERE id=$1`, b.ID, state, message)
-		_, _ = h.DB.Exec(finish, `INSERT INTO computer_audit(user_id,binding_id,action,outcome) VALUES($1,$2,$3,$4)`, uid, b.ID, action, state)
+		_, err := h.DB.Exec(finish, `UPDATE computer_binding SET state=$2,last_error=$3,updated_at=now(),daemon_state=CASE WHEN $2='ready' THEN 'running' WHEN $2='removed' THEN 'stopped' ELSE daemon_state END,daemon_checked_at=CASE WHEN $2 IN ('ready','removed') THEN now() ELSE daemon_checked_at END WHERE id=$1 AND state='running'`, b.ID, state, message)
+		if err != nil && operationErr == nil {
+			operationErr = err
+		}
 	}()
+
 	if action == "remove" {
 		err := store.WithKey(b.ComputerID, b.Username, func(a computer.Attempt) error {
 			_, allowed, err := a.Reserve(5)
@@ -207,23 +225,25 @@ func (h *Handler) runComputerOperation(uid string, b computerBinding, remote com
 		})
 		if err == nil {
 			state = "removed"
-			message = ""
 		}
-		return
+		return err
 	}
 	result, err := computer.Apply(remote, store, req)
 	if err != nil {
-		return
+		return err
 	}
 	if result.Action == computer.ActionLocked {
-		message = "Too many password attempts; retry after 15 minutes"
-		return
+		return operationFailure("password_locked")
 	}
 	if result.Action == computer.ActionRename {
-		message = "Password did not match; retry or choose another username"
-		return
+		return operationFailure("password_mismatch")
 	}
-	_, _ = h.DB.Exec(ctx, `UPDATE computer_binding SET verified=true WHERE id=$1`, b.ID)
+	if _, err := h.DB.Exec(ctx, `UPDATE computer_binding SET verified=true,account_state='present',checked_at=now() WHERE id=$1`, b.ID); err != nil {
+		return err
+	}
+	if req.Step != nil {
+		req.Step("waiting_registration")
+	}
 	// A live registration by this exact user/workspace/daemon is the success gate.
 	deadline := time.NewTimer(90 * time.Second)
 	defer deadline.Stop()
@@ -234,15 +254,13 @@ func (h *Handler) runComputerOperation(uid string, b computerBinding, remote com
 		err := h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM agent_runtime WHERE daemon_id=$1 AND owner_id=$2 AND workspace_id=$3 AND status='online' AND last_seen_at>now()-interval '30 seconds')`, b.ID, uid, b.WorkspaceID).Scan(&online)
 		if err == nil && online {
 			state = "ready"
-			message = ""
-			return
+			return nil
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-deadline.C:
-			message = "Daemon has not registered in your workspace; check connectivity and retry"
-			return
+			return operationFailure("daemon_offline")
 		case <-ticker.C:
 		}
 	}
@@ -265,7 +283,7 @@ ON CONFLICT(computer_id,username) DO UPDATE SET
   THEN $3 ELSE computer_binding.workspace_id END,
  health_port=CASE WHEN computer_binding.state='failed'
   THEN EXCLUDED.health_port ELSE computer_binding.health_port END,
- state='running',last_error='',updated_at=now()
+ state='running',last_error='',archived_at=NULL,updated_at=now()
 WHERE (
  (computer_binding.user_id=$2 AND
   (computer_binding.workspace_id=$3 OR $5='remove' OR computer_binding.state IN ('removed','detached')))

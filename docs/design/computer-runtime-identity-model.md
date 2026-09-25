@@ -101,7 +101,7 @@ Computer 相关路由要求人类身份。普通用户获取机器列表时只�
 | `POST /api/admin/computers/check` | 检查草稿连接，不保存机器或检查结果。 |
 | `POST /api/admin/computers/{id}/check` | 检查已注册机器，保存结果并尝试写入审计。 |
 | `GET /api/admin/computer-ssh-pubkey` | 返回后端 SSH 公钥，供管理员配置目标主机；不返回私钥。 |
-| `GET /api/me/computer-bindings/{id}/runtimes` | 在本人可用绑定的 Linux User 环境中探测 CLI 版本。 |
+| `GET /api/me/computer-bindings/{id}/runtimes` | 读取本人 binding 的 CLI 资产快照；使用 POST `/discover` 显式探测。 |
 | `POST /api/me/computer-bindings/{id}/runtime-install` | 在本人可用绑定中，以 `runtime_id` 和 `version` 安装或更新 CLI。 |
 | `GET /api/admin/computer-bindings`、`GET /api/admin/computer-audit` | 管理员查看跨用户的绑定元数据和操作记录。 |
 | `POST /api/admin/computer-bindings/{id}/check` | 管理员检查绑定的 Linux 账号是否仍存在。 |
@@ -179,7 +179,7 @@ npm 安装显式使用 `NPM_CONFIG_PREFIX=$HOME/.local` 和 `--prefix`。目标�
 
 `omp` 是独立运行时身份，但复用 `pi` 协议族。`BuiltinRuntimes` 声明这种身份；`ProtocolFamilyInstalls` 为一等协议族提供安装 descriptor。安装表不能改变协议工厂的分派关系。
 
-安装和版本探测使用相同的用户目录集合。daemon unit 也包含这些目录，但已存在的远端 unit 不会随服务端镜像更新自动改写，需要通过“升级运行时”刷新。新增 CLI 后还需让 daemon 重新发现；安装接口本身不重启 daemon，也不完成厂商模型账号登录。
+安装和版本探测使用相同的用户目录集合。daemon unit 也包含这些目录，但已存在的远端 unit 不会随服务端镜像更新自动改写，需要通过“升级运行时”刷新。新增 CLI 后还需让 daemon 重新发现；安装成功会通知 daemon 重新发现，但不重启 daemon，也不完成厂商模型账号登录。
 
 ## 7. 凭据、审计和客户端状态
 
@@ -188,9 +188,9 @@ npm 安装显式使用 `NPM_CONFIG_PREFIX=$HOME/.local` 和 `--prefix`。目标�
 - SSH 私钥属于部署侧，目标主机的 host key 需事先验证并写入 `known_hosts`。Git SSH key、Git token、模型环境和 PAT 按用途写入目标用户的配置文件。
 - 敏感文件以 0600 写入；托管配置与用户已有配置合并，不以覆盖默认 profile 的方式安装。
 - Admin Area 的绑定/审计接口返回操作元数据，不返回个人配置。当前最多展示 500 条绑定和 200 条审计。
-- CLI 安装审计使用 `runtime_install:<id>@<requested-version>` 及 `success`/`failure`。它记录请求版本，未存储解析后的实际版本、目标用户名和完整安装日志，不能当作完整的软件资产账本。
+- CLI 操作记录保存请求/实际版本与目标账号，资产表保存可执行路径及最近探测结果。审计 action 保留 `runtime_install:<id>@<requested-version>`；结果使用操作状态。完整安装日志和凭据不入库。
 - 客户端断开后，安装审计使用独立 5 秒 context 尝试写入；数据库写入失败当前未另行补偿，不能承诺审计绝不丢失。
-- Web/Desktop 的服务端数据由 TanStack Query 管理，运行时查询键包含 Multica 用户、Computer 和 Linux 用户。每行有独立安装 mutation，结束后使账号级管理查询失效，包括审计。
+- Web/Desktop 的服务端数据由 TanStack Query 管理，运行时查询键包含 Multica 用户和 binding ID。每行有独立安装 mutation，结束后使账号级管理查询失效，包括审计。
 - UI 仅在本地保存用户名和版本草稿；用户切换等待 400 ms 后探测。安装期间锁定用户名，防止把一人的操作与另一人的结果混在一起。
 - API 响应经过 schema 和兼容解析；未安装、探测失败、列表解析失败与合法空列表分别处理。
 
@@ -198,7 +198,7 @@ npm 安装显式使用 `NPM_CONFIG_PREFIX=$HOME/.local` 和 `--prefix`。目标�
 
 | 动作 | 当前效果 |
 | --- | --- |
-| 停用 Computer | 禁止普通用户新的开通、同步和升级；不停止已有进程。本人已验证绑定仍可执行移除。管理员 CLI 安装接口目前未以 `enabled` 作为执行门槛。 |
+| 停用 Computer | 禁止普通用户新的开通、同步和升级；不停止已有进程。本人已验证绑定仍可执行移除。本人已验证且可操作的 binding 仍可管理 CLI；普通 CLI 安装没有管理员入口。 |
 | 移除托管 daemon | 停止并禁用服务，移除 unit 和绑定专属 CLI 二进制；保留 Linux 用户、代码、个人配置和绑定所有权。 |
 | 删除工作区运行时 | 使用工作区运行时删除流程处理智能体依赖，不能用移除 daemon 绕过。 |
 | 删除 Computer | 只在不存在任何绑定记录时允许。`removed` 仍是一条绑定，因此“移除 daemon 后就能删除 Computer”不成立；当前没有在此流程中自动清除绑定记录。 |
@@ -220,3 +220,7 @@ npm 安装显式使用 `NPM_CONFIG_PREFIX=$HOME/.local` 和 `--prefix`。目标�
 | 注册键和运行时权限 | [runtime.sql](../../server/pkg/db/queries/runtime.sql)、[runtime.go](../../server/internal/handler/runtime.go) |
 | 智能体调用权限 | [agent_access.go](../../server/internal/handler/agent_access.go) |
 | 共享管理页面、个人运行环境及查询 | [admin-page.tsx](../../packages/views/admin/admin-page.tsx)、[computers-tab.tsx](../../packages/views/settings/components/computers-tab.tsx)、[admin.ts](../../packages/core/computers/admin.ts) |
+
+## 后续操作与资产契约
+
+P0/P1 新增持久操作记录、详情视图、运行时资产以及归档/删除语义，见[Linux 用户远端操作、资产与清理](computer-remote-operations.md)。操作恢复需要用户明确确认，不自动重放密码。

@@ -635,3 +635,42 @@ func readTaskWakeupMessagesExtendsDeadlineOnPong(t *testing.T) {
 		t.Fatal("timed out waiting for task wakeup")
 	}
 }
+
+func TestWorkspaceRefreshHintAlsoRequestsCLIRediscovery(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		if err = conn.WriteJSON(protocol.Message{Type: protocol.EventDaemonWorkspacesChanged}); err != nil {
+			return
+		}
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+	conn, _, err := websocket.DefaultDialer.Dial(taskWakeupTestWSURL(srv.URL), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	d := New(Config{}, slog.Default())
+	done := make(chan error, 1)
+	go func() { done <- d.readTaskWakeupMessages(conn, make(chan taskWakeup, 1)) }()
+	select {
+	case <-d.agentDiscoveryKick:
+	case err := <-done:
+		t.Fatalf("reader failed before discovery: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("workspace refresh did not request CLI discovery")
+	}
+	_ = conn.Close()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("reader did not exit")
+	}
+}

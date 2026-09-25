@@ -620,22 +620,62 @@ type ComputerAudit struct {
 }
 
 type ComputerBinding struct {
-	ID          pgtype.UUID        `json:"id"`
-	ComputerID  pgtype.UUID        `json:"computer_id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Username    string             `json:"username"`
-	Verified    bool               `json:"verified"`
-	HealthPort  int32              `json:"health_port"`
-	State       string             `json:"state"`
-	LastError   string             `json:"last_error"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	ComputerID      pgtype.UUID        `json:"computer_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Username        string             `json:"username"`
+	Verified        bool               `json:"verified"`
+	HealthPort      int32              `json:"health_port"`
+	State           string             `json:"state"`
+	LastError       string             `json:"last_error"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	AccountState    string             `json:"account_state"`
+	CheckedAt       pgtype.Timestamptz `json:"checked_at"`
+	DaemonState     string             `json:"daemon_state"`
+	DaemonCheckedAt pgtype.Timestamptz `json:"daemon_checked_at"`
 }
 
 type ComputerCredential struct {
 	UserID     pgtype.UUID        `json:"user_id"`
 	Ciphertext []byte             `json:"ciphertext"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ComputerOperation struct {
+	ID               pgtype.UUID        `json:"id"`
+	BindingID        pgtype.UUID        `json:"binding_id"`
+	ComputerID       pgtype.UUID        `json:"computer_id"`
+	Username         string             `json:"username"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Kind             string             `json:"kind"`
+	RuntimeID        string             `json:"runtime_id"`
+	RequestedVersion string             `json:"requested_version"`
+	ActualVersion    string             `json:"actual_version"`
+	State            string             `json:"state"`
+	Step             string             `json:"step"`
+	ErrorCode        string             `json:"error_code"`
+	ErrorSummary     string             `json:"error_summary"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	FinishedAt       pgtype.Timestamptz `json:"finished_at"`
+	DeadlineAt       pgtype.Timestamptz `json:"deadline_at"`
+}
+
+type ComputerRuntimeAsset struct {
+	BindingID        pgtype.UUID        `json:"binding_id"`
+	RuntimeID        string             `json:"runtime_id"`
+	ExecutablePath   string             `json:"executable_path"`
+	InstallDir       string             `json:"install_dir"`
+	RequestedVersion string             `json:"requested_version"`
+	ActualVersion    string             `json:"actual_version"`
+	InstallerSource  string             `json:"installer_source"`
+	InstalledAt      pgtype.Timestamptz `json:"installed_at"`
+	CheckedAt        pgtype.Timestamptz `json:"checked_at"`
+	ProbeState       string             `json:"probe_state"`
+	ErrorCode        string             `json:"error_code"`
+	ProbeEnvironment string             `json:"probe_environment"`
 }
 
 type ContactSalesInquiry struct {

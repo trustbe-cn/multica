@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,7 +74,7 @@ type adminComputer struct {
 const adminComputerColumns = `SELECT c.id::text,c.name,c.host,c.port,c.ssh_user,c.enabled,
  c.created_by::text,COALESCE(u.name,c.created_by::text),c.created_at,
  c.checked_at,c.check_ok,c.check_detail,
- (SELECT count(*) FROM computer_binding b WHERE b.computer_id=c.id)
+ (SELECT count(*) FROM computer_binding b WHERE b.computer_id=c.id AND b.archived_at IS NULL)
  FROM computer c LEFT JOIN "user" u ON u.id=c.created_by`
 
 func scanAdminComputer(row pgx.Row) (adminComputer, error) {
@@ -407,7 +406,7 @@ func (h *Handler) DeleteAdminComputer(w http.ResponseWriter, r *http.Request) {
 	// A binding names a real OS account on that machine. Deleting the Computer
 	// would orphan it and leave the account installed with no way back.
 	var bound int
-	if err = tx.QueryRow(r.Context(), `SELECT count(*) FROM computer_binding WHERE computer_id=$1`, id).Scan(&bound); err != nil {
+	if err = tx.QueryRow(r.Context(), `SELECT count(*) FROM computer_binding WHERE computer_id=$1 AND archived_at IS NULL`, id).Scan(&bound); err != nil {
 		writeError(w, 500, "Cannot check bindings")
 		return
 	}
@@ -461,14 +460,17 @@ func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) 
 
 // AdminCheckLinuxUser checks whether a bound OS account still exists.
 func (h *Handler) AdminCheckLinuxUser(w http.ResponseWriter, r *http.Request) {
-	uid, ok := requireInstanceAdmin(w, r)
+	h.checkLinuxUser(w, r, true)
+}
+func (h *Handler) CheckLinuxUser(w http.ResponseWriter, r *http.Request) {
+	h.checkLinuxUser(w, r, false)
+}
+func (h *Handler) checkLinuxUser(w http.ResponseWriter, r *http.Request, admin bool) {
+	uid, bindingID, ok := h.bindingAccess(w, r, admin)
 	if !ok {
 		return
 	}
-	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "Binding ID")
-	if !ok {
-		return
-	}
+	id := parseUUID(bindingID)
 	var m computer.Machine
 	var linuxUser string
 	err := h.DB.QueryRow(r.Context(), `SELECT c.id::text,c.host,c.port,c.ssh_user,b.username FROM computer_binding b JOIN computer c ON c.id=b.computer_id WHERE b.id=$1`, id).Scan(&m.ID, &m.Host, &m.Port, &m.SSHUser, &linuxUser)
@@ -490,12 +492,38 @@ func (h *Handler) AdminCheckLinuxUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
-	out, checkErr := remote.RunCommandContext(r.Context(), "if getent passwd "+linuxUser+" >/dev/null; then printf present; else printf missing; fi")
+	out, checkErr := remote.RunCommandContext(r.Context(), "if getent passwd "+linuxUser+" >/dev/null; then printf present; else printf missing; fi; printf '\\n'; systemctl is-active multica-daemon@"+linuxUser+".service || true")
 	if checkErr != nil {
-		writeError(w, 502, "Linux User check failed: "+checkErr.Error())
+		code := computer.ErrorCode(checkErr, "account_unavailable")
+		writeJSON(w, 502, map[string]string{"code": code, "error": computer.ErrorSummary(code)})
 		return
 	}
-	present := strings.TrimSpace(out) == "present"
+	parts := strings.Fields(out)
+	if len(parts) == 0 || (parts[0] != "present" && parts[0] != "missing") {
+		writeError(w, 502, "Invalid account check response")
+		return
+	}
+	present := parts[0] == "present"
+	daemonState := "unknown"
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "active":
+			daemonState = "running"
+		case "inactive":
+			daemonState = "stopped"
+		case "failed":
+			daemonState = "failed"
+		}
+	}
+	accountState := "missing"
+	if present {
+		accountState = "present"
+	}
+	_, err = h.DB.Exec(r.Context(), `UPDATE computer_binding SET account_state=$2,checked_at=now(),daemon_state=$3,daemon_checked_at=now() WHERE id=$1`, id, accountState, daemonState)
+	if err != nil {
+		writeError(w, 500, "Cannot save account check")
+		return
+	}
 	_, _ = h.DB.Exec(r.Context(), `INSERT INTO computer_audit(user_id,computer_id,binding_id,action,outcome) VALUES($1,$2,$3,'linux_user_check',$4)`, uid, m.ID, id, map[bool]string{true: "success", false: "failure"}[present])
 	writeJSON(w, 200, map[string]bool{"present": present})
 }
@@ -512,7 +540,7 @@ func (h *Handler) ownedRuntimeBinding(w http.ResponseWriter, r *http.Request, ui
 	var m computer.Machine
 	var linuxUser, state string
 	var verified bool
-	err := h.DB.QueryRow(r.Context(), `SELECT c.id::text,c.host,c.port,c.ssh_user,b.username,b.state,b.verified FROM computer_binding b JOIN computer c ON c.id=b.computer_id WHERE b.id=$1 AND b.user_id=$2`, id, uid).Scan(&m.ID, &m.Host, &m.Port, &m.SSHUser, &linuxUser, &state, &verified)
+	err := h.DB.QueryRow(r.Context(), `SELECT c.id::text,c.host,c.port,c.ssh_user,b.username,b.state,b.verified FROM computer_binding b JOIN computer c ON c.id=b.computer_id WHERE b.id=$1 AND b.user_id=$2 AND b.archived_at IS NULL`, id, uid).Scan(&m.ID, &m.Host, &m.Port, &m.SSHUser, &linuxUser, &state, &verified)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, 404, "Linux User binding not found")
 		return computer.Machine{}, "", "", false
@@ -521,7 +549,7 @@ func (h *Handler) ownedRuntimeBinding(w http.ResponseWriter, r *http.Request, ui
 		writeError(w, 500, "Cannot read Linux User binding")
 		return computer.Machine{}, "", "", false
 	}
-	if !verified || state != "ready" {
+	if !verified || (state != "ready" && state != "failed") {
 		writeError(w, 409, "Linux User is not ready")
 		return computer.Machine{}, "", "", false
 	}
@@ -530,74 +558,6 @@ func (h *Handler) ownedRuntimeBinding(w http.ResponseWriter, r *http.Request, ui
 		return computer.Machine{}, "", "", false
 	}
 	return m, linuxUser, uuidToString(id), true
-}
-
-// ComputerBindingRuntimes probes CLI versions in the authenticated owner's
-// Linux account. The account name is never accepted from request input.
-func (h *Handler) ComputerBindingRuntimes(w http.ResponseWriter, r *http.Request) {
-	uid, ok := requireUserID(w, r)
-	if !ok {
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	m, linuxUser, _, ok := h.ownedRuntimeBinding(w, r, uid)
-	if !ok {
-		return
-	}
-	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
-	if keyPath == "" {
-		writeError(w, 503, "Computer provisioning is not configured")
-		return
-	}
-	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 30 * time.Second}
-
-	type runtimeInfo struct {
-		ID               string `json:"id"`
-		DisplayName      string `json:"display_name"`
-		InstalledVersion string `json:"installed_version"`
-		CanInstall       bool   `json:"can_install"`
-		VersionRequired  bool   `json:"version_required"`
-		ProbeError       string `json:"probe_error,omitempty"`
-	}
-	probeRuntime := func(id, displayName, defaultCmd, installCmd string, versionRequired bool) runtimeInfo {
-		info := runtimeInfo{
-			ID:              id,
-			DisplayName:     displayName,
-			CanInstall:      installCmd != "",
-			VersionRequired: versionRequired,
-		}
-		probe := "if command -v " + defaultCmd + " >/dev/null 2>&1; then " + defaultCmd + " --version || { echo 'Executable found, but --version failed' >&2; exit 1; }; fi"
-		probe = "sudo -n runuser -u " + linuxUser + " -- sh -c " + computerShellQuote("export PATH=\"$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin\"; "+probe)
-		out, err := remote.RunCommandContext(r.Context(), probe)
-		if err == nil {
-			info.InstalledVersion = strings.TrimSpace(out)
-		} else {
-			info.ProbeError = "Version check failed: " + err.Error()
-		}
-		return info
-	}
-	type runtimeTarget struct {
-		id, displayName, defaultCmd, installCmd string
-		versionRequired                         bool
-	}
-	targets := make([]runtimeTarget, 0, len(agent.BuiltinRuntimes)+len(agent.ProtocolFamilyInstalls))
-	for _, rt := range agent.BuiltinRuntimes {
-		targets = append(targets, runtimeTarget{rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand, !rt.LatestOnly})
-	}
-	for _, rt := range agent.ProtocolFamilyInstalls {
-		targets = append(targets, runtimeTarget{rt.ID, rt.DisplayName, rt.DefaultCommand, rt.InstallCommand, !rt.LatestOnly})
-	}
-	list := make([]runtimeInfo, len(targets))
-	var wg sync.WaitGroup
-	for i, target := range targets {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			list[i] = probeRuntime(target.id, target.displayName, target.defaultCmd, target.installCmd, target.versionRequired)
-		}()
-	}
-	wg.Wait()
-	writeJSON(w, 200, list)
 }
 
 // ComputerBindingRuntimeInstall installs into the binding owner's Linux home.
@@ -658,30 +618,28 @@ func (h *Handler) ComputerBindingRuntimeInstall(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	cmd := strings.ReplaceAll(installCmd, "{{user}}", linuxUser)
-	cmd = strings.ReplaceAll(cmd, "{{version}}", in.Version)
-	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 5 * time.Minute}
-	_, installErr := remote.RunCommandContext(r.Context(), "sudo -n "+cmd)
-
-	outcome := "success"
-	if installErr != nil {
-		outcome = "failure"
-	}
-	action := "runtime_install:" + in.RuntimeID + "@" + in.Version
-	// A disconnected client must not erase the audit of its remote operation.
-	auditCtx, cancelAudit := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
-	defer cancelAudit()
-	_, _ = h.DB.Exec(auditCtx, `INSERT INTO computer_audit(user_id,computer_id,binding_id,action,outcome) VALUES($1,$2,$3,$4,$5)`, uid, m.ID, bindingID, action, outcome)
-
-	if installErr != nil {
-		writeError(w, 502, "Install failed: "+installErr.Error())
+	operationID, err := h.beginBindingOperation(r.Context(), uid, bindingID, "runtime_install", in.RuntimeID, in.Version)
+	if err != nil {
+		operationStartError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]bool{"installed": true})
-}
-
-func computerShellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+	var target runtimeTarget
+	for _, candidate := range runtimeTargets() {
+		if candidate.id == in.RuntimeID {
+			target = candidate
+			break
+		}
+	}
+	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, Timeout: 6 * time.Minute}
+	go h.runRemoteOperation(operationID, func(ctx context.Context) (string, error) {
+		actual, err := h.installBindingRuntime(ctx, operationID, bindingID, linuxUser, in.Version, target, remote)
+		if err == nil && h.DaemonWorkspaceRefresh != nil {
+			h.operationStep(operationID, "refreshing_daemon")
+			h.DaemonWorkspaceRefresh.NotifyWorkspacesChanged(uid)
+		}
+		return actual, err
+	})
+	h.runtimeInstallReceipt(w, r, operationID)
 }
 
 func (h *Handler) AdminComputerAudit(w http.ResponseWriter, r *http.Request) {

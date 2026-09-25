@@ -57,6 +57,11 @@ export const AdminComputerRuntimeSchema = z.object({
   can_install: z.boolean(),
   version_required: z.boolean().default(true),
   probe_error: z.string().default(""),
+  probe_state: z.enum(["unknown", "missing", "installed", "version_failed", "check_failed"]).catch("unknown"),
+  error_code: z.string().default(""), executable_path: z.string().default(""), install_dir: z.string().default(""),
+  requested_version: z.string().default(""), actual_version: z.string().default(""), installer_source: z.string().default(""),
+  installed_at: z.string().nullable().default(null), checked_at: z.string().nullable().default(null), probe_environment: z.string().default(""),
+  registration_state: z.enum(["not_discovered", "online", "offline"]).catch("not_discovered"),
 });
 export type AdminComputerRuntime = z.infer<typeof AdminComputerRuntimeSchema>;
 

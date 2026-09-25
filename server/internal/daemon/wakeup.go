@@ -419,6 +419,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 			}
 			go d.handleRuntimeProfilesChanged(payload)
 		case protocol.EventDaemonWorkspacesChanged:
+			d.kickAgentDiscovery()
 			if d.workspaceChanges != nil {
 				d.workspaceChanges.broadcast()
 			}

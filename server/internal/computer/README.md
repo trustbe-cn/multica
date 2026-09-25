@@ -85,7 +85,7 @@ verified `known_hosts` entries. Environment keys are provider-allowlisted.
 
 Operations run asynchronously on one bastion. A unique Computer/username binding
 prevents concurrent jobs and ownership changes. A process interrupted by restart
-shows `interrupted` after 20 minutes and can be retried; passwords are deliberately
+shows `interrupted` after 20 minutes and requires explicit acknowledgment before a new retry; passwords are deliberately
 not persisted for automatic replay. A managed daemon is reported ready only after
 its registration matches owner, workspace, daemon ID and a recent heartbeat.
 Port binding failure leaves a failed operation, never a false success.
@@ -106,3 +106,5 @@ Disabling a Computer prevents new provision/sync/upgrade operations, but existin
 jobs/services keep running and owners may remove their own daemon. A connection
 cannot be changed once any account binding exists; register another Computer.
 Bindings show the latest 500 entries and audit shows the latest 200 entries.
+
+Operation and asset metadata are persisted in PostgreSQL. Linux User details separate account observations, systemd service observations, CLI probes and runtime registrations. See [the operation contract](../../../docs/design/computer-remote-operations.md) for async receipts, serialization, recovery, archival and explicit Linux account deletion.

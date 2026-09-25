@@ -34,6 +34,7 @@ type SSHRemote struct {
 	DaemonID    string
 	WorkspaceID string
 	HealthPort  int
+	Context     context.Context
 }
 
 func (s SSHRemote) argv(remote string) ([]string, error) {
@@ -71,7 +72,7 @@ func (s SSHRemote) run(remote, stdin string, secrets ...string) (string, error) 
 	}
 	runner := s.RunCmd
 	if runner == nil {
-		runner = execRunner{timeout: s.Timeout}
+		runner = execRunner{timeout: s.Timeout, context: s.Context}
 	}
 	out, err := runner.Run(argv, stdin)
 	out = redactText(out, secrets...)
@@ -173,7 +174,7 @@ def run_installer(argv, **kwargs):
     p=subprocess.Popen(argv,start_new_session=True, **kwargs)
     try:
         if p.wait(timeout=120):
-            raise RuntimeError("installer failed")
+            raise RuntimeError("package_manager_failed" if argv[0]=="apt-get" else "installer_failed")
     except BaseException:
         try: os.killpg(p.pid,signal.SIGTERM)
         except ProcessLookupError: pass
@@ -299,6 +300,9 @@ func (e execRunner) Run(argv []string, stdin string) (string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	err := cmd.Run()
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
 	return out.String(), err
 }
 

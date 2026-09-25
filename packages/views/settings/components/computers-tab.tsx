@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { LinuxUserDetail } from "../../computers/linux-user-detail";
+
+import { useState, useRef, type FormEvent } from "react";
 import {
   useComputers,
   useComputerBindingRuntimes,
@@ -39,10 +41,12 @@ function PersonalComputersTab() {
   const [draft, setDraft] = useState<ComputerSettings | null>(null);
   const [reveal, setReveal] = useState(false);
   const [machine, setMachine] = useState("");
+  const [workspaceTarget, setWorkspaceTarget] = useState("");
   const [username, setUsername] = useState(
     (user?.email ?? "").split("@")[0] ?? "",
   );
   const [password, setPassword] = useState("");
+  const passwordInput = useRef<HTMLInputElement>(null);
   const [action, setAction] =
     useState<ComputerOperation["action"]>("provision");
   const [error, setError] = useState("");
@@ -64,7 +68,7 @@ function PersonalComputersTab() {
   }
   function submit(e: FormEvent) {
     e.preventDefault();
-    const workspaceID = workspace?.id;
+    const workspaceID = workspaceTarget || workspace?.id;
     if (!workspaceID) return;
     void perform(
       () =>
@@ -225,6 +229,7 @@ function PersonalComputersTab() {
               </SelectContent>
             </Select>
           </label>
+          <p>{t(($) => $.admin.linux_user_workspace)}: {workspaceTarget || workspace?.name || workspace?.id || "—"}</p>
           <label className="block space-y-1">
             <span>{t(($) => $.computers.username)}</span>
             <Input
@@ -237,6 +242,7 @@ function PersonalComputersTab() {
           <label className="block space-y-1">
             <span>{t(($) => $.computers.password)}</span>
             <Input
+              ref={passwordInput}
               type="password"
               autoComplete="off"
               value={password}
@@ -286,7 +292,7 @@ function PersonalComputersTab() {
         </form>
         <ul className="space-y-3" aria-live="polite">
           {data.bindings.data?.map((b) => (
-            <BindingRow key={b.id} binding={b} machineName={data.machines.data?.find((m) => m.id === b.computer_id)?.name ?? b.computer_id} userId={user?.id ?? ""} />
+            <BindingRow key={b.id} binding={b} machineName={data.machines.data?.find((m) => m.id === b.computer_id)?.name ?? b.computer_id} userId={user?.id ?? ""} onConfigure={(nextAction) => { setMachine(b.computer_id);setUsername(b.username);setAction(nextAction);setWorkspaceTarget(nextAction === "provision" ? "" : b.workspace_id);setPassword("");setNotice(t(($) => $.linux_user.prompt_password));passwordInput.current?.focus(); }} />
           ))}
         </ul>
       </SettingsSection>
@@ -294,46 +300,47 @@ function PersonalComputersTab() {
   );
 }
 
-function BindingRow({ binding, machineName, userId }: { binding: ComputerBinding; machineName: string; userId: string }) {
+function BindingRow({ binding, machineName, userId, onConfigure }: { binding: ComputerBinding; machineName: string; userId: string; onConfigure: (action: "provision" | "sync" | "upgrade") => void }) {
   const { t } = useT("settings");
   const [open, setOpen] = useState(false);
   return (
     <li className="rounded-lg border p-3 break-words">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p>{machineName} · {binding.username} · {binding.state === "ready" ? t(($) => $.computers.ready) : binding.state === "running" ? t(($) => $.computers.running) : binding.state === "removed" ? t(($) => $.computers.removed) : t(($) => $.computers.failed)}</p>
-        {binding.state === "ready" && <Button type="button" variant="outline" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{t(($) => $.admin.runtimes_title)}</Button>}
+        <Button type="button" variant="outline" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{t(($) => $.linux_user.details)}</Button>
       </div>
       <p className="break-all text-sm text-muted-foreground">{t(($) => $.admin.linux_user_workspace)}: {binding.workspace_id}</p>
       {binding.last_error && <p className="text-destructive">{binding.last_error}</p>}
-      {open && binding.state === "ready" && <BindingRuntimes bindingId={binding.id} userId={userId} />}
+      {open && <LinuxUserDetail userId={userId} bindingId={binding.id} onConfigure={onConfigure}>{(busy) => ["ready", "failed"].includes(binding.state) ? <BindingRuntimes bindingId={binding.id} userId={userId} busy={busy} /> : null}</LinuxUserDetail>}
     </li>
   );
 }
 
-function BindingRuntimes({ bindingId, userId }: { bindingId: string; userId: string }) {
+function BindingRuntimes({ bindingId, userId, busy }: { bindingId: string; userId: string; busy: boolean }) {
   const { t } = useT("settings");
   const { runtimes, isInstalling } = useComputerBindingRuntimes(userId, bindingId);
   return (
     <div className="mt-3 space-y-3 border-t pt-3">
-      <p className="text-sm text-muted-foreground">{t(($) => $.admin.runtimes_prerequisites)}</p>
+      <p className="text-sm text-muted-foreground">{t(($) => $.admin.runtimes_prerequisites)}</p><p>{t(($) => $.linux_user.discover_help)}</p>
       {runtimes.isPending && <p role="status">{t(($) => $.computers.loading)}</p>}
       {runtimes.error && <p role="alert" className="text-destructive">{runtimes.error.message}</p>}
       <Button type="button" variant="outline" size="sm" disabled={runtimes.isFetching || isInstalling} onClick={() => void runtimes.refetch()}>{t(($) => $.admin.refresh)}</Button>
       {runtimes.isSuccess && runtimes.data.length === 0 && <p>{t(($) => $.admin.runtimes_empty)}</p>}
-      <ul className="space-y-2">{runtimes.data?.map((runtime) => <RuntimeRow key={runtime.id} runtime={runtime} bindingId={bindingId} userId={userId} />)}</ul>
+      <ul className="space-y-2">{runtimes.data?.map((runtime) => <RuntimeRow key={runtime.id} runtime={runtime} bindingId={bindingId} userId={userId} busy={busy} />)}</ul>
     </div>
   );
 }
 
-function RuntimeRow({ runtime, bindingId, userId }: { runtime: AdminComputerRuntime; bindingId: string; userId: string }) {
+function RuntimeRow({ runtime, bindingId, userId, busy }: { runtime: AdminComputerRuntime; bindingId: string; userId: string; busy: boolean }) {
   const { t } = useT("settings");
   const [version, setVersion] = useState("");
   const install = useComputerBindingRuntimeInstall(userId, bindingId, runtime.id);
+  const errors = t(($) => $.linux_user.errors, {returnObjects:true});
   const handleInstall = async () => {
     if (install.isPending || (runtime.version_required && !version.trim())) return;
     try {
       await install.mutateAsync(runtime.version_required ? version.trim() : "latest");
-      toast.success(t(($) => $.admin.runtimes_install_success));
+      toast.success(t(($) => $.computers.accepted));
     } catch {
       toast.error(t(($) => $.admin.runtimes_install_failed));
     }
@@ -341,13 +348,22 @@ function RuntimeRow({ runtime, bindingId, userId }: { runtime: AdminComputerRunt
   return (
     <li className="flex flex-wrap items-center gap-3 text-sm">
       <span className="w-24 font-medium">{runtime.display_name}</span>
-      <span className="text-muted-foreground">{runtime.probe_error ? t(($) => $.admin.runtimes_probe_failed) : runtime.installed_version ? `${t(($) => $.admin.runtimes_version)}: ${runtime.installed_version}` : t(($) => $.admin.runtimes_not_installed)}</span>
+      <span className="text-muted-foreground">{runtime.probe_error ? t(($) => $.admin.runtimes_probe_failed) : runtime.installed_version ? `${t(($) => $.admin.runtimes_version)}: ${runtime.installed_version}` : runtime.probe_state === "missing" ? t(($) => $.admin.runtimes_not_installed) : t(($) => $.linux_user.unknown)}</span>
       {!runtime.version_required && <span className="text-muted-foreground">{t(($) => $.admin.runtimes_latest)}</span>}
       {runtime.can_install && <div className="flex flex-wrap items-center gap-2">
-        {runtime.version_required && <Input className="h-7 w-24 text-xs" placeholder={t(($) => $.admin.runtimes_version_placeholder)} value={version} onChange={(e) => setVersion(e.target.value)} disabled={install.isPending} aria-label={t(($) => $.admin.runtimes_version_label, { runtime: runtime.display_name })} />}
-        <Button type="button" variant="outline" size="sm" disabled={install.isPending || (runtime.version_required && !version.trim())} onClick={() => void handleInstall()}>{install.isPending ? t(($) => $.admin.runtimes_installing) : runtime.installed_version ? t(($) => $.admin.runtimes_update) : t(($) => $.admin.runtimes_install)}</Button>
+        {runtime.version_required && <Input className="h-7 w-24 text-xs" placeholder={t(($) => $.admin.runtimes_version_placeholder)} value={version} onChange={(e) => setVersion(e.target.value)} disabled={busy || install.isPending} aria-label={t(($) => $.admin.runtimes_version_label, { runtime: runtime.display_name })} />}
+        <Button type="button" variant="outline" size="sm" disabled={busy || install.isPending || (runtime.version_required && !version.trim())} onClick={() => void handleInstall()}>{install.isPending ? t(($) => $.admin.runtimes_installing) : runtime.installed_version ? t(($) => $.admin.runtimes_update) : t(($) => $.admin.runtimes_install)}</Button>
       </div>}
-      {runtime.probe_error && <p className="w-full whitespace-pre-wrap break-words text-destructive">{runtime.probe_error}</p>}
+      <details className="w-full"><summary>{t(($) => $.linux_user.assets)}</summary>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 break-all">
+          <dt>{t(($) => $.linux_user.path)}</dt><dd>{runtime.executable_path || "—"}</dd>
+          <dt>{t(($) => $.linux_user.source)}</dt><dd>{runtime.installer_source || "—"}</dd>
+          <dt>{t(($) => $.linux_user.checked)}</dt><dd>{runtime.checked_at ? new Date(runtime.checked_at).toLocaleString() : "—"}</dd>
+          <dt>{t(($) => $.linux_user.environment)}</dt><dd>{runtime.probe_environment || "—"}</dd>
+          <dt>{t(($) => $.linux_user.registration)}</dt><dd>{runtime.registration_state === "online" ? t(($) => $.linux_user.states.online) : runtime.registration_state === "offline" ? t(($) => $.linux_user.states.offline) : t(($) => $.linux_user.states.not_discovered)}</dd>
+        </dl>
+      </details>
+      {runtime.probe_error && <p className="w-full whitespace-pre-wrap break-words text-destructive">{errors[runtime.error_code as keyof typeof errors] ?? runtime.probe_error}</p>}
       {install.error && <p role="alert" className="w-full whitespace-pre-wrap break-words text-destructive">{install.error.message}</p>}
     </li>
   );

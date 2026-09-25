@@ -65,6 +65,8 @@ type BuiltinRuntime struct {
 	// Example: "runuser -u {{user}} -- npm install -g package@{{version}}"
 	// When empty, installation via the admin UI is not supported for this runtime.
 	InstallCommand string
+	// InstallerSource identifies the package or upstream installer used for asset records.
+	InstallerSource string
 	// LatestOnly opts out of version pinning. The zero value requires a version.
 	LatestOnly bool
 
@@ -106,7 +108,8 @@ var BuiltinRuntimes = []BuiltinRuntime{
 		ProviderLabel:     "omp",
 		ModelDiscovery:    discoverOmpModels,
 		// Use the official standalone binary; the npm entry point requires Bun.
-		InstallCommand: ompRuntimeInstall(),
+		InstallCommand:  ompRuntimeInstall(),
+		InstallerSource: "https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh",
 	},
 }
 
@@ -126,6 +129,8 @@ type ProtocolFamilyInstall struct {
 	// InstallCommand is the shell command template. {{user}} and {{version}}
 	// are substituted at runtime. Latest-only installers omit {{version}}.
 	InstallCommand string
+	// InstallerSource identifies the package or upstream installer used for asset records.
+	InstallerSource string
 	// LatestOnly opts out of version pinning. The zero value requires a version.
 	LatestOnly bool
 }
@@ -135,40 +140,46 @@ type ProtocolFamilyInstall struct {
 // installable runtimes for a Computer.
 var ProtocolFamilyInstalls = []ProtocolFamilyInstall{
 	{
-		ID:             "claude",
-		DisplayName:    "Claude Code",
-		DefaultCommand: "claude",
-		InstallCommand: npmRuntimeInstall("@anthropic-ai/claude-code", "claude"),
+		ID:              "claude",
+		InstallerSource: "npm:@anthropic-ai/claude-code",
+		DisplayName:     "Claude Code",
+		DefaultCommand:  "claude",
+		InstallCommand:  npmRuntimeInstall("@anthropic-ai/claude-code", "claude"),
 	},
 	{
-		ID:             "codex",
-		DisplayName:    "Codex",
-		DefaultCommand: "codex",
-		InstallCommand: npmRuntimeInstall("@openai/codex", "codex"),
+		ID:              "codex",
+		InstallerSource: "npm:@openai/codex",
+		DisplayName:     "Codex",
+		DefaultCommand:  "codex",
+		InstallCommand:  npmRuntimeInstall("@openai/codex", "codex"),
 	},
 	{
-		ID:             "opencode",
-		DisplayName:    "OpenCode",
-		DefaultCommand: "opencode",
-		InstallCommand: npmRuntimeInstall("opencode-ai", "opencode"),
+		ID:              "opencode",
+		InstallerSource: "npm:opencode-ai",
+		DisplayName:     "OpenCode",
+		DefaultCommand:  "opencode",
+		InstallCommand:  npmRuntimeInstall("opencode-ai", "opencode"),
 	},
 	{
-		ID:             "pi",
-		DisplayName:    "Pi",
-		DefaultCommand: "pi",
-		InstallCommand: npmRuntimeInstall("@earendil-works/pi-coding-agent", "pi"),
+		ID:              "pi",
+		InstallerSource: "npm:@earendil-works/pi-coding-agent",
+		DisplayName:     "Pi",
+		DefaultCommand:  "pi",
+		InstallCommand:  npmRuntimeInstall("@earendil-works/pi-coding-agent", "pi"),
 	},
 	{
-		ID:             "grok",
-		DisplayName:    "Grok",
-		DefaultCommand: "grok",
+		ID:              "grok",
+		InstallerSource: "https://x.ai/cli/install.sh",
+		DisplayName:     "Grok",
+		DefaultCommand:  "grok",
 		// The installer accepts a version as its first positional argument.
 		InstallCommand: scriptRuntimeInstall("https://x.ai/cli/install.sh", `bash "$installer" "{{version}}"`, "grok"),
 	},
 	{
-		ID:             "kimi",
-		DisplayName:    "Kimi",
-		DefaultCommand: "kimi",
+		ID:              "kimi",
+		InstallerSource: "https://code.kimi.com/kimi-code/install.sh",
+		DisplayName:     "Kimi",
+		DefaultCommand:  "kimi",
 		// Keep the native installation directory and pass pinned versions explicitly.
 		InstallCommand: scriptRuntimeInstall("https://code.kimi.com/kimi-code/install.sh", `export KIMI_INSTALL_DIR="$HOME/.kimi-code" KIMI_VERSION=; if [ "{{version}}" = latest ]; then bash "$installer"; else bash "$installer" --version "{{version}}"; fi`, "kimi"),
 	},

@@ -47,3 +47,5 @@ export function useComputers(userId: string) {
 
 export {useInstanceAccess,useComputerAdmin,useComputerBindingRuntimes,useComputerBindingRuntimeInstall} from "./admin";
 export type {AdminComputer,ProbeResult,ProbeCheck,AdminComputerRuntime} from "./admin-schema";
+export { useLinuxUserDetail } from "./detail";
+export type { RemoteOperation, ComputerLifecycleInput } from "./schema";
