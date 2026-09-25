@@ -195,3 +195,21 @@ pnpm --filter @multica/core typecheck
 | 验证范围 | 应用存活、镜像身份与鉴权入口。没有把这些结果当作真实建号、七种 CLI 安装或完整浏览器 E2E 的通过证据。 |
 
 后续每次部署按[部署记录模板](computer-deployment-template.md)记录新旧镜像、迁移、健康证据及回滚边界。本次 P0/P1 的实现与本地验证见[实施记录](computer-p0-p1-implementation.md)。
+
+## 2026-09-25 P0/P1 部署
+
+本条是继 `07f1e09c4` 之后的实际发布记录。2026-09-25 17:23（Asia/Shanghai）切换至 `b528fd809`。前面的部署核对属于此前状态，不能当作本次迁移后版本。
+
+| 项目 | 结果 |
+| --- | --- |
+| 功能提交 / 分支 | `b528fd809`，已推送到 `origin/feat/admin-area-computer-management`。 |
+| 后端 / 前端镜像 | `multica-backend:b528fd809` / `multica-web:b528fd809`。 |
+| 构建 | 两镜像成功；前端生产编译与 TypeScript 通过；后端依赖下载使用 `goproxy.cn,direct`，保持校验。 |
+| 迁移 | 原有 1130 个迁移文件未修改；`540`–`545` 全部应用，四个新并发索引均为 valid。 |
+| 健康 | 前后端 healthy，重启数 0；18000 和 13000 健康接口返回 `b528fd809`。13000 是后端代理健康响应，前端版本另由镜像身份核对。 |
+| HTTP 验证 | 登录页与 5 个静态资源正常；Admin Computers、本人 bindings、操作记录接口未登录均返回 401；安装请求的 CORS OPTIONS 返回 200 并允许 `Prefer`。 |
+| 数据保护 | 切换前无 running binding 或 SSH 子进程。数据库/配置备份及停止旧后端后的数据库备份已保存，两份 dump 的目录可读取。PostgreSQL 和网关的容器 ID、启动时间均未变化。 |
+| 备份 | `/home/tiger/bench/multica-deploy/backups/pre-linux-user-p0-p1-b528fd809/`。 |
+| 发布证据 | `/home/tiger/bench/multica-deploy/releases/linux-user-p0-p1-b528fd809/`，含构建日志、源码快照、`before.json`、`verification.json`、`DEPLOYMENT.md`。 |
+| 回滚镜像 | `multica-backend:07f1e09c4` / `multica-web:07f1e09c4`，仍保留。回滚前停止接受新远端操作并等待在途操作完成；保留新增表/字段，勿直接执行 down 或恢复数据库而丢失新操作历史。 |
+| 未验证范围 | 真实非生产 Computer 生命周期、七种 CLI 实装、模型任务和完整浏览器 E2E。已有远端 daemon/units 未自动升级。 |

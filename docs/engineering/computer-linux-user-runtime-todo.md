@@ -103,6 +103,6 @@
 
 ## 实施顺序
 
-2026-09-25：P0 第 1、3、4 项及 P1 的实现已落地，详见[实施与验收记录](computer-p0-p1-implementation.md)。勾选代表实现完成，不代表生产发布或真实主机验收通过；**P0 第 2 项仍待指定非生产主机并执行**。在真实非生产主机验收通过并且远端操作状态可恢复之前，不继续增加新的 runtime 安装器或扩大多工作区绑定模型。
+2026-09-25：P0 第 1、3、4 项及 P1 的实现已落地，详见[实施与验收记录](computer-p0-p1-implementation.md)。勾选代表实现完成；功能已随 `b528fd809` 部署，真实主机验收尚未通过；**P0 第 2 项仍待指定非生产主机并执行**。在真实非生产主机验收通过并且远端操作状态可恢复之前，不继续增加新的 runtime 安装器或扩大多工作区绑定模型。
 
 相关设计：[Computer、Linux 用户与运行时设计](../design/computer-runtime-identity-model.md)、[Linux User 与运行时管理归属](../design/linux-user-runtime-management.md)。

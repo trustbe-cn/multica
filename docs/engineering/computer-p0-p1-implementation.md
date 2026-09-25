@@ -1,6 +1,6 @@
 # Computer P0/P1 实施与验收记录
 
-日期：2026-09-25。状态：代码在工作树中，未提交、未部署。线上仍为 `07f1e09c4`，见[部署核对](computer-runtime-review-fixes.md#2026-09-25-部署核对)。
+日期：2026-09-25。状态：功能提交 `b528fd809` 已推送并部署到 `/home/tiger/bench/multica-deploy`。前后端镜像均为 `b528fd809`，数据库迁移已到 `545_computer_daemon_observation`，见[本次部署记录](computer-runtime-review-fixes.md#2026-09-25-p0p1-部署)。
 
 ## 已实现
 
@@ -58,7 +58,7 @@ make migrate-up \
 | server 编译、`agentintegration` 测试文件编译 | 通过；通过 `-run '^$'` 仅编译，没有运行真实冒烟。 |
 | 文档本地链接、`git diff --check` | 通过。 |
 
-没有执行全仓 E2E、真实模型任务或生产部署。
+以上表格是部署前的开发验证记录。随后已完成生产部署；部署后健康、迁移与鉴权结果见下方发布记录。没有执行全仓 E2E 或真实模型任务。
 
 ## 真实非生产验收：尚未执行
 
@@ -90,3 +90,11 @@ MULTICA_RUN_REAL_AGENT_SMOKE=1 go test -tags=agentintegration ./pkg/agent \
 | delete_user | 明确确认、运行进程阻止删除、重试与账号/home 删除 | 待验收 |
 
 只读下载 `https://x.ai/cli/install.sh` 在连接阶段超时；Grok 上游版本参数及脚本可用性仍需独立核验。未经真实验证不能将上述项目标为通过。
+
+## 本次发布
+
+2026-09-25 17:23（Asia/Shanghai）完成部署，应用提交为 `b528fd809`。发布前补齐 `Prefer: respond-async` 的 CORS 白名单，并通过 router 预检测试；上线后实际 OPTIONS 响应也允许 `Content-Type, Prefer`。镜像内生产 TypeScript 检查通过。
+
+数据库与配置备份保存在 `/home/tiger/bench/multica-deploy/backups/pre-linux-user-p0-p1-b528fd809/`，另在停止旧后端后生成 `database-before-switch.dump`。两份数据库备份均通过目录读取检查。发布日志、源码快照、验证结果及回滚说明位于部署目录 `releases/linux-user-p0-p1-b528fd809/`。
+
+真实非生产主机验收仍待执行，生产部署健康检查不替代这一项。已有远端 daemon 未在此次应用部署中升级。
