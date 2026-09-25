@@ -37,11 +37,12 @@ func (h *Handler) bindingDetail(w http.ResponseWriter, r *http.Request, admin bo
 	}
 	var d bindingDetail
 	err := h.DB.QueryRow(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),b.username,
- CASE WHEN b.state='running' AND b.updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE b.state END,b.last_error,
+ CASE WHEN b.state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE b.state END,b.last_error,b.verified,
  COALESCE(c.name,b.computer_id::text),COALESCE(w.name,''),b.account_state,b.checked_at,b.archived_at,
  (SELECT max(last_seen_at) FROM agent_runtime WHERE daemon_id=b.id::text AND owner_id=b.user_id AND workspace_id=b.workspace_id),
- b.daemon_state,b.daemon_checked_at
- FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id WHERE b.id=$1`, id).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.ComputerName, &d.WorkspaceName, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt)
+ b.daemon_state,b.daemon_checked_at,
+ EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at>=now())
+ FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id WHERE b.id=$1`, id).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.Verified, &d.ComputerName, &d.WorkspaceName, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt, &d.OperationBusy)
 	if err != nil {
 		writeError(w, 500, "Cannot read Linux User details")
 		return

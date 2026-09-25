@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"github.com/jackc/pgx/v5"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/computer"
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
@@ -199,6 +199,46 @@ func TestComputerBindingConflictClassification(t *testing.T) {
 	check(testUserID, "operation_busy")
 	dbfx.Exec(t, `UPDATE computer_binding SET verified=false,state='failed' WHERE id=$1`, binding)
 	check(other, "binding_conflict")
+	check(testUserID, "binding_conflict")
+	dbfx.Exec(t, `UPDATE computer_binding SET verified=true,state='running' WHERE id=$1`, binding)
+	var operationID string
+	if err := testPool.QueryRow(context.Background(), `INSERT INTO computer_operation(binding_id,computer_id,username,user_id,kind,state,deadline_at) VALUES($1,$2,'alice',$3,'provision','running',now()+interval '1 minute') RETURNING id::text`, binding, machine, testUserID).Scan(&operationID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM computer_operation WHERE id=$1`, operationID)
+	})
+	var list []computerBinding
+	findBinding := func() computerBinding {
+		t.Helper()
+		for _, item := range list {
+			if item.ID == binding {
+				return item
+			}
+		}
+		t.Fatalf("binding %s absent from owner list", binding)
+		return computerBinding{}
+	}
+	testutil.Call(t, testHandler.ComputerBindings, computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)).Want(http.StatusOK).JSON(&list)
+	if got := findBinding(); got.State != "running" || !got.OperationBusy {
+		t.Fatalf("active operation projection: %+v", list)
+	}
+	dbfx.Exec(t, `UPDATE computer_operation SET deadline_at=now()-interval '1 minute' WHERE id=$1`, operationID)
+	testutil.Call(t, testHandler.ComputerBindings, computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)).Want(http.StatusOK).JSON(&list)
+	if got := findBinding(); got.State != "interrupted" || got.OperationBusy {
+		t.Fatalf("expired operation projection: %+v", list)
+	}
+	check(testUserID, "operation_recovery_required")
+	tx, err := testPool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	var claimed computerBinding
+	err = tx.QueryRow(context.Background(), claimComputerBindingSQL, machine, testUserID, newWorkspace, "alice", "provision").Scan(&claimed.ID, &claimed.ComputerID, &claimed.WorkspaceID, &claimed.Username, &claimed.State, &claimed.LastError, &claimed.HealthPort)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("claim with unacknowledged operation: id=%q err=%v", claimed.ID, err)
+	}
 }
 
 func TestComputerBindingsKeepSameHostAccountsPrivate(t *testing.T) {
@@ -207,7 +247,7 @@ func TestComputerBindingsKeepSameHostAccountsPrivate(t *testing.T) {
 	second := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice-two", "verified": true, "state": "removed"})
 	otherUser := dbfx.Insert(t, "user", testutil.Cols{"name": "Other Computer User", "email": "other-computer-user@example.test"})
 	dbfx.Insert(t, "member", testutil.Cols{"workspace_id": testWorkspaceID, "user_id": otherUser, "role": "member"})
-	dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": otherUser, "workspace_id": testWorkspaceID, "username": "bob-one", "verified": true, "state": "ready"})
+	bob := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": otherUser, "workspace_id": testWorkspaceID, "username": "bob-one", "verified": true, "state": "ready"})
 
 	listFor := func(userID string) []computerBinding {
 		t.Helper()
@@ -217,19 +257,26 @@ func TestComputerBindingsKeepSameHostAccountsPrivate(t *testing.T) {
 		testutil.Call(t, testHandler.ComputerBindings, req).Want(http.StatusOK).JSON(&bindings)
 		return bindings
 	}
-	seen := map[string]bool{}
+	seen := map[string]computerBinding{}
 	for _, binding := range listFor(testUserID) {
 		if binding.ComputerID == machine {
-			seen[binding.Username] = true
+			seen[binding.Username] = binding
 		}
 	}
-	if !seen["alice-one"] || !seen["alice-two"] || seen["bob-one"] {
+	if !seen["alice-one"].Verified || !seen["alice-two"].Verified || seen["alice-one"].OperationBusy || seen["bob-one"].ID != "" {
 		t.Fatalf("owner's same-host bindings = %v", seen)
 	}
+	bobSeen := false
 	for _, binding := range listFor(otherUser) {
 		if binding.ID == first || binding.ID == second {
 			t.Fatalf("another member received private binding %s", binding.ID)
 		}
+		if binding.ID == bob && binding.Verified && !binding.OperationBusy {
+			bobSeen = true
+		}
+	}
+	if !bobSeen {
+		t.Fatal("other member's own verified binding missing")
 	}
 	for _, handler := range []func(http.ResponseWriter, *http.Request){testHandler.ComputerBindingDetail, testHandler.ComputerBindingOperations} {
 		req := computerTestRequest(http.MethodGet, "/api/me/computer-bindings/"+first, nil)

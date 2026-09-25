@@ -1411,6 +1411,7 @@
     "new": "新建账号",
     "choose_existing": "我的 Linux 用户",
     "none_existing": "暂无可复用账号。选择“新建账号”即可创建。",
+    "retry_new": "按新账号重试",
     "credentials_required": "接入前请先保存个人凭据。",
     "open_personal": "打开我的运行环境",
     "no_computers": "没有可用 Computer，请联系实例管理员添加。",
@@ -1421,6 +1422,7 @@
       "available": "可接入，请输入此账号现有的 Linux 密码。",
       "current_workspace": "已接入此工作区。",
       "busy": "有操作正在进行，请等待完成，或到“我的运行环境”恢复。",
+      "recovery_required": "操作已中断，请先到“我的运行环境”检查并确认，再重试。",
       "other_workspace": "正在服务其他工作区。请先在原工作区移除受管 daemon；原工作区将暂时无法使用此账号执行任务。",
       "unverified": "账号尚未验证，请按新账号流程创建。",
       "computer_unavailable": "此 Computer 已停用或不可用。",
@@ -1429,6 +1431,7 @@
     "errors": {
       "username_unavailable": "此 Computer 上的用户名已被占用，请换一个用户名。",
       "operation_busy": "另一个账号操作正在进行，请等待完成后重试。",
+      "operation_recovery_required": "操作已中断，请先到“我的运行环境”检查并确认，再重试。",
       "binding_workspace_conflict": "此账号仍接入其他工作区，请先到原工作区移除受管 daemon。",
       "binding_conflict": "账号可用状态已变化，请刷新后重试。",
       "generic": "接入失败，请查看操作记录后重试。"

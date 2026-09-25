@@ -308,7 +308,7 @@ function BindingRow({ binding, machineName, userId, onConfigure }: { binding: Co
   return (
     <li className="rounded-lg border p-3 break-words">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p>{machineName} · {binding.username} · {binding.state === "ready" ? t(($) => $.computers.ready) : binding.state === "running" ? t(($) => $.computers.running) : binding.state === "removed" ? t(($) => $.computers.removed) : t(($) => $.computers.failed)}</p>
+        <p>{machineName} · {binding.username} · {t(($) => $.linux_user.states[binding.state as keyof typeof $.linux_user.states] ?? $.linux_user.unknown)}</p>
         <Button type="button" variant="outline" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{t(($) => $.linux_user.details)}</Button>
       </div>
       <p className="break-all text-sm text-muted-foreground">{t(($) => $.admin.linux_user_workspace)}: {binding.workspace_id}</p>

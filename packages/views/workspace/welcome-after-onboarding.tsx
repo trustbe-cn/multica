@@ -15,6 +15,8 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
 import { useT } from "../i18n";
@@ -58,15 +60,17 @@ function LinuxUserConnectionPrompt({ workspaceSlug, onDismiss }: { workspaceSlug
   const navigation = useNavigation();
   return <Dialog open modal onOpenChange={(open) => { if (!open) onDismiss(); }}>
     <DialogContent className="max-w-md sm:max-w-md">
-      <DialogTitle>{t(($) => $.workspace_linux_users.prompt_title)}</DialogTitle>
-      <DialogDescription>{t(($) => $.workspace_linux_users.prompt_description)}</DialogDescription>
-      <div className="flex justify-end gap-2">
+      <DialogHeader>
+        <DialogTitle>{t(($) => $.workspace_linux_users.prompt_title)}</DialogTitle>
+        <DialogDescription>{t(($) => $.workspace_linux_users.prompt_description)}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
         <Button variant="outline" onClick={onDismiss}>{t(($) => $.workspace_linux_users.prompt_later)}</Button>
         <Button onClick={() => {
           onDismiss();
           navigation.push(`${paths.workspace(workspaceSlug).settings()}?tab=linux-users`);
         }}>{t(($) => $.workspace_linux_users.prompt_connect)}</Button>
-      </div>
+      </DialogFooter>
     </DialogContent>
   </Dialog>;
 }

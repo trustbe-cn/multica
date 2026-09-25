@@ -96,6 +96,18 @@ describe("workspace Linux User connection", () => {
     await client.invalidateQueries({ queryKey: ["computers", "alice", "bindings"] });
     expect(await screen.findByText("Remote setup failed")).toBeInTheDocument();
     expect(screen.queryByText("You have no account connection in this workspace.")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry as new account" }));
+    expect(screen.getByLabelText("Linux username")).toHaveValue("alice-new");
+    expect(screen.getByRole("combobox", { name: "Choose a Computer" })).toBeInTheDocument();
+  });
+
+  it("directs interrupted bindings to recovery before reuse", async () => {
+    api.listComputerBindings.mockResolvedValue([{ ...removed, id: "interrupted", state: "interrupted" }]);
+    mount();
+    const row = await screen.findByRole("radio", { name: /alice-worker/ });
+    expect(row).toBeDisabled();
+    expect(screen.getByText(/Check and acknowledge it in My environments/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open my environments" }).length).toBeGreaterThan(0);
   });
 
   it("lets the owner open account management for an occupied account", async () => {

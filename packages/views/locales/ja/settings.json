@@ -1411,6 +1411,7 @@
     "new": "新しいアカウント",
     "choose_existing": "自分の Linux ユーザー",
     "none_existing": "再利用できるアカウントがありません。新規アカウントを選んで作成してください。",
+    "retry_new": "新規アカウントとして再試行",
     "credentials_required": "接続前に個人の認証情報を保存してください。",
     "open_personal": "自分の実行環境を開く",
     "no_computers": "利用可能な Computer がありません。管理者に追加を依頼してください。",
@@ -1421,6 +1422,7 @@
       "available": "接続可能です。現在の Linux パスワードを入力してください。",
       "current_workspace": "このワークスペースに接続済みです。",
       "busy": "別の操作が進行中です。完了を待つか、自分の実行環境で復旧してください。",
+      "recovery_required": "操作が中断されました。再試行する前に、自分の実行環境で状態を確認して承認してください。",
       "other_workspace": "別のワークスペースに接続中です。先にそこで管理 daemon を削除してください。そのワークスペースの実行能力が失われます。",
       "unverified": "未確認のアカウントです。新規アカウントとして作成してください。",
       "computer_unavailable": "この Computer は無効または利用できません。",
@@ -1429,6 +1431,7 @@
     "errors": {
       "username_unavailable": "この Computer ではそのユーザー名は使用中です。別の名前を選んでください。",
       "operation_busy": "別の操作が進行中です。完了後に再試行してください。",
+      "operation_recovery_required": "操作が中断されました。再試行する前に、自分の実行環境で状態を確認して承認してください。",
       "binding_workspace_conflict": "別のワークスペースに接続中です。先にそこで管理 daemon を削除してください。",
       "binding_conflict": "利用可能な状態が変わりました。更新して再試行してください。",
       "generic": "接続できませんでした。操作履歴を確認して再試行してください。"

@@ -21,6 +21,7 @@ describe("Linux User workspace eligibility", () => {
   it("keeps unverified, busy, unavailable and already connected accounts out of the chooser", () => {
     expect(bindingEligibility({ ...binding, verified: false }, "new", machine)).toBe("unverified");
     expect(bindingEligibility({ ...binding, operation_busy: true }, "new", machine)).toBe("busy");
+    expect(bindingEligibility({ ...binding, state: "interrupted" }, "new", machine)).toBe("recovery_required");
     expect(bindingEligibility(binding, "new", { ...machine, enabled: false })).toBe("computer_unavailable");
     expect(bindingEligibility({ ...binding, account_state: "unavailable" }, "new", machine)).toBe("account_unavailable");
     expect(bindingEligibility({ ...binding, state: "ready", workspace_id: "new" }, "new", machine)).toBe("current_workspace");

@@ -1418,6 +1418,7 @@
     "new": "Nouveau compte",
     "choose_existing": "Mes comptes Linux",
     "none_existing": "Aucun compte réutilisable. Choisissez Nouveau compte pour en créer un.",
+    "retry_new": "Réessayer comme nouveau compte",
     "credentials_required": "Enregistrez vos identifiants personnels avant de connecter un compte.",
     "open_personal": "Ouvrir mes environnements",
     "no_computers": "Aucun Computer disponible. Contactez un administrateur de l'instance.",
@@ -1428,6 +1429,7 @@
       "available": "Disponible. Saisissez le mot de passe Linux actuel du compte.",
       "current_workspace": "Déjà connecté à cet espace de travail.",
       "busy": "Une opération est en cours. Attendez ou récupérez-la dans Mes environnements.",
+      "recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes environnements avant de réessayer.",
       "other_workspace": "Connecté à un autre espace. Supprimez d'abord son daemon géré ; cet espace perdra la capacité d'exécution de ce compte.",
       "unverified": "Compte non vérifié. Créez-le comme nouveau compte.",
       "computer_unavailable": "Ce Computer est désactivé ou indisponible.",
@@ -1436,6 +1438,7 @@
     "errors": {
       "username_unavailable": "Ce nom Linux est déjà utilisé sur ce Computer. Choisissez-en un autre.",
       "operation_busy": "Une autre opération est en cours. Réessayez après sa fin.",
+      "operation_recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes environnements avant de réessayer.",
       "binding_workspace_conflict": "Ce compte est connecté ailleurs. Supprimez d'abord son daemon géré dans l'ancien espace.",
       "binding_conflict": "La disponibilité a changé. Actualisez et réessayez.",
       "generic": "Connexion impossible. Consultez l'historique des opérations et réessayez."

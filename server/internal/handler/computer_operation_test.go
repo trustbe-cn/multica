@@ -126,9 +126,18 @@ func TestComputerBindingDetailAndHistoryOwnerBoundary(t *testing.T) {
 	}
 	var d bindingDetail
 	testutil.Call(t, testHandler.ComputerBindingDetail, bindingRequest("GET", binding, nil)).Want(200).JSON(&d)
-	if d.DaemonID != binding || d.AccountState != "unknown" || d.DaemonState != "unknown" {
+	if d.DaemonID != binding || d.AccountState != "unknown" || d.DaemonState != "unknown" || !d.Verified || d.OperationBusy {
 		t.Fatalf("detail: %+v", d)
 	}
+	op, err := testHandler.beginBindingOperation(context.Background(), testUserID, binding, "runtime_discovery", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.Call(t, testHandler.ComputerBindingDetail, bindingRequest("GET", binding, nil)).Want(200).JSON(&d)
+	if !d.OperationBusy {
+		t.Fatalf("detail omits active operation: %+v", d)
+	}
+	testutil.Call(t, testHandler.RecoverComputerOperation, bindingRequest("POST", binding, map[string]string{"operation_id": op, "action": "cancel"})).Want(200)
 }
 
 func TestComputerArchivePreservesOwnershipAndUnblocksComputerDeletion(t *testing.T) {

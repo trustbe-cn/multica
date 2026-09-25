@@ -34,7 +34,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodGet {
-		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND updated_at<now()-interval '20 minutes' THEN 'interrupted' ELSE state END,last_error,verified,account_state,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>now()) FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
+		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE state END,last_error,verified,account_state,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>=now()) FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
 		if err != nil {
 			writeError(w, 500, "Cannot read your Computers")
 			return
@@ -188,8 +188,8 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 
 func classifyComputerBindingConflict(ctx context.Context, tx pgx.Tx, computerID, username, uid, workspaceID string) (string, string, error) {
 	var ownerID, boundWorkspaceID, state string
-	var verified, busy bool
-	err := tx.QueryRow(ctx, `SELECT user_id::text,COALESCE(workspace_id::text,''),state,verified,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>now()) FROM computer_binding WHERE computer_id=$1 AND username=$2`, computerID, username).Scan(&ownerID, &boundWorkspaceID, &state, &verified, &busy)
+	var verified, busy, expired bool
+	err := tx.QueryRow(ctx, `SELECT user_id::text,COALESCE(workspace_id::text,''),state,verified,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>=now()),EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at<now()) FROM computer_binding WHERE computer_id=$1 AND username=$2`, computerID, username).Scan(&ownerID, &boundWorkspaceID, &state, &verified, &busy, &expired)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "binding_conflict", "Linux User availability changed; retry.", nil
 	}
@@ -199,8 +199,17 @@ func classifyComputerBindingConflict(ctx context.Context, tx pgx.Tx, computerID,
 	if ownerID != uid && verified {
 		return "username_unavailable", "This Linux username is unavailable on this Computer.", nil
 	}
+	if expired {
+		if ownerID == uid {
+			return "operation_recovery_required", "Review and acknowledge the interrupted operation in My environments before retrying.", nil
+		}
+		return "binding_conflict", "Linux User availability changed; retry.", nil
+	}
 	if busy || state == "running" {
 		return "operation_busy", "Another operation is active for this Linux user.", nil
+	}
+	if !verified {
+		return "binding_conflict", "Linux User availability changed; retry.", nil
 	}
 	if ownerID == uid && boundWorkspaceID != workspaceID && state != "removed" && state != "detached" {
 		return "binding_workspace_conflict", "Remove this Linux User's managed daemon from its current workspace before reconnecting it.", nil
@@ -335,5 +344,6 @@ WHERE (
   (computer_binding.workspace_id=$3 OR $5='remove' OR computer_binding.state IN ('removed','detached')))
  OR (NOT computer_binding.verified AND computer_binding.state='failed' AND $5='provision')
 ) AND (computer_binding.state<>'running' OR computer_binding.updated_at<now()-interval '20 minutes')
+  AND NOT EXISTS (SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running'))
 RETURNING id::text,computer_id::text,COALESCE(workspace_id::text,''),username,state,last_error,health_port
 `

@@ -29,17 +29,19 @@ export function WorkspaceLinuxUsersTab() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [recoveryError, setRecoveryError] = useState(false);
   const [accepted, setAccepted] = useState(false);
   if (!workspace) return null;
+  const workspaceId = workspace.id;
 
   const machines = data.machines.data ?? [];
   const bindings = data.bindings.data ?? [];
   const machineName = (id: string) => machines.find((m) => m.id === id)?.name ?? id;
   const eligibility = (binding: typeof bindings[number]): BindingEligibility =>
-    bindingEligibility(binding, workspace.id, machines.find((m) => m.id === binding.computer_id));
+    bindingEligibility(binding, workspaceId, machines.find((m) => m.id === binding.computer_id));
   const existing = bindings.filter((b) => b.verified);
   const connected = bindings.filter((b) =>
-    b.workspace_id === workspace.id && b.state !== "removed" && b.state !== "detached");
+    b.workspace_id === workspaceId && b.state !== "removed" && b.state !== "detached");
   const selected = existing.find((b) => b.id === selectedId);
   const target = mode === "existing" && selected && eligibility(selected) === "available"
     ? { computer_id: selected.computer_id, username: selected.username }
@@ -53,17 +55,20 @@ export function WorkspaceLinuxUsersTab() {
     event.preventDefault();
     if (!target || !target.username || !password || !hasCredentials || data.operate.isPending) return;
     setError("");
+    setRecoveryError(false);
     setAccepted(false);
     try {
       await data.operate.mutateAsync({
-        ...target, workspace_id: workspace!.id, password, action: "provision",
+        ...target, workspace_id: workspaceId, password, action: "provision",
       });
       setPassword("");
       setAccepted(true);
     } catch (err) {
       const code = errorCode(err);
+      setRecoveryError(code === "operation_recovery_required");
       const known = code === "username_unavailable" || code === "operation_busy" ||
-        code === "binding_workspace_conflict" || code === "binding_conflict";
+        code === "binding_workspace_conflict" || code === "binding_conflict" ||
+        code === "operation_recovery_required";
       setError(known ? t(($) => $.workspace_linux_users.errors[code]) :
         clientErrorMessage(err) ?? t(($) => $.workspace_linux_users.errors.generic));
     }
@@ -82,6 +87,8 @@ export function WorkspaceLinuxUsersTab() {
                 {b.last_error && <span className="block text-sm text-destructive">{b.last_error}</span>}
               </span>
               <span className="text-sm text-muted-foreground">{t(($) => $.linux_user.states[b.state as keyof typeof $.linux_user.states] ?? $.linux_user.unknown)}</span>
+              {b.state === "interrupted" && <AppLink href={personalHref} className="text-sm underline">{t(($) => $.workspace_linux_users.open_personal)}</AppLink>}
+              {!b.verified && b.state === "failed" && <Button type="button" variant="outline" size="sm" onClick={() => { setMode("new"); setComputerId(b.computer_id); setUsername(b.username); setAccepted(false); setError(""); setRecoveryError(false); }}>{t(($) => $.workspace_linux_users.retry_new)}</Button>}
             </li>
           ))}
         </ul>
@@ -94,8 +101,8 @@ export function WorkspaceLinuxUsersTab() {
         {machines.filter((m) => m.enabled).length === 0 && !data.machines.isPending &&
           <p>{t(($) => $.workspace_linux_users.no_computers)}</p>}
         <div className="flex gap-2" role="group" aria-label={t(($) => $.workspace_linux_users.mode)}>
-          <Button type="button" variant={mode === "existing" ? "secondary" : "outline"} aria-pressed={mode === "existing"} onClick={() => setMode("existing")}>{t(($) => $.workspace_linux_users.existing)}</Button>
-          <Button type="button" variant={mode === "new" ? "secondary" : "outline"} aria-pressed={mode === "new"} onClick={() => setMode("new")}>{t(($) => $.workspace_linux_users.new)}</Button>
+          <Button type="button" variant={mode === "existing" ? "secondary" : "outline"} aria-pressed={mode === "existing"} onClick={() => { setMode("existing"); setAccepted(false); setError(""); setRecoveryError(false); }}>{t(($) => $.workspace_linux_users.existing)}</Button>
+          <Button type="button" variant={mode === "new" ? "secondary" : "outline"} aria-pressed={mode === "new"} onClick={() => { setMode("new"); setAccepted(false); setError(""); setRecoveryError(false); }}>{t(($) => $.workspace_linux_users.new)}</Button>
         </div>
         <form onSubmit={(event) => void submit(event)} className="max-w-xl space-y-4">
           {mode === "existing" ? (
@@ -110,7 +117,7 @@ export function WorkspaceLinuxUsersTab() {
                       <span className="block text-sm text-muted-foreground">{t(($) => $.workspace_linux_users.eligibility[status])}</span>
                     </span>
                   </label>
-                  {status === "other_workspace" && <AppLink href={personalHref} className="ml-6 text-sm underline">{t(($) => $.workspace_linux_users.open_personal)}</AppLink>}
+                  {(status === "other_workspace" || status === "recovery_required") && <AppLink href={personalHref} className="ml-6 text-sm underline">{t(($) => $.workspace_linux_users.open_personal)}</AppLink>}
                 </div>;
               })}
             </fieldset> : <p className="text-muted-foreground">{t(($) => $.workspace_linux_users.none_existing)}</p>
@@ -131,6 +138,7 @@ export function WorkspaceLinuxUsersTab() {
             <Input type="password" autoComplete="off" value={password} required onChange={(event) => setPassword(event.target.value)} />
           </label>
           {error && <p role="alert" className="text-destructive">{error}</p>}
+          {recoveryError && <AppLink href={personalHref} className="text-sm underline">{t(($) => $.workspace_linux_users.open_personal)}</AppLink>}
           {accepted && <p role="status">{t(($) => $.workspace_linux_users.accepted)}</p>}
           <Button type="submit" disabled={!target || !hasCredentials || !password || data.operate.isPending} aria-busy={data.operate.isPending}>{t(($) => $.workspace_linux_users.connect_action)}</Button>
         </form>
