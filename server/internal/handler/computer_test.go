@@ -200,3 +200,41 @@ func TestComputerBindingConflictClassification(t *testing.T) {
 	dbfx.Exec(t, `UPDATE computer_binding SET verified=false,state='failed' WHERE id=$1`, binding)
 	check(other, "binding_conflict")
 }
+
+func TestComputerBindingsKeepSameHostAccountsPrivate(t *testing.T) {
+	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "shared-host", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	first := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice-one", "verified": true, "state": "ready"})
+	second := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice-two", "verified": true, "state": "removed"})
+	otherUser := dbfx.Insert(t, "user", testutil.Cols{"name": "Other Computer User", "email": "other-computer-user@example.test"})
+	dbfx.Insert(t, "member", testutil.Cols{"workspace_id": testWorkspaceID, "user_id": otherUser, "role": "member"})
+	dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": otherUser, "workspace_id": testWorkspaceID, "username": "bob-one", "verified": true, "state": "ready"})
+
+	listFor := func(userID string) []computerBinding {
+		t.Helper()
+		req := computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)
+		req.Header.Set("X-User-ID", userID)
+		var bindings []computerBinding
+		testutil.Call(t, testHandler.ComputerBindings, req).Want(http.StatusOK).JSON(&bindings)
+		return bindings
+	}
+	seen := map[string]bool{}
+	for _, binding := range listFor(testUserID) {
+		if binding.ComputerID == machine {
+			seen[binding.Username] = true
+		}
+	}
+	if !seen["alice-one"] || !seen["alice-two"] || seen["bob-one"] {
+		t.Fatalf("owner's same-host bindings = %v", seen)
+	}
+	for _, binding := range listFor(otherUser) {
+		if binding.ID == first || binding.ID == second {
+			t.Fatalf("another member received private binding %s", binding.ID)
+		}
+	}
+	for _, handler := range []func(http.ResponseWriter, *http.Request){testHandler.ComputerBindingDetail, testHandler.ComputerBindingOperations} {
+		req := computerTestRequest(http.MethodGet, "/api/me/computer-bindings/"+first, nil)
+		req.Header.Set("X-User-ID", otherUser)
+		req = withURLParam(req, "id", first)
+		testutil.Call(t, handler, req).Want(http.StatusNotFound)
+	}
+}
