@@ -56,6 +56,7 @@ export const AdminComputerRuntimeSchema = z.object({
   installed_version: z.string(),
   can_install: z.boolean(),
   version_required: z.boolean().default(true),
+  supports_version: z.boolean().catch(true).optional(),
   probe_error: z.string().default(""),
   probe_state: z.enum(["unknown", "missing", "installed", "version_failed", "check_failed"]).catch("unknown"),
   error_code: z.string().default(""), executable_path: z.string().default(""), install_dir: z.string().default(""),

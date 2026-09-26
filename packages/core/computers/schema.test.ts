@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { InstanceAccessSchema, AdminComputerSchema } from "./admin-schema";
+import { InstanceAccessSchema, AdminComputerSchema, AdminComputerRuntimeSchema } from "./admin-schema";
 import { describe, it, expect, vi } from "vitest";
 import { ComputerBindingSchema, parseComputerSettings } from "./schema";
 import { setSchemaLogger } from "../api/schema";
@@ -68,4 +68,11 @@ it("defaults new Linux User eligibility fields for older servers", () => {
     operation_busy: false,
   });
   expect(ComputerBindingSchema.parse({ ...binding, account_state: "future" }).account_state).toBe("unknown");
+});
+
+it("parses optional runtime versions and tolerates old or malformed capability fields", () => {
+  const base = {id:"codex",display_name:"Codex",installed_version:"",can_install:true};
+  expect(AdminComputerRuntimeSchema.parse({...base,version_required:false,supports_version:true})).toMatchObject({version_required:false,supports_version:true});
+  expect(AdminComputerRuntimeSchema.parse(base)).toMatchObject({version_required:true});
+  expect(AdminComputerRuntimeSchema.parse({...base,supports_version:"unexpected"})).toMatchObject({supports_version:true});
 });

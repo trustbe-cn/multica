@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@multica/ui/components/ui/select";
+import { LinuxPasswordInput } from "../../computers/linux-password-input";
 import { useT } from "../../i18n";
 import { SettingsSection, SettingsTab } from "./settings-layout";
 
@@ -270,16 +271,13 @@ function PersonalCredentialsTab({ userId }: { userId: string }) {
             </SelectContent>
           </Select>
         </label>
-        <label className="block space-y-1">
-          <span>{t(($) => $.computers.password)}</span>
-          <Input
-            type="password"
-            autoComplete="off"
-            value={password}
-            disabled={busy}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
+        <LinuxPasswordInput
+          key={bindingId}
+          autoComplete="off"
+          value={password}
+          disabled={busy}
+          onChange={(event) => setPassword(event.target.value)}
+        />
         {accounts.length === 0 && !data.bindings.isPending && (
           <p>{t(($) => $.credential_page.no_accounts)}</p>
         )}

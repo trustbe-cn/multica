@@ -1396,7 +1396,9 @@
     "running": "In progress",
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
-    "personal_title": "내 실행 환경"
+    "personal_title": "내 실행 환경",
+    "show_password": "Linux 비밀번호 표시",
+    "hide_password": "Linux 비밀번호 숨기기"
   },
   "workspace_linux_users": {
     "title": "Linux 사용자",
@@ -1497,7 +1499,7 @@
     "runtimes_install": "설치",
     "runtimes_update": "업데이트",
     "runtimes_linux_user_placeholder": "Linux 사용자 이름",
-    "runtimes_version_placeholder": "예: 1.2.3",
+    "runtimes_version_placeholder": "비워 두면 최신 버전 설치",
     "runtimes_installing": "설치 중…",
     "runtimes_install_success": "런타임이 설치되었습니다",
     "runtimes_install_failed": "설치 실패",

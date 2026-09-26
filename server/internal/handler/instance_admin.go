@@ -583,10 +583,10 @@ func (h *Handler) ComputerBindingRuntimeInstall(w http.ResponseWriter, r *http.R
 	}
 	rt, exists := agent.BuiltinRuntimeByID(in.RuntimeID)
 	var installCmd string
-	versionRequired := true
+	supportsVersion := true
 	if exists {
 		installCmd = rt.InstallCommand
-		versionRequired = !rt.LatestOnly
+		supportsVersion = !rt.LatestOnly
 	} else {
 		pf, pfExists := agent.ProtocolFamilyInstallByID(in.RuntimeID)
 		if !pfExists {
@@ -594,17 +594,20 @@ func (h *Handler) ComputerBindingRuntimeInstall(w http.ResponseWriter, r *http.R
 			return
 		}
 		installCmd = pf.InstallCommand
-		versionRequired = !pf.LatestOnly
+		supportsVersion = !pf.LatestOnly
 	}
 	if installCmd == "" {
 		writeError(w, 422, fmt.Sprintf("Runtime %q does not support installation", in.RuntimeID))
 		return
 	}
-	if versionRequired && (!runtimeVersionRE.MatchString(in.Version) || in.Version == "") {
+	if in.Version == "" {
+		in.Version = "latest"
+	}
+	if !runtimeVersionRE.MatchString(in.Version) {
 		writeError(w, 400, "Invalid version: only alphanumeric, dot, hyphen, and plus are allowed")
 		return
 	}
-	if !versionRequired {
+	if !supportsVersion {
 		if in.Version != "" && in.Version != "latest" {
 			writeError(w, 422, "This runtime only supports latest; omit version or use latest")
 			return

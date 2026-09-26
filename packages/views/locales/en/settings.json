@@ -1403,7 +1403,9 @@
     "running": "In progress",
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
-    "personal_title": "My environments"
+    "personal_title": "My environments",
+    "show_password": "Show Linux password",
+    "hide_password": "Hide Linux password"
   },
   "workspace_linux_users": {
     "title": "Linux Users",
@@ -1504,7 +1506,7 @@
     "runtimes_install": "Install",
     "runtimes_update": "Update",
     "runtimes_linux_user_placeholder": "Linux username",
-    "runtimes_version_placeholder": "e.g. 1.2.3",
+    "runtimes_version_placeholder": "Leave blank for latest",
     "runtimes_installing": "Installing…",
     "runtimes_install_success": "Runtime installed successfully",
     "runtimes_install_failed": "Install failed",

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@multica/ui/components/ui/select";
 import { AppLink } from "../../navigation";
+import { LinuxPasswordInput } from "../../computers/linux-password-input";
 import { useT } from "../../i18n";
 import { SettingsSection, SettingsTab } from "./settings-layout";
 
@@ -299,16 +300,13 @@ export function WorkspaceLinuxUsersTab() {
               </label>
             </>
           )}
-          <label className="block space-y-1">
-            <span>{t(($) => $.computers.password)}</span>
-            <Input
-              type="password"
-              autoComplete="off"
-              value={password}
-              required
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
+          <LinuxPasswordInput
+            key={`${mode}:${computerId}:${selectedId}:${username}`}
+            autoComplete="off"
+            value={password}
+            required
+            onChange={(event) => setPassword(event.target.value)}
+          />
           {error && (
             <p role="alert" className="text-destructive">
               {error}

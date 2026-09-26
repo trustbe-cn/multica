@@ -1396,7 +1396,9 @@
     "running": "处理中",
     "removed": "已卸载",
     "hidden": "点击「显示秘密」查看或编辑",
-    "personal_title": "我的运行环境"
+    "personal_title": "我的运行环境",
+    "show_password": "显示 Linux 密码",
+    "hide_password": "隐藏 Linux 密码"
   },
   "workspace_linux_users": {
     "title": "Linux 用户",
@@ -1497,7 +1499,7 @@
     "runtimes_install": "安装",
     "runtimes_update": "更新",
     "runtimes_linux_user_placeholder": "Linux 用户名",
-    "runtimes_version_placeholder": "如 1.2.3",
+    "runtimes_version_placeholder": "留空安装最新版",
     "runtimes_installing": "安装中…",
     "runtimes_install_success": "运行时安装成功",
     "runtimes_install_failed": "安装失败",

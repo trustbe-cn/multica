@@ -243,7 +243,7 @@ subprocess.run=run
 }
 
 func TestCreateUserInstallerFailures(t *testing.T) {
-	for _, stage := range []string{"apt", "apt-timeout", "download", "timeout"} {
+	for _, stage := range []string{"apt", "apt-timeout"} {
 		t.Run(stage, func(t *testing.T) {
 			dir := t.TempDir()
 			for name, script := range map[string]string{
@@ -254,13 +254,6 @@ else test "$FAIL_STAGE" != apt; fi`,
 				"useradd":  `touch "$TEST_DIR/account"; touch "$TEST_DIR/created"`,
 				"userdel":  `rm "$TEST_DIR/account"`,
 				"chpasswd": `cat >/dev/null`,
-				"runuser":  `shift 3; exec "$@"`,
-				"curl": `while [ "$#" -gt 0 ]; do
-if [ "$1" = "-o" ]; then shift; if [ "$FAIL_STAGE" = timeout ]; then printf 'sleep 60\n' > "$1"; else printf 'touch "$TEST_DIR/executed"\n' > "$1"; fi; break; fi
-shift
-done
-if [ "$FAIL_STAGE" = timeout ]; then exit 0; fi
-exit 22`,
 			} {
 				if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script+"\n"), 0700); err != nil {
 					t.Fatal(err)
@@ -282,9 +275,6 @@ exit 22`,
 			if _, err := os.Stat(filepath.Join(dir, "account")); !os.IsNotExist(err) {
 				t.Fatal("left a partially initialized account")
 			}
-			if _, err := os.Stat(filepath.Join(dir, "executed")); !os.IsNotExist(err) {
-				t.Fatal("executed a partial script")
-			}
 			if stage == "apt-timeout" {
 				time.Sleep(500 * time.Millisecond)
 				if _, err := os.Stat(filepath.Join(dir, "child-survived")); !os.IsNotExist(err) {
@@ -295,9 +285,39 @@ exit 22`,
 			if strings.HasPrefix(stage, "apt") && !os.IsNotExist(created) {
 				t.Fatal("created an account before system prerequisites succeeded")
 			}
-			if !strings.HasPrefix(stage, "apt") && created != nil {
-				t.Fatal("test did not reach user setup")
-			}
 		})
+	}
+}
+
+// Shell customization must never roll back an otherwise usable Linux account.
+func TestCreateUserDoesNotRequireShellCustomizationDownload(t *testing.T) {
+	dir := t.TempDir()
+	for name, script := range map[string]string{
+		"apt-get": "exit 0", "useradd": `touch "$TEST_DIR/account"`, "chpasswd": "cat >/dev/null",
+		"userdel": `touch "$TEST_DIR/deleted"`, "runuser": `touch "$TEST_DIR/network"; exit 99`,
+		"curl": `touch "$TEST_DIR/network"; exit 28`, "git": `touch "$TEST_DIR/network"; exit 99`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script+"\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := &recordRunner{}
+	remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", RunCmd: rec}
+	if err := remote.CreateUser("alice", "test-password"); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", "-c", strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n "))
+	cmd.Env = append(os.Environ(), "PATH="+dir+":/usr/bin:/bin", "TEST_DIR="+dir)
+	cmd.Stdin = strings.NewReader(rec.stdin)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("account depends on shell customization: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "account")); err != nil {
+		t.Fatal("account not created")
+	}
+	for _, name := range []string{"network", "deleted"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected step: %s", name)
+		}
 	}
 }

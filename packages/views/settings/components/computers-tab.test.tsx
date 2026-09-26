@@ -113,53 +113,59 @@ describe("Computers settings", () => {
   });
 });
 
-it("installs a CLI runtime through the owner's ready binding", async () => {
-  api.listComputerBindings.mockResolvedValue([
-    {
-      id: "binding-1",
-      computer_id: "machine-1",
-      workspace_id: "workspace-1",
-      username: "alice",
-      state: "ready",
-      last_error: "",
-    },
-  ]);
-  api.listComputers.mockResolvedValue([
-    { id: "machine-1", name: "Dev server", enabled: true },
-  ]);
-  api.listComputerBindingRuntimes.mockResolvedValue([
-    {
-      id: "codex",
-      display_name: "Codex",
-      installed_version: "",
-      can_install: true,
-      version_required: true,
-      probe_error: "",
-    },
-  ]);
-  mount();
-  const user = userEvent.setup();
-  await user.click(
-    await screen.findByRole("button", { name: "Linux User details" }),
-  );
-  expect(await screen.findByText("Codex")).toBeInTheDocument();
-  expect(api.listComputerBindingRuntimes).toHaveBeenCalledWith(
-    "binding-1",
-    expect.anything(),
-  );
-  await user.type(
-    screen.getByRole("textbox", { name: "Codex version" }),
-    "1.2.3",
-  );
-  await user.click(screen.getByRole("button", { name: "Install" }));
-  await waitFor(() =>
-    expect(api.installComputerBindingRuntime).toHaveBeenCalledWith(
+it.each(["", "1.2.3"])(
+  "installs a CLI runtime with version %j through the owner's binding",
+  async (version) => {
+    api.listComputerBindings.mockResolvedValue([
+      {
+        id: "binding-1",
+        computer_id: "machine-1",
+        workspace_id: "workspace-1",
+        username: "alice",
+        state: "ready",
+        last_error: "",
+      },
+    ]);
+    api.listComputers.mockResolvedValue([
+      { id: "machine-1", name: "Dev server", enabled: true },
+    ]);
+    api.listComputerBindingRuntimes.mockResolvedValue([
+      {
+        id: "codex",
+        display_name: "Codex",
+        installed_version: "",
+        can_install: true,
+        version_required: false,
+        supports_version: true,
+        probe_error: "",
+      },
+    ]);
+    mount();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Linux User details" }),
+    );
+    expect(await screen.findByText("Codex")).toBeInTheDocument();
+    expect(api.listComputerBindingRuntimes).toHaveBeenCalledWith(
       "binding-1",
-      "codex",
-      "1.2.3",
-    ),
-  );
-});
+      expect.anything(),
+    );
+    expect(screen.getByRole("button", { name: "Install" })).toBeEnabled();
+    if (version)
+      await user.type(
+        screen.getByRole("textbox", { name: "Codex version" }),
+        version,
+      );
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(api.installComputerBindingRuntime).toHaveBeenCalledWith(
+        "binding-1",
+        "codex",
+        version || "latest",
+      ),
+    );
+  },
+);
 
 it("shows separate Linux User rows for different usernames on the same Computer", async () => {
   api.listComputerBindings.mockResolvedValue([
@@ -246,7 +252,8 @@ it("shows account and daemon status separately and tracks an install after reope
       display_name: "Codex",
       installed_version: "",
       can_install: true,
-      version_required: true,
+      version_required: false,
+      supports_version: true,
       probe_state: "unknown",
       probe_error: "",
     },

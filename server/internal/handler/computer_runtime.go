@@ -15,7 +15,7 @@ import (
 
 type runtimeTarget struct {
 	id, name, command, install, source string
-	versionRequired                    bool
+	supportsVersion                    bool
 }
 
 func runtimeTargets() []runtimeTarget {
@@ -35,6 +35,7 @@ type runtimeAsset struct {
 	InstalledVersion  string     `json:"installed_version"`
 	CanInstall        bool       `json:"can_install"`
 	VersionRequired   bool       `json:"version_required"`
+	SupportsVersion   bool       `json:"supports_version"`
 	ProbeError        string     `json:"probe_error"`
 	ProbeState        string     `json:"probe_state"`
 	ErrorCode         string     `json:"error_code"`
@@ -103,7 +104,8 @@ func (h *Handler) runtimeAssets(ctx context.Context, id string) ([]runtimeAsset,
 		a.ID = target.id
 		a.DisplayName = target.name
 		a.CanInstall = target.install != ""
-		a.VersionRequired = target.versionRequired
+		a.VersionRequired = false
+		a.SupportsVersion = target.supportsVersion
 		if !found {
 			a.ProbeState = "unknown"
 		}

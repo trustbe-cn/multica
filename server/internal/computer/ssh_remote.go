@@ -155,7 +155,7 @@ func (s SSHRemote) CreateUser(username, password string) error {
 	if username == s.User {
 		return fmt.Errorf("operator account cannot be provisioned")
 	}
-	// Leave time for the two 120-second installers, account setup, rollback,
+	// Leave time for package installation, account setup, rollback,
 	// and connection establishment. Other operations retain their normal limit.
 	if s.Timeout < 8*time.Minute {
 		s.Timeout = 8 * time.Minute
@@ -193,9 +193,6 @@ run_installer(["apt-get","install","-y","--no-install-recommends","zsh","htop","
 subprocess.run(["useradd","--create-home","--shell","/usr/bin/zsh",u],check=True,timeout=30)
 try:
     subprocess.run(["chpasswd"],input=u+":"+pw+"\n",text=True,check=True,timeout=15)
-    run_installer(["runuser","-u",u,"--",
-        "bash","-c",
-        '''set -eu; export RUNZSH=no CHSH=no; installer=$(mktemp); trap 'rm -f "$installer"' EXIT; curl --connect-timeout 10 --max-time 60 -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; bash "$installer"'''])
 except BaseException:
     subprocess.run(["userdel","-r",u],check=True,timeout=30)
     raise

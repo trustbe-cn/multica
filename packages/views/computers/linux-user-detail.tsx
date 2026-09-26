@@ -7,6 +7,7 @@ import {
 } from "@multica/core/computers";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import { LinuxPasswordInput } from "./linux-password-input";
 import { useT } from "../i18n";
 
 export function LinuxUserDetail({
@@ -213,18 +214,17 @@ export function LinuxUserDetail({
                 />
               </label>
               {action !== "archive" && (
-                <label className="block">
-                  {t(($) => $.linux_user.password_for, {
-                    username: d?.username ?? "",
+                <LinuxPasswordInput
+                  key={`${bindingId}:${action}`}
+                  label={t(($) => $.linux_user.password_for, {
+                    username: d.username,
                   })}
-                  <Input
-                    required
-                    type="password"
-                    autoComplete="off"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </label>
+                  required
+                  autoComplete="off"
+                  value={password}
+                  disabled={busy}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               )}
               <div className="flex gap-2">
                 <Button

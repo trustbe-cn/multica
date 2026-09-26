@@ -1396,7 +1396,9 @@
     "running": "In progress",
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
-    "personal_title": "自分の実行環境"
+    "personal_title": "自分の実行環境",
+    "show_password": "Linux パスワードを表示",
+    "hide_password": "Linux パスワードを隠す"
   },
   "workspace_linux_users": {
     "title": "Linux ユーザー",
@@ -1497,7 +1499,7 @@
     "runtimes_install": "インストール",
     "runtimes_update": "更新",
     "runtimes_linux_user_placeholder": "Linuxユーザー名",
-    "runtimes_version_placeholder": "例: 1.2.3",
+    "runtimes_version_placeholder": "空欄で最新版をインストール",
     "runtimes_installing": "インストール中…",
     "runtimes_install_success": "ランタイムをインストールしました",
     "runtimes_install_failed": "インストールに失敗しました",

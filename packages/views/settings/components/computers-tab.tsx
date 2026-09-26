@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@multica/ui/components/ui/select";
 import { SettingsSection, SettingsTab } from "./settings-layout";
+import { LinuxPasswordInput } from "../../computers/linux-password-input";
 import { useT } from "../../i18n";
 import { toast } from "sonner";
 
@@ -142,17 +143,14 @@ function PersonalComputersTab() {
               onChange={(e) => setUsername(e.target.value)}
             />
           </label>
-          <label className="block space-y-1">
-            <span>{t(($) => $.computers.password)}</span>
-            <Input
-              ref={passwordInput}
-              type="password"
-              autoComplete="off"
-              value={password}
-              required
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
+          <LinuxPasswordInput
+            key={`${machine}:${username}:${action}`}
+            ref={passwordInput}
+            autoComplete="off"
+            value={password}
+            required
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <label className="block space-y-1">
             <span>{t(($) => $.computers.action)}</span>
             <Select
@@ -360,12 +358,12 @@ function RuntimeRow({
     runtime.id,
   );
   const errors = t(($) => $.linux_user.errors, { returnObjects: true });
+  const supportsVersion = runtime.supports_version ?? runtime.version_required;
   const handleInstall = async () => {
-    if (install.isPending || (runtime.version_required && !version.trim()))
-      return;
+    if (install.isPending) return;
     try {
       await install.mutateAsync(
-        runtime.version_required ? version.trim() : "latest",
+        supportsVersion ? version.trim() || "latest" : "latest",
       );
       toast.success(t(($) => $.computers.accepted));
     } catch {
@@ -384,16 +382,16 @@ function RuntimeRow({
               ? t(($) => $.admin.runtimes_not_installed)
               : t(($) => $.linux_user.unknown)}
       </span>
-      {!runtime.version_required && (
+      {!supportsVersion && (
         <span className="text-muted-foreground">
           {t(($) => $.admin.runtimes_latest)}
         </span>
       )}
       {runtime.can_install && (
         <div className="flex flex-wrap items-center gap-2">
-          {runtime.version_required && (
+          {supportsVersion && (
             <Input
-              className="h-7 w-24 text-xs"
+              className="h-7 w-48 text-xs"
               placeholder={t(($) => $.admin.runtimes_version_placeholder)}
               value={version}
               onChange={(e) => setVersion(e.target.value)}
@@ -407,11 +405,7 @@ function RuntimeRow({
             type="button"
             variant="outline"
             size="sm"
-            disabled={
-              busy ||
-              install.isPending ||
-              (runtime.version_required && !version.trim())
-            }
+            disabled={busy || install.isPending}
             onClick={() => void handleInstall()}
           >
             {install.isPending

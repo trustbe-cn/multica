@@ -271,6 +271,7 @@ esac
 		ID               string `json:"id"`
 		InstalledVersion string `json:"installed_version"`
 		VersionRequired  bool   `json:"version_required"`
+		SupportsVersion  bool   `json:"supports_version"`
 		ProbeError       string `json:"probe_error"`
 	}
 	testutil.Call(t, testHandler.ComputerBindingRuntimes, request("GET", "/", nil)).Want(200).JSON(&runtimes)
@@ -281,7 +282,7 @@ esac
 		if rt.InstalledVersion != "" || rt.ProbeError != "" {
 			t.Fatalf("wrong target user: %+v", rt)
 		}
-		if !rt.VersionRequired {
+		if rt.VersionRequired || !rt.SupportsVersion {
 			t.Fatalf("wrong version capability: %+v", rt)
 		}
 	}
@@ -291,10 +292,15 @@ esac
 	}{
 		{"omp", "1.2.3\n", 400},
 		{"unknown", "1.2.3", 400},
-		{"grok", "", 400},
+		{"grok", "", 200},
 		{"grok", "latest", 200},
 	} {
 		testutil.Call(t, testHandler.ComputerBindingRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": tc.runtime, "version": tc.version})).Want(tc.status)
+	}
+	testutil.Call(t, testHandler.ComputerBindingRuntimeInstall, request("POST", "/", map[string]string{"runtime_id": "codex"})).Want(200)
+	var requested string
+	if err := testPool.QueryRow(context.Background(), `SELECT requested_version FROM computer_operation WHERE binding_id=$1 AND runtime_id='codex' ORDER BY created_at DESC LIMIT 1`, binding).Scan(&requested); err != nil || requested != "latest" {
+		t.Fatalf("omitted version was not recorded as latest: %q %v", requested, err)
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	var count int
@@ -302,12 +308,12 @@ esac
 		if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM computer_audit WHERE computer_id=$1 AND action='runtime_install:grok@latest' AND outcome='succeeded'`, machine).Scan(&count); err != nil {
 			t.Fatal(err)
 		}
-		if count == 1 {
+		if count == 2 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if count != 1 {
+	if count != 2 {
 		t.Fatal("asynchronous install audit missing")
 	}
 	t.Cleanup(func() {
