@@ -7,7 +7,7 @@ const machine: Computer = { id: "m", name: "Host", host: "example.com", port: 22
 const binding: ComputerBinding = {
   id: "b", computer_id: "m", workspace_id: "old", username: "alice",
   state: "removed", last_error: "", verified: true,
-  account_state: "present", operation_busy: false,
+  account_state: "present", operation_busy: false, workspace_name: "", workspace_access: "unknown", latest_operation: null,
 };
 
 describe("Linux User workspace eligibility", () => {

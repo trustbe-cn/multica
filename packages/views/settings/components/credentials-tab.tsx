@@ -1,26 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { clientErrorMessage, errorCode } from "@multica/core/api";
 import { useAuthStore } from "@multica/core/auth";
 import {
-  useComputers,
+  usePersonalComputerSettings,
   useComputerCredentials,
   type ComputerSettings,
+  type ComputerBinding,
 } from "@multica/core/computers";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@multica/ui/components/ui/select";
 import { LinuxPasswordInput } from "../../computers/linux-password-input";
 import { useT } from "../../i18n";
-import { SettingsSection, SettingsTab } from "./settings-layout";
+import { SettingsTab } from "./settings-layout";
 
 const fields: (keyof ComputerSettings)[] = [
   "git_name",
@@ -44,36 +38,127 @@ const multiline = new Set<keyof ComputerSettings>([
   "model_env",
 ]);
 
+const emptySettings: ComputerSettings = {
+  git_name: "",
+  git_email: "",
+  gitlab_url: "",
+  gitlab_token: "",
+  git_ssh_key: "",
+  git_known_hosts: "",
+  model_env: "",
+  multica_pat: "",
+};
+
 export function CredentialsTab() {
   const userId = useAuthStore((s) => s.user?.id ?? "");
-  return <PersonalCredentialsTab key={userId} userId={userId} />;
+  const { t } = useT("settings");
+  return (
+    <SettingsTab title={t(($) => $.credential_page.title)}>
+      <p>{t(($) => $.linux_user_pages.template_help)}</p>
+      <PersonalTemplate key={userId} userId={userId} />
+    </SettingsTab>
+  );
 }
 
-function PersonalCredentialsTab({ userId }: { userId: string }) {
+function PersonalTemplate({ userId }: { userId: string }) {
   const { t } = useT("settings");
-  const data = useComputers(userId, true);
+  const { settings } = usePersonalComputerSettings(userId);
+  if (settings.error)
+    return (
+      <p role="alert" className="text-destructive">
+        {settings.error.message}
+      </p>
+    );
+  if (!settings.data)
+    return <p role="status">{t(($) => $.computers.loading)}</p>;
+  return (
+    <CredentialEditor
+      userId={userId}
+      initialSettings={settings.data.settings}
+    />
+  );
+}
+
+export function AccountCredentials({
+  userId,
+  binding,
+  onDirtyChange,
+}: {
+  userId: string;
+  binding: ComputerBinding;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
+  return (
+    <CredentialEditor
+      key={`${userId}:${binding.id}`}
+      userId={userId}
+      binding={binding}
+      onDirtyChange={onDirtyChange}
+    />
+  );
+}
+
+function CredentialEditor({
+  userId,
+  binding,
+  onDirtyChange,
+  initialSettings,
+}: {
+  userId: string;
+  binding?: ComputerBinding;
+  onDirtyChange?: (dirty: boolean) => void;
+  initialSettings?: ComputerSettings;
+}) {
+  const { t } = useT("settings");
   const transfer = useComputerCredentials(userId);
   const [draft, setDraft] = useState<ComputerSettings | null>(null);
-  const [draftSource, setDraftSource] = useState<string | null>(null);
-  const [importConfirmed, setImportConfirmed] = useState(false);
   const [reveal, setReveal] = useState(false);
-  const [bindingId, setBindingId] = useState("");
   const [password, setPassword] = useState("");
+  const [importConfirmed, setImportConfirmed] = useState(false);
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const settings =
-    draftSource && draftSource !== bindingId
-      ? undefined
-      : (draft ?? data.settings.data?.settings);
-  const accounts = (data.bindings.data ?? []).filter((b) => b.verified);
-  const selected = accounts.find((b) => b.id === bindingId);
+  const alive = useRef(true);
+  const dirty = draft !== null;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  const resetRead = transfer.read.reset;
+  const resetWrite = transfer.write.reset;
+  const resetTemplate = transfer.loadTemplate.reset;
+  const resetSave = transfer.saveTemplate.reset;
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      onDirtyChange?.(false);
+      resetRead();
+      resetWrite();
+      resetTemplate();
+      resetSave();
+    };
+  }, [onDirtyChange, resetRead, resetWrite, resetTemplate, resetSave]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const settings = draft ?? (binding ? emptySettings : initialSettings);
   const busy =
-    data.save.isPending || transfer.read.isPending || transfer.write.isPending;
+    transfer.saveTemplate.isPending ||
+    transfer.read.isPending ||
+    transfer.write.isPending ||
+    transfer.loadTemplate.isPending;
   const blocked =
-    !selected ||
-    selected.operation_busy ||
-    selected.state === "running" ||
-    selected.state === "interrupted";
+    !!binding &&
+    (!binding.verified ||
+      binding.account_state === "missing" ||
+      binding.operation_busy ||
+      ["running", "interrupted"].includes(binding.state));
   const labels = {
     git_name: t(($) => $.computers.git_name),
     git_email: t(($) => $.computers.git_email),
@@ -85,34 +170,52 @@ function PersonalCredentialsTab({ userId }: { userId: string }) {
     multica_pat: t(($) => $.computers.multica_pat),
   };
   const help = t(($) => $.credential_page.field_help, { returnObjects: true });
-  async function perform(kind: "save" | "read" | "write") {
-    setNotice("");
+  async function perform(kind: "save" | "read" | "write" | "load") {
+    if (busy) return;
+    if (binding && kind === "save" && !importConfirmed) return;
+    if ((kind === "read" || kind === "load") && dirty && !replaceConfirmed)
+      return;
+    const current = () => alive.current;
     setError("");
+    setNotice("");
     try {
-      if (kind === "read") {
+      if (kind === "read" && binding) {
         const result = await transfer.read.mutateAsync({
-          id: bindingId,
+          id: binding.id,
           password,
         });
+        if (!current()) return;
         setDraft(result.settings);
-        setDraftSource(bindingId);
-        setImportConfirmed(false);
         setReveal(false);
-        setPassword("");
+        setImportConfirmed(false);
+        setReplaceConfirmed(false);
         setNotice(t(($) => $.credential_page.read_done));
-      } else if (settings && kind === "write") {
-        await transfer.write.mutateAsync({ id: bindingId, password, settings });
-        setPassword("");
-        setNotice(t(($) => $.credential_page.write_done));
-      } else if (settings) {
-        if (draftSource && !importConfirmed) return;
-        await data.save.mutateAsync(settings);
+      } else if (kind === "load") {
+        const result = await transfer.loadTemplate.mutateAsync();
+        if (!current()) return;
+        setDraft(result.settings);
+        setReveal(false);
+        setImportConfirmed(false);
+        setReplaceConfirmed(false);
+      } else if (kind === "write" && binding && settings) {
+        await transfer.write.mutateAsync({
+          id: binding.id,
+          password,
+          settings,
+        });
+        if (!current()) return;
         setDraft(null);
-        setDraftSource(null);
+        setImportConfirmed(false);
+        setNotice(t(($) => $.credential_page.write_done));
+      } else if (kind === "save" && settings) {
+        await transfer.saveTemplate.mutateAsync(settings);
+        if (!current()) return;
+        if (!binding) setDraft(null);
         setImportConfirmed(false);
         setNotice(t(($) => $.credential_page.saved));
       }
     } catch (err) {
+      if (!current()) return;
       const code = errorCode(err);
       const messages = t(($) => $.linux_user.errors, { returnObjects: true });
       const connectionErrors = t(($) => $.workspace_linux_users.errors, {
@@ -126,42 +229,74 @@ function PersonalCredentialsTab({ userId }: { userId: string }) {
             : (clientErrorMessage(err) ?? t(($) => $.computers.failed)),
       );
     } finally {
-      transfer.read.reset();
-      transfer.write.reset();
-      data.save.reset();
+      if (current()) {
+        setPassword("");
+        transfer.read.reset();
+        transfer.write.reset();
+        transfer.loadTemplate.reset();
+        transfer.saveTemplate.reset();
+      }
     }
   }
   return (
-    <SettingsTab title={t(($) => $.credential_page.title)}>
-      <p>{t(($) => $.credential_page.help)}</p>
-      {(error ||
-        data.settings.error ||
-        data.bindings.error ||
-        data.machines.error) && (
+    <div className="space-y-4">
+      {error && (
         <p role="alert" className="text-destructive">
-          {error ||
-            data.settings.error?.message ||
-            data.bindings.error?.message ||
-            data.machines.error?.message}
+          {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      {data.settings.isPending && (
-        <p role="status">{t(($) => $.computers.loading)}</p>
-      )}
-      {draftSource && selected && (
-        <p role="status">
-          {t(($) => $.credential_page.remote_source, {
-            username: selected.username,
-          })}
-        </p>
+      {binding && (
+        <div className="space-y-3">
+          <p>
+            {t(($) => $.credential_page.target)}: {binding.username}
+          </p>
+          <p className="text-caption text-muted-foreground">
+            {t(($) => $.credential_page.transfer_help)}
+          </p>
+          <LinuxPasswordInput
+            autoComplete="off"
+            value={password}
+            disabled={busy || blocked}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          {dirty && (
+            <label className="flex gap-2">
+              <input
+                type="checkbox"
+                checked={replaceConfirmed}
+                onChange={(event) => setReplaceConfirmed(event.target.checked)}
+              />
+              <span>{t(($) => $.linux_user_pages.replace_draft)}</span>
+            </label>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={
+                busy || blocked || !password || (dirty && !replaceConfirmed)
+              }
+              onClick={() => void perform("read")}
+            >
+              {t(($) => $.credential_page.read)}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy || (dirty && !replaceConfirmed)}
+              onClick={() => void perform("load")}
+            >
+              {t(($) => $.linux_user_pages.load_template)}
+            </Button>
+          </div>
+          {blocked && <p>{t(($) => $.linux_user_pages.configure_first)}</p>}
+        </div>
       )}
       {settings && (
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void perform("save");
+            void perform(binding ? "write" : "save");
           }}
         >
           {fields.map((field) => {
@@ -201,23 +336,15 @@ function PersonalCredentialsTab({ userId }: { userId: string }) {
               </div>
             );
           })}
-          {draftSource && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={importConfirmed}
-                disabled={busy}
-                onChange={(event) => setImportConfirmed(event.target.checked)}
-              />
-              <span>{t(($) => $.credential_page.confirm_import)}</span>
-            </label>
-          )}
+
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
-              disabled={busy || (!!draftSource && !importConfirmed)}
+              disabled={busy || blocked || (!!binding && (!password || !dirty))}
             >
-              {t(($) => $.computers.save)}
+              {binding
+                ? t(($) => $.credential_page.write)
+                : t(($) => $.linux_user_pages.save_template)}
             </Button>
             <Button
               type="button"
@@ -229,83 +356,35 @@ function PersonalCredentialsTab({ userId }: { userId: string }) {
                 : t(($) => $.computers.reveal)}
             </Button>
           </div>
+          {binding && (
+            <details className="space-y-2">
+              <summary>{t(($) => $.linux_user_pages.save_template)}</summary>
+              <label className="flex gap-2">
+                <input
+                  type="checkbox"
+                  checked={importConfirmed}
+                  disabled={busy}
+                  onChange={(event) => setImportConfirmed(event.target.checked)}
+                />
+                <span>{t(($) => $.credential_page.confirm_import)}</span>
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || !dirty || !importConfirmed}
+                onClick={() => void perform("save")}
+              >
+                {t(($) => $.linux_user_pages.save_template)}
+              </Button>
+            </details>
+          )}
         </form>
       )}
-      <SettingsSection title={t(($) => $.credential_page.transfer)}>
-        <p>{t(($) => $.credential_page.transfer_help)}</p>
-        <label className="block space-y-1">
-          <span>{t(($) => $.credential_page.target)}</span>
-          <Select
-            value={bindingId}
-            disabled={busy}
-            items={accounts.map((b) => ({
-              value: b.id,
-              label: `${data.machines.data?.find((m) => m.id === b.computer_id)?.name ?? b.computer_id} · ${b.username}`,
-            }))}
-            onValueChange={(value) => {
-              if ((value ?? "") === bindingId) return;
-              setBindingId(value ?? "");
-              setDraft(null);
-              setDraftSource(null);
-              setImportConfirmed(false);
-              setReveal(false);
-              setPassword("");
-              setNotice("");
-              setError("");
-            }}
-          >
-            <SelectTrigger
-              aria-label={t(($) => $.credential_page.target)}
-              className="w-full"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {data.machines.data?.find((m) => m.id === b.computer_id)
-                    ?.name ?? b.computer_id}{" "}
-                  · {b.username}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <LinuxPasswordInput
-          key={bindingId}
-          autoComplete="off"
-          value={password}
-          disabled={busy}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        {accounts.length === 0 && !data.bindings.isPending && (
-          <p>{t(($) => $.credential_page.no_accounts)}</p>
-        )}
-        {selected && blocked && (
-          <p>{t(($) => $.workspace_linux_users.eligibility.busy)}</p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy || blocked || !password}
-            onClick={() => void perform("read")}
-          >
-            {t(($) => $.credential_page.read)}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy || blocked || !password || !settings}
-            onClick={() => void perform("write")}
-          >
-            {t(($) => $.credential_page.write)}
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+      {binding && (
+        <p className="text-caption text-muted-foreground">
           {t(($) => $.credential_page.locations)}
         </p>
-      </SettingsSection>
-    </SettingsTab>
+      )}
+    </div>
   );
 }

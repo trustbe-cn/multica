@@ -285,3 +285,41 @@ func TestComputerBindingsKeepSameHostAccountsPrivate(t *testing.T) {
 		testutil.Call(t, handler, req).Want(http.StatusNotFound)
 	}
 }
+
+func TestComputerBindingSummaryRespectsWorkspaceAccess(t *testing.T) {
+	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "summary-host", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
+	privateWorkspace := dbfx.Insert(t, "workspace", testutil.Cols{"name": "Private workspace name", "slug": "binding-summary-private"})
+	binding := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": privateWorkspace, "username": "summary-user", "verified": true, "state": "pending"})
+	operation := dbfx.Insert(t, "computer_operation", testutil.Cols{"binding_id": binding, "computer_id": machine, "username": "summary-user", "user_id": testUserID, "kind": "runtime_install", "state": "running", "deadline_at": time.Now().Add(-time.Minute)})
+	var list []computerBinding
+	testutil.Call(t, testHandler.ComputerBindings, computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)).Want(200).JSON(&list)
+	var found computerBinding
+	for _, b := range list {
+		if b.ID == binding {
+			found = b
+		}
+	}
+	if found.WorkspaceName != "" || found.WorkspaceAccess != "unavailable" || found.OperationBusy || found.LatestOperation == nil || found.LatestOperation.ID != operation || found.LatestOperation.State != "interrupted" || found.LatestOperation.FinishedAt != nil {
+		t.Fatalf("summary leaked workspace or lost expired operation: %+v", found)
+	}
+	req := withURLParam(computerTestRequest(http.MethodGet, "/api/me/computer-bindings/"+binding, nil), "id", binding)
+	var detail bindingDetail
+	testutil.Call(t, testHandler.ComputerBindingDetail, req).Want(200).JSON(&detail)
+	if detail.WorkspaceName != "" || detail.WorkspaceAccess != "unavailable" {
+		t.Fatalf("detail disclosed workspace: %+v", detail)
+	}
+	dbfx.Insert(t, "member", testutil.Cols{"workspace_id": privateWorkspace, "user_id": testUserID, "role": "member"})
+	testutil.Call(t, testHandler.ComputerBindings, computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)).Want(200).JSON(&list)
+	for _, b := range list {
+		if b.ID == binding && (b.WorkspaceName != "Private workspace name" || b.WorkspaceAccess != "accessible") {
+			t.Fatalf("member lost workspace name: %+v", b)
+		}
+	}
+	dbfx.Exec(t, `UPDATE computer_binding SET workspace_id=NULL,state='detached' WHERE id=$1`, binding)
+	testutil.Call(t, testHandler.ComputerBindings, computerTestRequest(http.MethodGet, "/api/me/computer-bindings", nil)).Want(200).JSON(&list)
+	for _, b := range list {
+		if b.ID == binding && (b.WorkspaceName != "" || b.WorkspaceAccess != "none") {
+			t.Fatalf("detached summary: %+v", b)
+		}
+	}
+}

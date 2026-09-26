@@ -24,7 +24,7 @@ it("rejects malformed server credentials without logging returned secrets", asyn
   await expect(
     api.readComputerCredentials("binding", "fake-password"),
   ).rejects.toThrow();
-  expect(fetchMock.mock.calls[0][0]).toBe(
+  expect(fetchMock.mock.calls[0]?.[0]).toBe(
     "https://api.example.test/api/me/computer-bindings/binding/credentials/read",
   );
   expect(JSON.stringify(warn.mock.calls)).not.toContain(
@@ -68,4 +68,13 @@ it("requires a successful write receipt and redacts malformed responses", async 
   expect(JSON.stringify(warn.mock.calls)).not.toContain(
     "never-log-write-secret",
   );
+});
+
+it("validates the accepted account receipt before navigating and tolerates an older summary", async () => {
+  const fetchMock=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({id:"binding",computer_id:"host",workspace_id:"workspace",username:"alice",state:"running",last_error:""}),{status:202})).mockResolvedValueOnce(new Response(JSON.stringify({accepted:true}),{status:202}));
+  vi.stubGlobal("fetch",fetchMock);
+  const client=new ApiClient("https://api.example.test");
+  const input={computer_id:"host",workspace_id:"workspace",username:"alice",password:"fake-password",action:"create_account" as const};
+  await expect(client.operateComputer(input)).resolves.toMatchObject({id:"binding",workspace_name:"",workspace_access:"unknown",latest_operation:null});
+  await expect(client.operateComputer(input)).rejects.toThrow("Could not confirm the Linux User operation");
 });

@@ -26,7 +26,11 @@ import {
   PLUGINS_V1_FLAG,
 } from "@multica/core/feature-flags";
 import { cn } from "@multica/ui/lib/utils";
-import { resolveSettingsLocation, settingsHref } from "./settings-navigation";
+import {
+  resolveSettingsLocation,
+  resolveLinuxUserLocation,
+  settingsHref,
+} from "./settings-navigation";
 import { AppLink, useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
 import { PreferencesTab } from "./preferences-tab";
@@ -117,8 +121,18 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           Key,
           <TokensTab />,
         ),
-        entry("computers", t($ => $.computers.personal_title), Server, <ComputersTab />),
-        entry("credentials", t($ => $.credential_page.title), Key, <CredentialsTab />),
+        entry(
+          "computers",
+          t(($) => $.computers.personal_title),
+          Server,
+          <ComputersTab />,
+        ),
+        entry(
+          "credentials",
+          t(($) => $.credential_page.title),
+          Key,
+          <CredentialsTab />,
+        ),
       ],
     },
     {
@@ -132,7 +146,12 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           Settings,
           <WorkspaceTab />,
         ),
-        entry("linux-users", t(($) => $.page.tabs.linux_users), Server, <WorkspaceLinuxUsersTab />),
+        entry(
+          "linux-users",
+          t(($) => $.page.tabs.linux_users),
+          Server,
+          <WorkspaceLinuxUsersTab />,
+        ),
         entry(
           "members",
           t(($) => $.page.tabs.members),
@@ -242,6 +261,19 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
   const activeGroup = groups.find((group) => group.entries.includes(active))!;
   const href = (value: string) =>
     settingsHref(navigation.pathname, navigation.searchParams, value);
+  const accountLocation = resolveLinuxUserLocation(navigation.searchParams);
+  const scrollKey = `${active.value}:${accountLocation.id ?? "list"}:${accountLocation.id ? accountLocation.view : accountLocation.search}`;
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const scrollPositions = React.useRef(new Map<string, number>());
+  React.useLayoutEffect(() => {
+    const element = contentRef.current;
+    if (!element) return;
+    const positions = scrollPositions.current;
+    element.scrollTop = positions.get(scrollKey) ?? 0;
+    return () => {
+      positions.set(scrollKey, element.scrollTop);
+    };
+  }, [scrollKey]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:flex-row">
@@ -317,6 +349,7 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
         </nav>
       </aside>
       <div
+        ref={contentRef}
         key={`${active.value}:${location.integration ?? ""}`}
         className="min-w-0 flex-1 overflow-y-auto overscroll-contain"
       >

@@ -6,6 +6,12 @@ import {
   type ComputerLifecycleInput,
 } from "@multica/core/computers";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@multica/ui/components/ui/dialog";
 import { Input } from "@multica/ui/components/ui/input";
 import { LinuxPasswordInput } from "./linux-password-input";
 import { useT } from "../i18n";
@@ -16,10 +22,14 @@ export function LinuxUserDetail({
   admin = false,
   onConfigure,
   children,
+  view = "all",
+  operationId,
 }: {
   userId: string;
   bindingId: string;
   admin?: boolean;
+  view?: "all" | "overview" | "operations";
+  operationId?: string | null;
   onConfigure?: (action: "create_account" | "upgrade") => void;
   children?: (busy: boolean) => ReactNode;
 }) {
@@ -62,7 +72,7 @@ export function LinuxUserDetail({
       {data.detail.isPending && (
         <p role="status">{t(($) => $.computers.loading)}</p>
       )}
-      {d && (
+      {d && view !== "operations" && (
         <>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm break-all">
             <dt>{t(($) => $.computers.title)}</dt>
@@ -70,7 +80,10 @@ export function LinuxUserDetail({
             <dt>{t(($) => $.computers.username)}</dt>
             <dd>{d.username}</dd>
             <dt>{t(($) => $.admin.linux_user_workspace)}</dt>
-            <dd>{d.workspace_name || d.workspace_id || "—"}</dd>
+            <dd>
+              {d.workspace_name ||
+                t(($) => $.linux_user_pages.workspace.unknown)}
+            </dd>
             <dt>{t(($) => $.linux_user.binding)}</dt>
             <dd>
               {d.archived_at
@@ -111,7 +124,8 @@ export function LinuxUserDetail({
           {!admin && !d.archived_at && (
             <div className="flex flex-wrap gap-2">
               {onConfigure &&
-                (d.state === "removed" || d.state === "detached") && (
+                (["removed", "detached", "failed"].includes(d.state) ||
+                  !d.verified) && (
                   <Button
                     variant="outline"
                     onClick={() => onConfigure("create_account")}
@@ -120,17 +134,20 @@ export function LinuxUserDetail({
                     {t(($) => $.computers.actions.create_account)}
                   </Button>
                 )}
-              {onConfigure && d.workspace_id && d.state !== "removed" && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => onConfigure("upgrade")}
-                    disabled={busy}
-                  >
-                    {t(($) => $.computers.actions.upgrade)}
-                  </Button>
-                </>
-              )}
+              {onConfigure &&
+                d.verified &&
+                d.workspace_id &&
+                d.state !== "removed" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => onConfigure("upgrade")}
+                      disabled={busy}
+                    >
+                      {t(($) => $.computers.actions.upgrade)}
+                    </Button>
+                  </>
+                )}
               {["ready", "failed", "pending"].includes(d.state) && (
                 <Button
                   variant="outline"
@@ -171,142 +188,175 @@ export function LinuxUserDetail({
               )}
             </div>
           )}
-          {!admin && (
-            <p className="text-sm text-muted-foreground">
-              {t(($) => $.linux_user.retry_help)}
-            </p>
-          )}
-          {action && (
-            <form
-              className="space-y-2 rounded-lg border p-3"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                try {
-                  await data.lifecycle.mutateAsync({
-                    action,
-                    confirm_username: confirmation,
-                    ...(action !== "archive" ? { password } : {}),
-                  });
-                  setAction(null);
-                  setConfirmation("");
-                  setPassword("");
-                  data.lifecycle.reset();
-                } catch {
-                  /* The mutation error stays visible. */
-                }
-              }}
-            >
-              <p>
-                {action === "delete_user"
-                  ? t(($) => $.linux_user.delete_help)
-                  : action === "archive"
-                    ? t(($) => $.linux_user.archive_help)
-                    : t(($) => $.computers.remove_help)}
-              </p>
-              <label className="block">
-                {t(($) => $.linux_user.confirm_username, {
-                  username: d.username,
-                })}
-                <Input
-                  required
-                  value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                />
-              </label>
-              {action !== "archive" && (
-                <LinuxPasswordInput
-                  key={`${bindingId}:${action}`}
-                  label={t(($) => $.linux_user.password_for, {
-                    username: d.username,
-                  })}
-                  required
-                  autoComplete="off"
-                  value={password}
-                  disabled={busy}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              )}
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  disabled={busy || confirmation !== d.username}
-                >
-                  {t(($) => $.linux_user.confirm)}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={data.lifecycle.isPending}
-                  onClick={() => {
-                    setAction(null);
-                    setPassword("");
-                    setConfirmation("");
-                    data.lifecycle.reset();
+          <Dialog
+            open={!!action}
+            onOpenChange={(open) => {
+              if (!open && !data.lifecycle.isPending) {
+                setAction(null);
+                setPassword("");
+                setConfirmation("");
+                data.lifecycle.reset();
+              }
+            }}
+          >
+            {action && (
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {action === "delete_user"
+                      ? t(($) => $.linux_user.delete_user)
+                      : action === "archive"
+                        ? t(($) => $.linux_user.archive)
+                        : t(($) => $.computers.actions.remove)}
+                  </DialogTitle>
+                </DialogHeader>
+                <form
+                  className="space-y-2 rounded-lg border p-3"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    try {
+                      await data.lifecycle.mutateAsync({
+                        action,
+                        confirm_username: confirmation,
+                        ...(action !== "archive" ? { password } : {}),
+                      });
+                      setAction(null);
+                      setConfirmation("");
+                      setPassword("");
+                      data.lifecycle.reset();
+                    } catch {
+                      /* The mutation error stays visible. */
+                    }
                   }}
                 >
-                  {t(($) => $.linux_user.cancel)}
-                </Button>
-              </div>
-            </form>
-          )}
+                  {data.lifecycle.error && (
+                    <p role="alert" className="text-destructive">
+                      {data.lifecycle.error.message}
+                    </p>
+                  )}
+                  <p>
+                    {action === "delete_user"
+                      ? t(($) => $.linux_user.delete_help)
+                      : action === "archive"
+                        ? t(($) => $.linux_user.archive_help)
+                        : t(($) => $.computers.remove_help)}
+                  </p>
+                  <label className="block">
+                    {t(($) => $.linux_user.confirm_username, {
+                      username: d.username,
+                    })}
+                    <Input
+                      required
+                      value={confirmation}
+                      onChange={(e) => setConfirmation(e.target.value)}
+                    />
+                  </label>
+                  {action !== "archive" && (
+                    <LinuxPasswordInput
+                      key={`${bindingId}:${action}`}
+                      label={t(($) => $.linux_user.password_for, {
+                        username: d.username,
+                      })}
+                      required
+                      autoComplete="off"
+                      value={password}
+                      disabled={busy}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      variant="destructive"
+                      disabled={busy || confirmation !== d.username}
+                    >
+                      {t(($) => $.linux_user.confirm)}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={data.lifecycle.isPending}
+                      onClick={() => {
+                        setAction(null);
+                        setPassword("");
+                        setConfirmation("");
+                        data.lifecycle.reset();
+                      }}
+                    >
+                      {t(($) => $.linux_user.cancel)}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            )}
+          </Dialog>
         </>
       )}
-      <h4 className="font-medium">{t(($) => $.linux_user.operations)}</h4>
-      {data.operations.data?.length === 0 && (
-        <p>{t(($) => $.linux_user.no_operations)}</p>
+      {view !== "overview" && (
+        <>
+          <h4 className="font-medium">{t(($) => $.linux_user.operations)}</h4>
+          {data.operations.data?.length === 0 && (
+            <p>{t(($) => $.linux_user.no_operations)}</p>
+          )}
+          <ol className="space-y-2">
+            {data.operations.data?.map((op) => (
+              <li
+                key={op.id}
+                id={`operation-${op.id}`}
+                aria-current={operationId === op.id ? "true" : undefined}
+                className={`rounded border p-2 text-sm ${operationId === op.id ? "border-primary bg-accent" : ""}`}
+              >
+                <p>
+                  {kinds[op.kind as keyof typeof kinds] ??
+                    t(($) => $.linux_user.unknown)}{" "}
+                  {op.runtime_id} · {stateLabel(op.state)} ·{" "}
+                  {steps[op.step as keyof typeof steps] ??
+                    t(($) => $.linux_user.unknown)}
+                </p>
+                <p className="text-muted-foreground">
+                  {new Date(op.created_at).toLocaleString()}
+                  {op.finished_at &&
+                    ` → ${new Date(op.finished_at).toLocaleString()}`}
+                </p>
+                {op.requested_version && (
+                  <p>
+                    {t(($) => $.linux_user.versions, {
+                      requested: op.requested_version,
+                      actual: op.actual_version || "—",
+                    })}
+                  </p>
+                )}
+                {op.error_code && (
+                  <p className="text-destructive">
+                    {errors[op.error_code as keyof typeof errors] ??
+                      op.error_summary}
+                  </p>
+                )}
+                {!admin &&
+                  (op.state === "queued" ||
+                    (op.state === "interrupted" && !op.finished_at)) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={data.recover.isPending}
+                      onClick={() =>
+                        data.recover.mutate({
+                          id: op.id,
+                          action:
+                            op.state === "queued" ? "cancel" : "acknowledge",
+                        })
+                      }
+                    >
+                      {op.state === "queued"
+                        ? t(($) => $.linux_user.cancel)
+                        : t(($) => $.linux_user.acknowledge)}
+                    </Button>
+                  )}
+              </li>
+            ))}
+          </ol>
+        </>
       )}
-      <ol className="space-y-2">
-        {data.operations.data?.map((op) => (
-          <li key={op.id} className="rounded border p-2 text-sm">
-            <p>
-              {kinds[op.kind as keyof typeof kinds] ??
-                t(($) => $.linux_user.unknown)}{" "}
-              {op.runtime_id} · {stateLabel(op.state)} ·{" "}
-              {steps[op.step as keyof typeof steps] ??
-                t(($) => $.linux_user.unknown)}
-            </p>
-            <p className="text-muted-foreground">
-              {new Date(op.created_at).toLocaleString()}
-              {op.finished_at &&
-                ` → ${new Date(op.finished_at).toLocaleString()}`}
-            </p>
-            {op.requested_version && (
-              <p>
-                {t(($) => $.linux_user.versions, {
-                  requested: op.requested_version,
-                  actual: op.actual_version || "—",
-                })}
-              </p>
-            )}
-            {op.error_code && (
-              <p className="text-destructive">
-                {errors[op.error_code as keyof typeof errors] ??
-                  op.error_summary}
-              </p>
-            )}
-            {!admin &&
-              (op.state === "queued" ||
-                (op.state === "interrupted" && !op.finished_at)) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={data.recover.isPending}
-                  onClick={() =>
-                    data.recover.mutate({
-                      id: op.id,
-                      action: op.state === "queued" ? "cancel" : "acknowledge",
-                    })
-                  }
-                >
-                  {op.state === "queued"
-                    ? t(($) => $.linux_user.cancel)
-                    : t(($) => $.linux_user.acknowledge)}
-                </Button>
-              )}
-          </li>
-        ))}
-      </ol>
       {children?.(busy)}
     </section>
   );

@@ -1034,7 +1034,12 @@ export class ApiClient {
   async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }
   async registerComputer(input: Omit<Computer, "id" | "enabled">) { await this.fetch("/api/admin/computers", { method: "POST", body: JSON.stringify(input) }); }
   async listComputerBindings(): Promise<ComputerBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/me/computer-bindings"), ComputerBindingSchema.array(), [] as ComputerBinding[], { endpoint: "/api/me/computer-bindings" }); }
-  async operateComputer(input: ComputerOperation) { await this.fetch("/api/me/computer-bindings", { method: "POST", body: JSON.stringify(input) }); }
+  async operateComputer(input: ComputerOperation) {
+    const data = await this.fetch("/api/me/computer-bindings", { method: "POST", body: JSON.stringify(input) });
+    const binding = parseWithFallback(data, ComputerBindingSchema, null, { endpoint: "/api/me/computer-bindings" });
+    if (!binding) throw new Error("Could not confirm the Linux User operation");
+    return binding;
+  }
 
   // Auth
   async sendCode(email: string): Promise<void> {

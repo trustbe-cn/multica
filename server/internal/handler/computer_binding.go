@@ -14,17 +14,28 @@ import (
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 )
 
+type bindingOperationSummary struct {
+	FinishedAt *time.Time `json:"finished_at"`
+	ID         string     `json:"id"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	ErrorCode  string     `json:"error_code"`
+}
+
 type computerBinding struct {
-	HealthPort    int    `json:"-"`
-	ID            string `json:"id"`
-	ComputerID    string `json:"computer_id"`
-	WorkspaceID   string `json:"workspace_id"`
-	Username      string `json:"username"`
-	State         string `json:"state"`
-	LastError     string `json:"last_error"`
-	Verified      bool   `json:"verified"`
-	AccountState  string `json:"account_state"`
-	OperationBusy bool   `json:"operation_busy"`
+	WorkspaceName   string                   `json:"workspace_name"`
+	WorkspaceAccess string                   `json:"workspace_access"`
+	LatestOperation *bindingOperationSummary `json:"latest_operation"`
+	HealthPort      int                      `json:"-"`
+	ID              string                   `json:"id"`
+	ComputerID      string                   `json:"computer_id"`
+	WorkspaceID     string                   `json:"workspace_id"`
+	Username        string                   `json:"username"`
+	State           string                   `json:"state"`
+	LastError       string                   `json:"last_error"`
+	Verified        bool                     `json:"verified"`
+	AccountState    string                   `json:"account_state"`
+	OperationBusy   bool                     `json:"operation_busy"`
 }
 
 func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +45,16 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodGet {
-		rows, err := h.DB.Query(r.Context(), `SELECT id::text,computer_id::text,COALESCE(workspace_id::text,''),username,CASE WHEN state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE state END,last_error,verified,account_state,EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running') AND o.deadline_at>=now()) FROM computer_binding WHERE user_id=$1 AND archived_at IS NULL ORDER BY updated_at DESC`, uid)
+		rows, err := h.DB.Query(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),b.username,
+ CASE WHEN b.state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE b.state END,
+ b.last_error,b.verified,b.account_state,
+ EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at>=now()),
+ COALESCE(w.name,''),CASE WHEN b.workspace_id IS NULL THEN 'none' WHEN w.id IS NOT NULL THEN 'accessible' ELSE 'unavailable' END,
+ COALESCE(op.id::text,''),COALESCE(op.kind,''),COALESCE(op.effective_state,''),COALESCE(op.error_code,''),op.finished_at
+ FROM computer_binding b
+ LEFT JOIN workspace w ON w.id=b.workspace_id AND EXISTS(SELECT 1 FROM member m WHERE m.workspace_id=w.id AND m.user_id=$1)
+ LEFT JOIN LATERAL (SELECT id,kind,finished_at,CASE WHEN state IN ('queued','running') AND deadline_at<now() THEN 'interrupted' ELSE state END AS effective_state,error_code FROM computer_operation WHERE binding_id=b.id ORDER BY created_at DESC,id DESC LIMIT 1) op ON true
+ WHERE b.user_id=$1 AND b.archived_at IS NULL ORDER BY b.updated_at DESC`, uid)
 		if err != nil {
 			writeError(w, 500, "Cannot read your Computers")
 			return
@@ -43,9 +63,13 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		list := []computerBinding{}
 		for rows.Next() {
 			var b computerBinding
-			if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.Verified, &b.AccountState, &b.OperationBusy) != nil {
+			var op bindingOperationSummary
+			if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.Verified, &b.AccountState, &b.OperationBusy, &b.WorkspaceName, &b.WorkspaceAccess, &op.ID, &op.Kind, &op.State, &op.ErrorCode, &op.FinishedAt) != nil {
 				writeError(w, 500, "Cannot read binding")
 				return
+			}
+			if op.ID != "" {
+				b.LatestOperation = &op
 			}
 			list = append(list, b)
 		}

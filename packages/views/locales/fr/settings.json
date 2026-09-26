@@ -1403,7 +1403,7 @@
     "running": "In progress",
     "removed": "Uninstalled",
     "hidden": "Choose Show secrets to view or edit",
-    "personal_title": "Mes environnements",
+    "personal_title": "Mes utilisateurs Linux",
     "show_password": "Afficher le mot de passe Linux",
     "hide_password": "Masquer le mot de passe Linux"
   },
@@ -1427,21 +1427,21 @@
     "no_computers": "Aucun Computer disponible. Contactez un administrateur de l'instance.",
     "connect_action": "Connecter le compte",
     "accepted": "Request accepted. Check the runtime status below.",
-    "manage_personal": "Gérer le compte, le CLI et l'historique dans Mes environnements",
+    "manage_personal": "Gérer le compte, le CLI et l'historique dans Mes utilisateurs Linux",
     "eligibility": {
       "available": "Disponible. Saisissez le mot de passe Linux actuel du compte.",
       "current_workspace": "Déjà connecté à cet espace de travail.",
-      "busy": "Une opération est en cours. Attendez ou récupérez-la dans Mes environnements.",
-      "recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes environnements avant de réessayer.",
+      "busy": "Une opération est en cours. Attendez ou récupérez-la dans Mes utilisateurs Linux.",
+      "recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes utilisateurs Linux avant de réessayer.",
       "other_workspace": "Connecté à un autre espace. Supprimez d'abord son daemon géré ; cet espace perdra la capacité d'exécution de ce compte.",
       "unverified": "Compte non vérifié. Créez-le comme nouveau compte.",
       "computer_unavailable": "Ce Computer est désactivé ou indisponible.",
-      "account_unavailable": "Compte invérifiable. Résolvez le problème dans Mes environnements."
+      "account_unavailable": "Compte invérifiable. Résolvez le problème dans Mes utilisateurs Linux."
     },
     "errors": {
       "username_unavailable": "Ce nom Linux est déjà utilisé sur ce Computer. Choisissez-en un autre.",
       "operation_busy": "Une autre opération est en cours. Réessayez après sa fin.",
-      "operation_recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes environnements avant de réessayer.",
+      "operation_recovery_required": "Une opération a été interrompue. Vérifiez-la et confirmez-la dans Mes utilisateurs Linux avant de réessayer.",
       "binding_workspace_conflict": "Ce compte est connecté ailleurs. Supprimez d'abord son daemon géré dans l'ancien espace.",
       "binding_conflict": "La disponibilité a changé. Actualisez et réessayez.",
       "generic": "Connexion impossible. Consultez l'historique des opérations et réessayez."
@@ -1526,7 +1526,7 @@
     "discover": "Redécouvrir les runtimes",
     "archive": "Archiver l’association",
     "delete_user": "Supprimer l’utilisateur Linux",
-    "retry_help": "Après la liaison, configurez les identifiants et démarrez le daemon dans Mes environnements.",
+    "retry_help": "Après la liaison, configurez les identifiants et démarrez le daemon dans Mes utilisateurs Linux.",
     "delete_help": "Supprime définitivement le compte Linux et son dossier personnel, y compris code, configuration et identifiants. Les processus actifs bloquent la suppression. Retirez d’abord le démon géré. Cette action est irréversible.",
     "archive_help": "Masque cette association retirée et autorise la suppression du Computer. Le compte Linux, son dossier, son historique et sa propriété sont conservés.",
     "confirm_username": "Saisissez {{username}} pour confirmer",
@@ -1625,13 +1625,13 @@
     "help": "Tous les champs sont facultatifs. Enregistrez un modèle personnel ou lisez les paramètres de votre utilisateur Linux. La création du compte ne nécessite aucun identifiant.",
     "transfer": "Lire et écrire les paramètres du compte",
     "target": "Utilisateur Linux cible",
-    "transfer_help": "Lire remplace le formulaire. Enregistrer sauvegarde dans Multica. Écrire applique les champs non vides au compte choisi et conserve les valeurs distantes des champs vides. Le daemon ne sera pas redémarré.",
+    "transfer_help": "La lecture remplace ce brouillon par les paramètres du compte. L’écriture applique uniquement les champs non vides à ce compte et conserve les valeurs distantes pour les champs vides. Elle ne démarre ni ne redémarre le daemon.",
     "read": "Lire depuis le serveur",
     "write": "Écrire pour cet utilisateur Linux",
     "read_done": "Paramètres lus dans le formulaire. Vérifiez avant de sauvegarder ou écrire.",
-    "write_done": "Paramètres écrits. Démarrez ou redémarrez le daemon depuis Mes environnements pour les appliquer.",
+    "write_done": "Paramètres écrits. Démarrez ou redémarrez le daemon depuis la vue d’ensemble pour les appliquer.",
     "saved": "Identifiants personnels enregistrés. Les comptes distants sont inchangés.",
-    "no_accounts": "Créez ou vérifiez un utilisateur Linux dans Mes environnements.",
+    "no_accounts": "Créez ou vérifiez un utilisateur Linux dans Mes utilisateurs Linux.",
     "locations": "Lit ~/.gitconfig, ~/.config/multica-provision/ et ~/.multica/profiles/computer-<binding-id>/config.json de cette liaison. Les fichiers de démarrage du shell et les sessions CLI ne sont pas importés.",
     "field_help": {
       "git_name": "Nom d’auteur des commits Git. Consultez-le avec git config --global user.name sous l’utilisateur cible.",
@@ -1645,5 +1645,45 @@
     },
     "remote_source": "Identifiants lus depuis {{username}}. Changer de compte abandonne ce brouillon et restaure votre modèle personnel.",
     "confirm_import": "Enregistrer ces identifiants distants, y compris les secrets, comme modèle personnel utilisable avec d’autres utilisateurs Linux."
+  },
+  "linux_user_pages": {
+    "create": "Nouvel utilisateur Linux",
+    "search": "Rechercher un utilisateur ou un Computer",
+    "empty": "Aucun utilisateur Linux ne correspond à cette liste.",
+    "back": "Retour à mes utilisateurs Linux",
+    "back_workspace": "Retour aux utilisateurs Linux de l’espace de travail",
+    "no_workspace": "Rejoignez ou créez un espace de travail. Si le chargement a échoué, fermez cette fenêtre et réessayez.",
+    "configure_first": "Vérifiez le compte et traitez les opérations interrompues dans la vue d’ensemble avant de le configurer.",
+    "discard_title": "Abandonner les modifications des identifiants ?",
+    "discard_help": "Quitter cet onglet efface le mot de passe et le brouillon. Les modifications non enregistrées seront perdues.",
+    "template_help": "Vous pouvez charger ce modèle lors de la configuration d’un utilisateur Linux. Son enregistrement ne modifie aucun compte sur le serveur.",
+    "load_template": "Charger le modèle personnel",
+    "save_template": "Enregistrer le modèle personnel",
+    "replace_draft": "Remplacer le brouillon par le modèle ou le résultat lu sur le serveur.",
+    "views": {
+      "overview": "Vue d’ensemble",
+      "runtimes": "Runtimes CLI",
+      "credentials": "Identifiants du compte",
+      "operations": "Opérations"
+    },
+    "states": {
+      "running": "En cours",
+      "interrupted": "Interruption à confirmer",
+      "missing": "Compte absent",
+      "unavailable": "Compte indisponible",
+      "unverified": "Non vérifié",
+      "pending": "À configurer",
+      "removed": "Gestion supprimée",
+      "detached": "Espace de travail dissocié",
+      "ready": "Prêt",
+      "failed": "Dernière opération échouée",
+      "unknown": "Inconnu"
+    },
+    "workspace": {
+      "unavailable": "Espace de travail inaccessible",
+      "deleted": "Ancien espace de travail supprimé",
+      "none": "Aucun espace de travail",
+      "unknown": "Informations indisponibles"
+    }
   }
 }

@@ -14,14 +14,13 @@ import (
 type bindingDetail struct {
 	DaemonCheckedAt *time.Time `json:"daemon_checked_at"`
 	computerBinding
-	ComputerName  string     `json:"computer_name"`
-	WorkspaceName string     `json:"workspace_name"`
-	DaemonID      string     `json:"daemon_id"`
-	AccountState  string     `json:"account_state"`
-	DaemonState   string     `json:"daemon_state"`
-	CheckedAt     *time.Time `json:"checked_at"`
-	ArchivedAt    *time.Time `json:"archived_at"`
-	LastSeenAt    *time.Time `json:"last_seen_at"`
+	ComputerName string     `json:"computer_name"`
+	DaemonID     string     `json:"daemon_id"`
+	AccountState string     `json:"account_state"`
+	DaemonState  string     `json:"daemon_state"`
+	CheckedAt    *time.Time `json:"checked_at"`
+	ArchivedAt   *time.Time `json:"archived_at"`
+	LastSeenAt   *time.Time `json:"last_seen_at"`
 }
 
 func (h *Handler) ComputerBindingDetail(w http.ResponseWriter, r *http.Request) {
@@ -31,18 +30,18 @@ func (h *Handler) AdminBindingDetail(w http.ResponseWriter, r *http.Request) {
 	h.bindingDetail(w, r, true)
 }
 func (h *Handler) bindingDetail(w http.ResponseWriter, r *http.Request, admin bool) {
-	_, id, ok := h.bindingAccess(w, r, admin)
+	uid, id, ok := h.bindingAccess(w, r, admin)
 	if !ok {
 		return
 	}
 	var d bindingDetail
 	err := h.DB.QueryRow(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),b.username,
  CASE WHEN b.state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE b.state END,b.last_error,b.verified,
- COALESCE(c.name,b.computer_id::text),COALESCE(w.name,''),b.account_state,b.checked_at,b.archived_at,
+ COALESCE(c.name,b.computer_id::text),COALESCE(w.name,''),CASE WHEN b.workspace_id IS NULL THEN 'none' WHEN w.id IS NOT NULL THEN 'accessible' ELSE 'unavailable' END,b.account_state,b.checked_at,b.archived_at,
  (SELECT max(last_seen_at) FROM agent_runtime WHERE daemon_id=b.id::text AND owner_id=b.user_id AND workspace_id=b.workspace_id),
  b.daemon_state,b.daemon_checked_at,
  EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at>=now())
- FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id WHERE b.id=$1`, id).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.Verified, &d.ComputerName, &d.WorkspaceName, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt, &d.OperationBusy)
+ FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id AND ($3::boolean OR EXISTS(SELECT 1 FROM member m WHERE m.workspace_id=w.id AND m.user_id=$2)) WHERE b.id=$1`, id, uid, admin).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.Verified, &d.ComputerName, &d.WorkspaceName, &d.WorkspaceAccess, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt, &d.OperationBusy)
 	if err != nil {
 		writeError(w, 500, "Cannot read Linux User details")
 		return

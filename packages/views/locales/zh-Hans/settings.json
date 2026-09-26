@@ -1396,7 +1396,7 @@
     "running": "处理中",
     "removed": "已卸载",
     "hidden": "点击「显示秘密」查看或编辑",
-    "personal_title": "我的运行环境",
+    "personal_title": "我的 Linux 用户",
     "show_password": "显示 Linux 密码",
     "hide_password": "隐藏 Linux 密码"
   },
@@ -1416,25 +1416,25 @@
     "none_existing": "暂无可复用账号。选择“新建账号”即可创建。",
     "retry_new": "按新账号重试",
     "credentials_required": "接入前请先保存个人凭据。",
-    "open_personal": "打开我的运行环境",
+    "open_personal": "打开我的 Linux 用户",
     "no_computers": "没有可用 Computer，请联系实例管理员添加。",
     "connect_action": "接入账号",
     "accepted": "请求已接受，请查看下方运行状态。",
-    "manage_personal": "到“我的运行环境”管理账号、CLI 和操作记录",
+    "manage_personal": "到“我的 Linux 用户”管理账号、CLI 和操作记录",
     "eligibility": {
       "available": "可接入，请输入此账号现有的 Linux 密码。",
       "current_workspace": "已接入此工作区。",
-      "busy": "有操作正在进行，请等待完成，或到“我的运行环境”恢复。",
-      "recovery_required": "操作已中断，请先到“我的运行环境”检查并确认，再重试。",
+      "busy": "有操作正在进行，请等待完成，或到“我的 Linux 用户”恢复。",
+      "recovery_required": "操作已中断，请先到“我的 Linux 用户”检查并确认，再重试。",
       "other_workspace": "正在服务其他工作区。请先在原工作区移除受管 daemon；原工作区将暂时无法使用此账号执行任务。",
       "unverified": "账号尚未验证，请按新账号流程创建。",
       "computer_unavailable": "此 Computer 已停用或不可用。",
-      "account_unavailable": "无法检查账号，请先到“我的运行环境”处理。"
+      "account_unavailable": "无法检查账号，请先到“我的 Linux 用户”处理。"
     },
     "errors": {
       "username_unavailable": "此 Computer 上的用户名已被占用，请换一个用户名。",
       "operation_busy": "另一个账号操作正在进行，请等待完成后重试。",
-      "operation_recovery_required": "操作已中断，请先到“我的运行环境”检查并确认，再重试。",
+      "operation_recovery_required": "操作已中断，请先到“我的 Linux 用户”检查并确认，再重试。",
       "binding_workspace_conflict": "此账号仍接入其他工作区，请先到原工作区移除受管 daemon。",
       "binding_conflict": "账号可用状态已变化，请刷新后重试。",
       "generic": "接入失败，请查看操作记录后重试。"
@@ -1519,7 +1519,7 @@
     "discover": "重新发现运行时",
     "archive": "归档绑定",
     "delete_user": "删除 Linux 用户",
-    "retry_help": "账号关联后，请到“我的运行环境”配置凭据并启动守护进程。",
+    "retry_help": "账号关联后，请到“我的 Linux 用户”配置凭据并启动守护进程。",
     "delete_help": "永久删除 Linux 账号及其主目录，包括代码、配置和凭据。存在运行中进程时会拒绝删除。请先移除受管守护进程。此操作无法撤销。",
     "archive_help": "隐藏已移除的绑定并允许删除 Computer。保留 Linux 账号、主目录和操作记录，账号所有权仍保留。",
     "confirm_username": "输入 {{username}} 确认",
@@ -1618,13 +1618,13 @@
     "help": "所有字段均可选。可在这里保存个人模板，也可从自己的 Linux 用户读取配置。创建账号不需要凭据。",
     "transfer": "读取与写入账号配置",
     "target": "目标 Linux 用户",
-    "transfer_help": "“从服务器读取”会用账号配置替换当前表单；“保存凭据”将表单保存到 Multica；“写入 Linux 用户”将非空字段写到所选账号，空字段保留服务器原值，不启动或重启守护进程。",
+    "transfer_help": "“从服务器读取”会用账号配置替换当前草稿；“写入 Linux 用户”只更新此账号的非空字段，空字段保留服务器原值，不启动或重启守护进程。",
     "read": "从服务器读取",
     "write": "写入 Linux 用户",
     "read_done": "已读取到表单，请检查后再保存或写入。",
-    "write_done": "已写入。请到“我的运行环境”启动或重启守护进程，使配置生效。",
+    "write_done": "已写入。请到“概览”启动或重启守护进程，使配置生效。",
     "saved": "个人凭据已保存，远端账号未更改。",
-    "no_accounts": "请先到“我的运行环境”创建或验证 Linux 用户。",
+    "no_accounts": "请先到“我的 Linux 用户”创建或验证 Linux 用户。",
     "locations": "读取 ~/.gitconfig、~/.config/multica-provision/ 和此绑定的 ~/.multica/profiles/computer-<binding-id>/config.json。不导入 shell 启动脚本或各 CLI 的登录会话。",
     "field_help": {
       "git_name": "Git 提交署名。以目标 Linux 用户执行 git config --global user.name 可查看现有值。",
@@ -1638,5 +1638,45 @@
     },
     "remote_source": "当前草稿来自 {{username}}。切换账号会丢弃此草稿，恢复个人凭据模板。",
     "confirm_import": "将这些远端凭据（包括密钥）保存为我的个人模板，可用于其他 Linux 用户。"
+  },
+  "linux_user_pages": {
+    "create": "新建 Linux 用户",
+    "search": "搜索用户名或 Computer",
+    "empty": "没有符合条件的 Linux 用户。",
+    "back": "返回我的 Linux 用户",
+    "back_workspace": "返回工作区 Linux 用户",
+    "no_workspace": "请先加入或创建工作区。如果工作区加载失败，请关闭弹窗后重试。",
+    "configure_first": "请先在概览中验证账号，并处理尚未确认的中断操作。",
+    "discard_title": "放弃凭据修改？",
+    "discard_help": "离开此页签会清除密码和凭据草稿，未保存的修改将丢失。",
+    "template_help": "配置 Linux 用户时可以主动载入此模板。保存模板不会更改服务器上的账号。",
+    "load_template": "载入个人模板",
+    "save_template": "保存个人模板",
+    "replace_draft": "用模板或服务器读取结果替换当前草稿。",
+    "views": {
+      "overview": "概览",
+      "runtimes": "CLI 运行时",
+      "credentials": "账号凭据",
+      "operations": "操作记录"
+    },
+    "states": {
+      "running": "操作进行中",
+      "interrupted": "需确认中断",
+      "missing": "账号不存在",
+      "unavailable": "账号不可用",
+      "unverified": "未验证",
+      "pending": "待配置",
+      "removed": "已移除托管",
+      "detached": "工作区已解除关联",
+      "ready": "已就绪",
+      "failed": "最近操作失败",
+      "unknown": "未知"
+    },
+    "workspace": {
+      "unavailable": "工作区不可访问",
+      "deleted": "原工作区已删除",
+      "none": "未接入工作区",
+      "unknown": "工作区信息不可用"
+    }
   }
 }

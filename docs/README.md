@@ -7,6 +7,8 @@
 | 文档 | 内容 |
 | --- | --- |
 | [Computer、Linux 用户与运行时设计](design/computer-runtime-identity-model.md) | Multica 用户、工作区、Computer、Linux 用户、守护进程、运行时、智能体和 Admin Area 的关系；权限、绑定生命周期、数据和执行边界。 |
+| [管理页面层级与 Linux 用户管理重构方案](design/management-page-hierarchy-plan.md) | 相关管理页面的结构检查，列表/详情/操作分层，个人模板与账号配置归属，以及分阶段实施验收。 |
+| [Linux 用户页面分层：第一阶段实施记录](engineering/linux-user-page-hierarchy.md) | 已实现入口、凭据边界、自动化验证与部署后验收清单 |
 | [Linux User 与运行时管理归属](design/linux-user-runtime-management.md) | Admin Area、我的运行环境和工作区运行时页面的职责划分，以及用户侧 runtime API 的权限边界。 |
 | [Linux 用户与工作区协作方案](design/linux-user-workspace-collaboration-plan.md) | 多账号、多人共用任务与各自运行环境的边界；工作区创建后的可选接入流程和实施验收。 |
 | [Computer 与运行时 review 修复记录](engineering/computer-runtime-review-fixes.md) | 两轮 review 修复与历史验证，以及 `07f1e09c4`、`b528fd809`、`c3c761d45` 的部署记录；保留尚未验证的事项。 |

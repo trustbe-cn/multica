@@ -35,10 +35,19 @@ export const ComputerSchema = z.object({
   enabled: z.boolean().default(true),
 });
 export type Computer = z.infer<typeof ComputerSchema>;
+const BindingOperationSummarySchema = z.object({
+  id: z.string(), kind: z.string(),
+  state: z.enum(["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]).or(z.literal("unknown")).catch("unknown"),
+  error_code: z.string().catch(""),
+  finished_at: z.string().nullable().catch(null),
+});
 export const ComputerBindingSchema = z.object({
   id: z.string(),
   computer_id: z.string(),
   workspace_id: z.string(),
+  workspace_name: z.string().catch(""),
+  workspace_access: z.enum(["accessible", "unavailable", "none", "unknown"]).catch("unknown"),
+  latest_operation: BindingOperationSummarySchema.nullable().catch(null),
   username: z.string(),
   state: z.string(),
   last_error: z.string(),
@@ -82,7 +91,7 @@ export const RemoteOperationSchema = z.object({
 });
 export type RemoteOperation = z.infer<typeof RemoteOperationSchema>;
 export const ComputerBindingDetailSchema = ComputerBindingSchema.extend({
-  computer_name: z.string(), workspace_name: z.string().default(""), daemon_id: z.string(),
+  computer_name: z.string(), workspace_name: z.string().catch(""), daemon_id: z.string(),
   account_state: z.enum(["unknown", "present", "missing", "unavailable"]).catch("unknown"),
   daemon_state: z.enum(["running", "stopped", "failed", "unknown"]).catch("unknown"),
   daemon_checked_at: z.string().nullable().default(null),

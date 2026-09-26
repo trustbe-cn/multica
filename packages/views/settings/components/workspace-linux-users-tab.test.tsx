@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { WorkspaceLinuxUsersTab } from "./workspace-linux-users-tab";
 
 const api = vi.hoisted(() => ({
   getComputerSettings: vi.fn(),
+  listWorkspaces: vi.fn(),
   listComputers: vi.fn(),
   listComputerBindings: vi.fn(),
   operateComputer: vi.fn(),
@@ -33,7 +34,13 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     name: "New",
   }),
 }));
+const push = vi.hoisted(() => vi.fn());
 vi.mock("../../navigation", () => ({
+  useNavigation: () => ({
+    pathname: "/new/settings",
+    searchParams: new URLSearchParams("tab=linux-users"),
+    push,
+  }),
   AppLink: ({
     href,
     children,
@@ -82,136 +89,93 @@ beforeEach(() => {
     removed,
     { ...removed, id: "occupied", username: "alice-busy", state: "ready" },
   ]);
-  api.operateComputer.mockResolvedValue(undefined);
+  api.operateComputer.mockResolvedValue({
+    ...removed,
+    workspace_id: "new-workspace",
+  });
+  api.listWorkspaces.mockResolvedValue([
+    { id: "new-workspace", name: "New", slug: "new" },
+  ]);
 });
 
-describe("workspace Linux User connection", () => {
-  it("only submits an eligible account to the current workspace", async () => {
-    mount();
-    const user = userEvent.setup();
-    const occupied = await screen.findByRole("radio", { name: /alice-busy/ });
-    expect(occupied).toBeDisabled();
-    expect(
-      screen.getByText(/Remove its managed daemon there first/),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: /alice-worker/ }));
-    await user.type(screen.getByLabelText("Linux password"), "secret");
-    await user.click(screen.getByRole("button", { name: "Connect account" }));
-    await waitFor(() =>
-      expect(api.operateComputer).toHaveBeenCalledWith({
-        computer_id: "machine",
-        workspace_id: "new-workspace",
-        username: "alice-worker",
-        password: "secret",
-        action: "create_account",
-      }),
-    );
-  });
-
-  it("connects without saving any personal credentials", async () => {
-    api.getComputerSettings.mockRejectedValue(
-      new Error("No saved credentials"),
-    );
-    mount();
-    const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole("radio", { name: /alice-worker/ }),
-    );
-    await user.type(screen.getByLabelText("Linux password"), "secret");
-    const submit = screen.getByRole("button", { name: "Connect account" });
-    expect(submit).toBeEnabled();
-    await user.click(submit);
-    await waitFor(() =>
-      expect(api.operateComputer).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "create_account" }),
-      ),
-    );
-    expect(api.getComputerSettings).not.toHaveBeenCalled();
-  });
-
-  it("provisions a new Linux username on the selected Computer", async () => {
-    mount();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "New account" }));
-    await user.click(
-      screen.getByRole("combobox", { name: "Choose a Computer" }),
-    );
-    await user.click(await screen.findByRole("option", { name: "Host" }));
-    await user.type(screen.getByLabelText("Linux username"), "alice-build");
-    await user.type(screen.getByLabelText("Linux password"), "secret");
-    await user.click(screen.getByRole("button", { name: "Connect account" }));
-    await waitFor(() =>
-      expect(api.operateComputer).toHaveBeenCalledWith({
-        computer_id: "machine",
-        workspace_id: "new-workspace",
-        username: "alice-build",
-        password: "secret",
-        action: "create_account",
-      }),
-    );
-  });
-
-  it("shows an unverified provisioning attempt and its eventual failure", async () => {
-    api.listComputerBindings
-      .mockResolvedValueOnce([
-        {
-          ...removed,
-          id: "pending",
-          workspace_id: "new-workspace",
-          username: "alice-new",
-          verified: false,
-          state: "running",
-        },
-      ])
-      .mockResolvedValue([
-        {
-          ...removed,
-          id: "pending",
-          workspace_id: "new-workspace",
-          username: "alice-new",
-          verified: false,
-          state: "failed",
-          last_error: "Remote setup failed",
-        },
-      ]);
-    const client = mount();
-    expect(await screen.findByText(/Host · alice-new/)).toBeInTheDocument();
-    await client.invalidateQueries({
-      queryKey: ["computers", "alice", "bindings"],
-    });
-    expect(await screen.findByText("Remote setup failed")).toBeInTheDocument();
-    expect(
-      screen.queryByText(en.workspace_linux_users.none_connected),
-    ).not.toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Retry as new account" }));
-    expect(screen.getByLabelText("Linux username")).toHaveValue("alice-new");
-    expect(
-      screen.getByRole("combobox", { name: "Choose a Computer" }),
-    ).toBeInTheDocument();
-  });
-
-  it("directs interrupted bindings to recovery before reuse", async () => {
-    api.listComputerBindings.mockResolvedValue([
-      { ...removed, id: "interrupted", state: "interrupted" },
-    ]);
-    mount();
-    const row = await screen.findByRole("radio", { name: /alice-worker/ });
-    expect(row).toBeDisabled();
-    expect(
-      screen.getByText(/Check and acknowledge it in My environments/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getAllByRole("link", { name: "Open my environments" }).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("lets the owner open account management for an occupied account", async () => {
-    mount();
-    await screen.findByRole("radio", { name: /alice-busy/ });
-    expect(
-      screen.getAllByRole("link", { name: "Open my environments" })[0],
-    ).toHaveAttribute("href", "/new/settings?tab=computers");
-  });
+it("keeps the connection form out of the landing page and disables occupied accounts in the dialog", async () => {
+  mount();
+  const user = userEvent.setup();
+  expect(
+    await screen.findByText(en.workspace_linux_users.none_connected),
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: en.workspace_linux_users.connect }),
+  );
+  expect(
+    await screen.findByRole("radio", { name: /alice-busy/ }),
+  ).toBeDisabled();
+  expect(
+    screen.getByText(/Remove its managed daemon there first/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Linux User details" }),
+  ).toHaveAttribute("href", expect.stringContaining("linux_user=occupied"));
+  await user.click(screen.getByRole("radio", { name: /alice-worker/ }));
+  await user.type(screen.getByLabelText("Linux password"), "secret");
+  await user.click(screen.getByRole("button", { name: "Connect account" }));
+  await waitFor(() =>
+    expect(api.operateComputer).toHaveBeenCalledWith({
+      computer_id: "machine",
+      workspace_id: "new-workspace",
+      username: "alice-worker",
+      password: "secret",
+      action: "create_account",
+    }),
+  );
+  expect(push).toHaveBeenCalledWith(
+    expect.stringContaining("linux_user_from=workspace"),
+  );
+  expect(api.getComputerSettings).not.toHaveBeenCalled();
+});
+it("clears the password when switching modes and shares the create form", async () => {
+  mount();
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole("button", { name: en.workspace_linux_users.connect }),
+  );
+  await user.type(screen.getByLabelText("Linux password"), "first-secret");
+  await user.click(
+    screen.getByRole("button", { name: en.workspace_linux_users.new }),
+  );
+  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+  await user.click(screen.getByRole("combobox", { name: en.computers.choose }));
+  await user.click(await screen.findByRole("option", { name: "Host" }));
+  await user.type(screen.getByLabelText(en.computers.username), "new-user");
+  await user.type(screen.getByLabelText("Linux password"), "secret");
+  await user.click(
+    screen.getByRole("button", { name: en.computers.actions.create_account }),
+  );
+  await waitFor(() =>
+    expect(api.operateComputer).toHaveBeenCalledWith({
+      computer_id: "machine",
+      workspace_id: "new-workspace",
+      username: "new-user",
+      password: "secret",
+      action: "create_account",
+    }),
+  );
+});
+it("gives every connected account a direct detail link, including failed creation", async () => {
+  api.listComputerBindings.mockResolvedValue([
+    {
+      ...removed,
+      workspace_id: "new-workspace",
+      state: "failed",
+      verified: false,
+    },
+  ]);
+  mount();
+  const link = await screen.findByRole("link", { name: "Linux User details" });
+  expect(link).toHaveAttribute(
+    "href",
+    "/new/settings?tab=computers&linux_user=available&linux_user_view=overview&linux_user_from=workspace",
+  );
+  expect(screen.getByText("Unverified")).toBeInTheDocument();
 });

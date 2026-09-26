@@ -1397,6 +1397,14 @@ describe("mergePersistedTabs (rehydration, MUL-4370)", () => {
     ).byWorkspace.acme.tabs[0];
   }
 
+  it("rehydrates a Linux User deep link and its virtual history", () => {
+    const overview = "/acme/settings?tab=computers&linux_user=b&linux_user_view=overview&linux_user_from=workspace";
+    const operations = "/acme/settings?tab=computers&linux_user=b&linux_user_view=operations&operation=op&linux_user_from=workspace";
+    const tab = rehydrate(persistedTab(operations, { history: {stack:[overview, operations], index:1} }));
+    expect(tab.url).toBe(operations);
+    expect(tab.history).toEqual({stack:[overview, operations],index:1});
+  });
+
   // A user who opened /acme/autopilots on an older build has "ListTodo"
   // persisted for it. Carrying that value forward is what kept the tab bar
   // showing the wrong icon after upgrade, while the sidebar showed the new

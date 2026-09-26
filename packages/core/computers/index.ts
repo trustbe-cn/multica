@@ -10,16 +10,9 @@ export type {
 export { bindingEligibility } from "./eligibility";
 export type { BindingEligibility } from "./eligibility";
 
-export function useComputers(userId: string, includeCredentials = false) {
+export function useComputers(userId: string) {
   const client = useQueryClient();
   const key = ["computers", userId];
-  const settings = useQuery({
-    enabled: !!userId && includeCredentials,
-    queryKey: [...key, "settings"],
-    queryFn: () => api.getComputerSettings(),
-    gcTime: 0,
-    retry: false,
-  });
   const machines = useQuery({
     enabled: !!userId,
     queryKey: [...key, "machines"],
@@ -36,17 +29,24 @@ export function useComputers(userId: string, includeCredentials = false) {
         : false,
   });
   const refresh = () => client.invalidateQueries({ queryKey: key });
-  const save = useMutation({
-    gcTime: 0,
-    mutationFn: (input: ComputerSettings) => api.saveComputerSettings(input),
-    onSuccess: refresh,
-  });
   const operate = useMutation({
     gcTime: 0,
     mutationFn: (input: ComputerOperation) => api.operateComputer(input),
     onSuccess: refresh,
   });
-  return { settings, machines, bindings, save, operate };
+  return { machines, bindings, operate };
+}
+
+export function usePersonalComputerSettings(userId: string) {
+  const key = ["computers", userId];
+  const settings = useQuery({
+    enabled: !!userId,
+    queryKey: [...key, "settings"],
+    queryFn: () => api.getComputerSettings(),
+    gcTime: 0,
+    retry: false,
+  });
+  return { settings };
 }
 
 export {
@@ -82,5 +82,16 @@ export function useComputerCredentials(userId: string) {
     onSuccess: () =>
       client.invalidateQueries({ queryKey: ["computers", userId] }),
   });
-  return { read, write };
+  const loadTemplate = useMutation({
+    gcTime: 0,
+    mutationFn: () => api.getComputerSettings(),
+  });
+  const saveTemplate = useMutation({
+    gcTime: 0,
+    mutationFn: (input: ComputerSettings) => api.saveComputerSettings(input),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: ["computers", userId, "settings"] }),
+  });
+  return { read, write, loadTemplate, saveTemplate };
 }
+export { bindingSummary, bindingWorkspaceLabel } from "./summary";
