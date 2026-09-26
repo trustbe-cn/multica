@@ -55,7 +55,7 @@ func (h *Handler) beginBindingOperation(ctx context.Context, uid, bindingID, kin
 	if err != nil {
 		return "", err
 	}
-	if (kind == "runtime_install" || kind == "runtime_discovery") && state != "ready" && state != "failed" {
+	if (kind == "runtime_install" || kind == "runtime_discovery") && state != "ready" && state != "failed" && state != "pending" {
 		return "", errBindingNotReady
 	}
 	if state == "running" {

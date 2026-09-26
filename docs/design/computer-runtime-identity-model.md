@@ -71,7 +71,7 @@ Linux 用户提供 OS 文件权限和进程身份边界；同一账号下的多�
 | 操作 | 授权条件 | 不随之获得的权限 |
 | --- | --- | --- |
 | 进入 Admin Area，管理 Computer、查看全局绑定和审计 | 已认证的人类用户，且 ID 在实例管理员配置中 | 不自动成为所有工作区的成员，也不通过此页面读取其他人的个人凭据。 |
-| 保存个人 Computer 凭据 | 当前 Multica 用户；Multica PAT 必须属于本人且有效 | 工作区 owner/admin 不能通过个人接口读取别人的配置。 |
+| 保存个人 Computer 凭据 | 当前 Multica 用户；非空 Multica PAT 必须属于本人且有效 | 工作区 owner/admin 不能通过个人接口读取别人的配置。 |
 | 开通或复用 Linux 用户 | 当前用户是目标工作区成员，满足绑定所有权、Linux 账号与密码校验 | 知道用户名不代表可接管已验证绑定。 |
 | 同步、升级或移除托管 daemon | 本人的已验证绑定及对应操作校验，仍需 Linux 密码 | 不允许修改其他人的绑定；移除不等于删除 Linux 账号。 |
 | 探测或安装 CLI | 当前用户拥有已验证、可用的 Linux User 绑定 | 请求不能指定任意 Linux 用户；Admin Area 不提供 CLI 安装。 |
@@ -91,11 +91,12 @@ Computer 相关路由要求人类身份。普通用户获取机器列表时只�
 | 入口/接口 | 用途 |
 | --- | --- |
 | `/admin` | 实例级 Computer、Linux User 绑定和审计管理；不置于 `/{workspaceSlug}` 下。 |
-| 个人设置 → 我的运行环境 | 保存个人凭据，选择机器、Linux 用户和工作区，执行开通、同步、升级、移除，并在绑定内管理 CLI。 |
+| 个人设置 → 我的运行环境 | 选择机器、Linux 用户和工作区，创建/验证账号、启动/升级或移除守护进程，并在绑定内管理 CLI。 |
+| 个人设置 → 个人凭据 | 保存可选的个人模板，从所选本人账号读取配置或向该账号写入非空字段。 |
 | 工作区的运行时、智能体页面 | 管理已注册执行资源和协作者配置。 |
 | `GET /api/computers` | 用户选择可用 Computer；本人已验证绑定的停用机器仍可见，以便清理。 |
 | `GET/PUT /api/me/computer-settings` | 本人的加密存储配置，响应禁止缓存。 |
-| `GET/POST /api/me/computer-bindings` | 查询本人绑定，或提交 `provision`、`sync`、`upgrade`、`remove` 操作。 |
+| `GET/POST /api/me/computer-bindings` | 查询本人绑定，或提交 `create_account`、`upgrade`、`remove` 操作；原有 `provision`、`sync` API 仍保留。 |
 | `GET/POST /api/admin/computers` | 管理员列出、注册主机；注册前必须通过连接检查。 |
 | `PATCH/DELETE /api/admin/computers/{id}` | 更新或删除主机，受已有绑定限制。 |
 | `POST /api/admin/computers/check` | 检查草稿连接，不保存机器或检查结果。 |
@@ -112,9 +113,9 @@ Computer 相关路由要求人类身份。普通用户获取机器列表时只�
 
 ### 5.1 提交与账号判定
 
-1. 用户先保存自己的 Git 身份、Git 凭据、模型环境变量和 Multica PAT。后端验证 PAT 所属用户。
+1. 创建/验证账号不要求个人凭据。Git 身份、模型密钥等可稍后在“个人凭据”填写或在服务器手动维护；启动 daemon 才需要本人的有效 Multica PAT。
 2. 用户提交 Computer、Linux 用户名、目标工作区、Linux 密码和操作类型。
-3. 后端检查工作区成员、个人配置和绑定权限，在事务中占用唯一绑定并置为 `running`，返回 HTTP 202。202 仅表示操作已接受。
+3. 后端检查工作区成员和绑定权限（需要写配置或启动 daemon 的操作再校验凭据），在事务中占用唯一绑定并置为 `running`，返回 HTTP 202。202 仅表示操作已接受。
 4. 后台作业在 `(Computer, username)` 文件锁内执行账号判定；锁和失败次数存于 `MULTICA_COMPUTER_STATE_DIR`。
 5. Linux 账号不存在时创建账号；已存在时通过固定 PAM 策略验证密码及账号资格。复用账号不会重置密码。系统账号、SSH operator 和有特权的账号不能按普通用户复用。
 6. 密码明确不匹配才计入失败次数；基础设施错误退回预占次数。默认五次失败触发 15 分钟锁定，拒绝期间的请求不延长锁定。
@@ -123,7 +124,7 @@ Computer 相关路由要求人类身份。普通用户获取机器列表时只�
 
 ### 5.2 新账号初始化与回滚
 
-顺序为：安装系统包 → `useradd` 使用已安装的 zsh → `chpasswd` → 安装 oh-my-zsh → 写个人配置 → 安装并启动托管 daemon。
+账号创建顺序为：安装系统包 → `useradd` 使用已安装的 zsh → `chpasswd` → 安装 oh-my-zsh。`create_account` 到此完成，标记账号已验证、绑定待配置；写凭据和启动 daemon 是独立动作。原 `provision` API 仍继续写个人配置并启动 daemon。
 
 - 当前支持 Debian/Ubuntu 的 `apt-get` 路径，系统包包括 zsh、htop、curl、git。连接检查验证工具存在，不保证包仓库、网络或软件源可用。
 - apt 失败发生在 `useradd` 之前，无账号可删除。密码或 oh-my-zsh 初始化失败时，创建脚本尝试删除刚建的账号。
@@ -151,15 +152,15 @@ Computer 相关路由要求人类身份。普通用户获取机器列表时只�
 
 | 绑定状态 | 含义 |
 | --- | --- |
-| `pending` | 数据库默认初始值；正常提交操作会写为 `running`。 |
+| `pending` | 账号创建/验证已完成，等待配置及启动 daemon；也是数据库默认初始值。 |
 | `running` | 后台操作进行中；禁止并发接管。 |
 | `ready` | 操作完成，并通过指定身份的运行时注册检查。 |
 | `failed` | 本次操作失败，错误摘要用于用户恢复。 |
 | `removed` | 已停止、禁用并移除托管 daemon 的 unit/二进制。 |
 | `detached` | 工作区关联已解除，例如工作区删除后的绑定保留状态。 |
-| `interrupted` | 查询时对超过 20 分钟未更新的 `running` 记录展示的状态；不是自动完成了远端回滚。 |
+| `interrupted` | 查询时对仍有过期活动操作的 `running` 绑定展示的状态；不是自动完成了远端回滚。 |
 
-`provision`、`sync`、`upgrade` 目前复用账号验证、配置写入和 daemon 安装路径。用户操作会影响对应 daemon 进程，不应把“同步”理解为只写数据库。
+新界面的读取、保存、写入、启动分别执行，详见[个人凭据指南](../engineering/linux-user-credentials-guide.md)。`upgrade` 保留服务器配置并启动/升级 daemon；原 `provision`、`sync` API 仍会写配置和安装 daemon，新 UI 不再使用“同步”表示写入。
 
 ## 6. CLI 安装、发现和注册
 

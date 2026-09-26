@@ -26,3 +26,5 @@
 - [任务唤醒机制](engineering/issue-wakeups.md)
 - [任务状态生命周期发布说明](issue-status-lifecycle-rollout.md)
 - [维护任务](maintenance-jobs.md)
+
+- [Linux 用户建号与个人凭据：字段来源、读取与写入](engineering/linux-user-credentials-guide.md)

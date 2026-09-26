@@ -1366,7 +1366,7 @@
     "hide": "Hide secrets",
     "loading": "Loading…",
     "setup": "Your runtime",
-    "setup_help": "Uses the current workspace. Existing Linux accounts require their current password; an incorrect password never resets the account.",
+    "setup_help": "Linux 계정을 생성 또는 확인하여 현재 워크스페이스에 연결합니다. 자격 증명은 나중에 설정하고 데몬은 별도로 시작합니다.",
     "choose": "Choose a Computer",
     "username": "Linux username",
     "password": "Linux password",
@@ -1380,8 +1380,9 @@
     "actions": {
       "provision": "Create or reuse account",
       "sync": "Sync credentials",
-      "upgrade": "Upgrade runtime",
-      "remove": "Remove runtime"
+      "upgrade": "데몬 시작 또는 업그레이드",
+      "remove": "Remove runtime",
+      "create_account": "계정 생성 또는 확인"
     },
     "machine_fields": {
       "name": "Name",
@@ -1416,7 +1417,7 @@
     "open_personal": "내 실행 환경 열기",
     "no_computers": "사용 가능한 Computer가 없습니다. 인스턴스 관리자에게 추가를 요청하세요.",
     "connect_action": "계정 연결",
-    "accepted": "연결을 시작했습니다. 아래에서 상태가 갱신되며 나중에 다시 확인할 수 있습니다.",
+    "accepted": "Request accepted. Check the runtime status below.",
     "manage_personal": "내 실행 환경에서 계정, CLI 및 작업 기록 관리",
     "eligibility": {
       "available": "연결할 수 있습니다. 현재 Linux 암호를 입력하세요.",
@@ -1435,7 +1436,10 @@
       "binding_workspace_conflict": "다른 워크스페이스에 연결되어 있습니다. 먼저 해당 daemon을 제거하세요.",
       "binding_conflict": "계정 상태가 바뀌었습니다. 새로고침 후 다시 시도하세요.",
       "generic": "계정을 연결할 수 없습니다. 작업 기록을 확인하고 다시 시도하세요."
-    }
+    },
+    "account_help": "Linux 계정을 생성 또는 확인하여 현재 워크스페이스에 연결합니다. 자격 증명은 나중에 설정하고 데몬은 별도로 시작합니다.",
+    "required_fields": "사용 가능한 계정 또는 Computer와 사용자 이름을 선택한 후 Linux 비밀번호를 입력하세요.",
+    "new_account_help": "Computer에 이 사용자 이름이 있으면 현재 Linux 비밀번호로 소유권을 확인합니다. 없으면 이 비밀번호로 새 계정을 만듭니다."
   },
   "admin": {
     "title": "Admin Area",
@@ -1513,7 +1517,7 @@
     "discover": "런타임 다시 검색",
     "archive": "연결 보관",
     "delete_user": "Linux 사용자 삭제",
-    "retry_help": "동기화는 자격 증명을 다시 쓰고 데몬을 재시작합니다. 업그레이드는 실행 파일도 교체합니다. 재시도 시 같은 단계를 반복합니다. 다시 검색은 CLI 확인과 데몬 갱신만 수행하며 실행 중인 작업은 재시작하지 않습니다.",
+    "retry_help": "연결 후 내 실행 환경에서 자격 증명을 설정하고 데몬을 시작하세요.",
     "delete_help": "Linux 계정과 홈 디렉터리의 코드, 설정, 자격 증명을 영구 삭제합니다. 실행 중인 프로세스가 있으면 삭제할 수 없습니다. 관리 데몬을 먼저 제거하세요. 되돌릴 수 없습니다.",
     "archive_help": "제거된 연결을 숨기고 Computer 삭제를 허용합니다. Linux 계정, 홈, 작업 기록과 소유권은 유지됩니다.",
     "confirm_username": "확인하려면 {{username}} 입력",
@@ -1550,7 +1554,8 @@
       "installed": "설치됨",
       "version_failed": "버전 확인 실패",
       "check_failed": "확인 실패",
-      "stopped": "중지됨"
+      "stopped": "중지됨",
+      "pending": "설정 대기"
     },
     "errors": {
       "account_missing": "계정을 다시 설정하세요.",
@@ -1570,7 +1575,9 @@
       "interrupted": "원격 계정과 설치 상태를 확인한 후 재시도를 허용하세요.",
       "cancelled": "실행 전에 취소되었습니다.",
       "account_delete_failed": "실행 중인 프로세스와 권한을 확인한 후 삭제를 다시 시도하세요.",
-      "remote_step_failed": "필수 조건을 확인한 후 표시된 작업을 다시 시도하세요."
+      "remote_step_failed": "필수 조건을 확인한 후 표시된 작업을 다시 시도하세요.",
+      "credentials_required": "본인 Multica 계정의 설정 → API 토큰에서 생성하세요. 데몬 시작에 필요하며 Linux 사용자 생성에는 필요하지 않습니다.",
+      "credential_transfer_failed": "~/.gitconfig, ~/.config/multica-provision/, 이 연결의 ~/.multica/profiles/computer-<binding-id>/config.json을 읽습니다. 셸 시작 파일과 CLI 로그인 세션은 가져오지 않습니다."
     },
     "kinds": {
       "provision": "계정 설정",
@@ -1579,7 +1586,10 @@
       "remove": "데몬 제거",
       "runtime_install": "런타임 설치",
       "runtime_discovery": "런타임 검색",
-      "delete_user": "계정 삭제"
+      "delete_user": "계정 삭제",
+      "create_account": "계정 생성 또는 확인",
+      "credentials_read": "자격 증명 읽기",
+      "credentials_write": "자격 증명 쓰기"
     },
     "steps": {
       "queued": "대기",
@@ -1593,11 +1603,38 @@
       "installing_runtime": "CLI 설치",
       "checking_runtime": "설치 검증",
       "removing_daemon": "데몬 제거",
-      "deleting_account": "계정 삭제"
+      "deleting_account": "계정 삭제",
+      "reading_credentials": "자격 증명 읽는 중"
     },
     "daemon_checked": "데몬 확인 시각",
     "archived": "보관됨",
     "prompt_password": "설정 양식에 Linux 비밀번호를 입력한 후 선택한 작업을 실행하세요.",
     "password_for": "{{username}}의 Linux 비밀번호"
+  },
+  "credential_page": {
+    "title": "개인 자격 증명",
+    "help": "모든 필드는 선택 사항입니다. 개인 템플릿을 저장하거나 내 Linux 사용자에서 설정을 읽을 수 있습니다. 계정 생성에는 자격 증명이 필요하지 않습니다.",
+    "transfer": "계정 설정 읽기 및 쓰기",
+    "target": "대상 Linux 사용자",
+    "transfer_help": "읽기는 현재 양식을 바꿉니다. 저장은 Multica에 저장합니다. 쓰기는 입력한 필드만 대상 계정에 적용하며 빈 필드의 기존 값은 유지합니다. 데몬을 시작하거나 재시작하지 않습니다.",
+    "read": "서버에서 읽기",
+    "write": "Linux 사용자에 쓰기",
+    "read_done": "양식에 읽었습니다. 확인 후 저장하거나 쓰세요.",
+    "write_done": "설정을 썼습니다. 내 실행 환경에서 데몬을 시작하거나 재시작해 적용하세요.",
+    "saved": "개인 자격 증명을 저장했습니다. 원격 계정은 변경되지 않았습니다.",
+    "no_accounts": "먼저 내 실행 환경에서 Linux 사용자를 생성하거나 확인하세요.",
+    "locations": "~/.gitconfig, ~/.config/multica-provision/, 이 연결의 ~/.multica/profiles/computer-<binding-id>/config.json을 읽습니다. 셸 시작 파일과 CLI 로그인 세션은 가져오지 않습니다.",
+    "field_help": {
+      "git_name": "Git 커밋 작성자 이름. 대상 사용자로 git config --global user.name을 실행해 확인하세요.",
+      "git_email": "코드 호스팅에서 인증한 이메일입니다. git config --global user.email로 확인하세요.",
+      "gitlab_url": "GitLab 사이트 URL입니다. 예: https://gitlab.example.com. GitLab 토큰 사용 시 필요합니다.",
+      "gitlab_token": "GitLab 사용자 설정 → Access tokens에서 생성합니다. HTTPS 저장소 읽기/쓰기에 필요한 권한만 부여하세요. SSH 사용 시 선택 사항입니다.",
+      "git_ssh_key": "Git 전용 SSH 개인 키입니다. 대응하는 .pub 공개 키를 GitLab에 등록하세요. Computer 운영자 키와 다르며 암호로 보호된 키는 지원하지 않습니다.",
+      "git_known_hosts": "Git 서버에 대해 검증된 ~/.ssh/known_hosts 항목입니다. ssh-keyscan 결과는 호스트 지문을 먼저 확인하세요.",
+      "model_env": "모델 공급자 콘솔에서 API 키를 생성하세요. OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY를 지원합니다. 한 줄에 KEY=value를 입력하세요.",
+      "multica_pat": "본인 Multica 계정의 설정 → API 토큰에서 생성하세요. 데몬 시작에 필요하며 Linux 사용자 생성에는 필요하지 않습니다."
+    },
+    "remote_source": "{{username}}에서 읽은 자격 증명입니다. 계정을 변경하면 이 초안이 삭제되고 개인 템플릿으로 돌아갑니다.",
+    "confirm_import": "비밀 키를 포함한 원격 자격 증명을 다른 Linux 사용자에게도 사용할 개인 템플릿으로 저장합니다."
   }
 }

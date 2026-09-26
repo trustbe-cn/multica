@@ -1366,7 +1366,7 @@
     "hide": "隐藏秘密",
     "loading": "加载中…",
     "setup": "个人运行环境",
-    "setup_help": "使用当前工作区。复用已有 Linux 用户必须输入其现有密码；密码错误不会重置账号。",
+    "setup_help": "创建或验证 Linux 账号并关联当前工作区。凭据可稍后配置，守护进程需单独启动。",
     "choose": "选择 Computer",
     "username": "Linux 用户名",
     "password": "Linux 密码",
@@ -1380,8 +1380,9 @@
     "actions": {
       "provision": "创建或复用账号",
       "sync": "同步凭据",
-      "upgrade": "升级运行环境",
-      "remove": "移除运行环境"
+      "upgrade": "启动或升级守护进程",
+      "remove": "移除运行环境",
+      "create_account": "创建或验证账号"
     },
     "machine_fields": {
       "name": "名称",
@@ -1416,7 +1417,7 @@
     "open_personal": "打开我的运行环境",
     "no_computers": "没有可用 Computer，请联系实例管理员添加。",
     "connect_action": "接入账号",
-    "accepted": "已开始接入。账号状态会在下方更新；离开页面后也可返回查看。",
+    "accepted": "请求已接受，请查看下方运行状态。",
     "manage_personal": "到“我的运行环境”管理账号、CLI 和操作记录",
     "eligibility": {
       "available": "可接入，请输入此账号现有的 Linux 密码。",
@@ -1435,7 +1436,10 @@
       "binding_workspace_conflict": "此账号仍接入其他工作区，请先到原工作区移除受管 daemon。",
       "binding_conflict": "账号可用状态已变化，请刷新后重试。",
       "generic": "接入失败，请查看操作记录后重试。"
-    }
+    },
+    "account_help": "创建或验证 Linux 账号并关联当前工作区。凭据可稍后配置，守护进程需单独启动。",
+    "required_fields": "请选择可用账号，或选择 Computer 并填写用户名，然后输入 Linux 密码。",
+    "new_account_help": "如果这个用户名已存在于 Computer，请填写它当前的 Linux 密码以验证所有权；如果不存在，将用该密码创建新账号。"
   },
   "admin": {
     "title": "管理后台",
@@ -1513,7 +1517,7 @@
     "discover": "重新发现运行时",
     "archive": "归档绑定",
     "delete_user": "删除 Linux 用户",
-    "retry_help": "同步会重写凭据并重启守护进程，升级还会替换可执行文件；重试会重新执行这些步骤。重新发现会检查 CLI 版本并通知守护进程刷新，不会重启正在运行的任务。",
+    "retry_help": "账号关联后，请到“我的运行环境”配置凭据并启动守护进程。",
     "delete_help": "永久删除 Linux 账号及其主目录，包括代码、配置和凭据。存在运行中进程时会拒绝删除。请先移除受管守护进程。此操作无法撤销。",
     "archive_help": "隐藏已移除的绑定并允许删除 Computer。保留 Linux 账号、主目录和操作记录，账号所有权仍保留。",
     "confirm_username": "输入 {{username}} 确认",
@@ -1550,7 +1554,8 @@
       "installed": "已安装",
       "version_failed": "版本检查失败",
       "check_failed": "检查失败",
-      "stopped": "已停止"
+      "stopped": "已停止",
+      "pending": "待配置"
     },
     "errors": {
       "account_missing": "账号不存在，请重新开通。",
@@ -1570,7 +1575,9 @@
       "interrupted": "请检查远端账号和安装状态后再允许重试。",
       "cancelled": "操作已在执行前取消。",
       "account_delete_failed": "请检查运行中的进程和权限后重试删除。",
-      "remote_step_failed": "请检查前置条件，再重试所显示的操作。"
+      "remote_step_failed": "请检查前置条件，再重试所显示的操作。",
+      "credentials_required": "使用本人 Multica 账号，在设置的 API Token 页面创建。启动受管守护进程需要它，创建 Linux 用户不需要。",
+      "credential_transfer_failed": "读取 ~/.gitconfig、~/.config/multica-provision/ 和此绑定的 ~/.multica/profiles/computer-<binding-id>/config.json。不导入 shell 启动脚本或各 CLI 的登录会话。"
     },
     "kinds": {
       "provision": "开通账号",
@@ -1579,7 +1586,10 @@
       "remove": "移除守护进程",
       "runtime_install": "安装运行时",
       "runtime_discovery": "发现运行时",
-      "delete_user": "删除账号"
+      "delete_user": "删除账号",
+      "create_account": "创建或验证账号",
+      "credentials_read": "读取凭据",
+      "credentials_write": "写入凭据"
     },
     "steps": {
       "queued": "等待执行",
@@ -1593,11 +1603,38 @@
       "installing_runtime": "安装 CLI",
       "checking_runtime": "验证安装",
       "removing_daemon": "移除守护进程",
-      "deleting_account": "删除账号"
+      "deleting_account": "删除账号",
+      "reading_credentials": "读取凭据"
     },
     "daemon_checked": "守护进程检查时间",
     "archived": "已归档",
     "prompt_password": "请在开通表单中输入 Linux 密码，再执行已选操作。",
     "password_for": "{{username}} 的 Linux 密码"
+  },
+  "credential_page": {
+    "title": "个人凭据",
+    "help": "所有字段均可选。可在这里保存个人模板，也可从自己的 Linux 用户读取配置。创建账号不需要凭据。",
+    "transfer": "读取与写入账号配置",
+    "target": "目标 Linux 用户",
+    "transfer_help": "“从服务器读取”会用账号配置替换当前表单；“保存凭据”将表单保存到 Multica；“写入 Linux 用户”将非空字段写到所选账号，空字段保留服务器原值，不启动或重启守护进程。",
+    "read": "从服务器读取",
+    "write": "写入 Linux 用户",
+    "read_done": "已读取到表单，请检查后再保存或写入。",
+    "write_done": "已写入。请到“我的运行环境”启动或重启守护进程，使配置生效。",
+    "saved": "个人凭据已保存，远端账号未更改。",
+    "no_accounts": "请先到“我的运行环境”创建或验证 Linux 用户。",
+    "locations": "读取 ~/.gitconfig、~/.config/multica-provision/ 和此绑定的 ~/.multica/profiles/computer-<binding-id>/config.json。不导入 shell 启动脚本或各 CLI 的登录会话。",
+    "field_help": {
+      "git_name": "Git 提交署名。以目标 Linux 用户执行 git config --global user.name 可查看现有值。",
+      "git_email": "填写在代码托管平台验证过的邮箱。执行 git config --global user.email 可查看现有值。",
+      "gitlab_url": "你的 GitLab 站点地址，例如 https://gitlab.example.com。使用 GitLab Token 时需要填写。",
+      "gitlab_token": "在 GitLab 用户设置 → Access tokens 创建。通过 HTTPS 拉取或推送代码时，按需授予仓库读写权限；使用 SSH 时可不填。",
+      "git_ssh_key": "用于 Git 访问的专用 SSH 私钥，将对应 .pub 公钥添加到 GitLab。它与 Computer 的运维 SSH 密钥不同；暂不支持带口令的私钥。",
+      "git_known_hosts": "Git 服务器的可信 SSH 主机密钥记录，可从已核验的 ~/.ssh/known_hosts 获取。使用 ssh-keyscan 获取时，须先核对主机指纹。",
+      "model_env": "从对应模型服务商控制台创建 API Key。支持 OPENAI_API_KEY、ANTHROPIC_API_KEY、OPENROUTER_API_KEY、GEMINI_API_KEY、XAI_API_KEY，每行 KEY=value。",
+      "multica_pat": "使用本人 Multica 账号，在设置的 API Token 页面创建。启动受管守护进程需要它，创建 Linux 用户不需要。"
+    },
+    "remote_source": "当前草稿来自 {{username}}。切换账号会丢弃此草稿，恢复个人凭据模板。",
+    "confirm_import": "将这些远端凭据（包括密钥）保存为我的个人模板，可用于其他 Linux 用户。"
   }
 }

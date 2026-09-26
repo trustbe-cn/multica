@@ -1623,6 +1623,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/discover", h.DiscoverComputerBinding)
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/check", h.CheckLinuxUser)
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/lifecycle", h.ComputerBindingLifecycle)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/credentials/read", h.ReadComputerCredentials)
+		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/credentials/write", h.WriteComputerCredentials)
 		r.With(handler.RequireHumanActor).Post("/api/me/computer-bindings/{id}/runtime-install", h.ComputerBindingRuntimeInstall)
 		r.With(handler.RequireHumanActor).Put("/api/me/computer-settings", h.ComputerSettings)
 		r.With(handler.RequireHumanActor).Get("/api/me/instance-access", h.InstanceAccess)

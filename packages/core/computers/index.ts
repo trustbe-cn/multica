@@ -10,11 +10,11 @@ export type {
 export { bindingEligibility } from "./eligibility";
 export type { BindingEligibility } from "./eligibility";
 
-export function useComputers(userId: string) {
+export function useComputers(userId: string, includeCredentials = false) {
   const client = useQueryClient();
   const key = ["computers", userId];
   const settings = useQuery({
-    enabled: !!userId,
+    enabled: !!userId && includeCredentials,
     queryKey: [...key, "settings"],
     queryFn: () => api.getComputerSettings(),
     gcTime: 0,
@@ -31,7 +31,9 @@ export function useComputers(userId: string) {
     queryKey: [...key, "bindings"],
     queryFn: () => api.listComputerBindings(),
     refetchInterval: (q) =>
-      q.state.data?.some((b) => b.state === "running" || b.operation_busy) ? 2000 : false,
+      q.state.data?.some((b) => b.state === "running" || b.operation_busy)
+        ? 2000
+        : false,
   });
   const refresh = () => client.invalidateQueries({ queryKey: key });
   const save = useMutation({
@@ -47,7 +49,38 @@ export function useComputers(userId: string) {
   return { settings, machines, bindings, save, operate };
 }
 
-export {useInstanceAccess,useComputerAdmin,useComputerBindingRuntimes,useComputerBindingRuntimeInstall} from "./admin";
-export type {AdminComputer,ProbeResult,ProbeCheck,AdminComputerRuntime} from "./admin-schema";
+export {
+  useInstanceAccess,
+  useComputerAdmin,
+  useComputerBindingRuntimes,
+  useComputerBindingRuntimeInstall,
+} from "./admin";
+export type {
+  AdminComputer,
+  ProbeResult,
+  ProbeCheck,
+  AdminComputerRuntime,
+} from "./admin-schema";
 export { useLinuxUserDetail } from "./detail";
 export type { RemoteOperation, ComputerLifecycleInput } from "./schema";
+
+export function useComputerCredentials(userId: string) {
+  const client = useQueryClient();
+  const read = useMutation({
+    gcTime: 0,
+    mutationFn: (input: { id: string; password: string }) =>
+      api.readComputerCredentials(input.id, input.password),
+  });
+  const write = useMutation({
+    gcTime: 0,
+    mutationFn: (input: {
+      id: string;
+      password: string;
+      settings: ComputerSettings;
+    }) =>
+      api.writeComputerCredentials(input.id, input.password, input.settings),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: ["computers", userId] }),
+  });
+  return { read, write };
+}

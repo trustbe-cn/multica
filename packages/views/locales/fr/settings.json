@@ -1373,7 +1373,7 @@
     "hide": "Hide secrets",
     "loading": "Loading…",
     "setup": "Your runtime",
-    "setup_help": "Uses the current workspace. Existing Linux accounts require their current password; an incorrect password never resets the account.",
+    "setup_help": "Crée ou vérifie le compte Linux et le lie à cet espace. Les identifiants peuvent être configurés plus tard ; le daemon démarre séparément.",
     "choose": "Choose a Computer",
     "username": "Linux username",
     "password": "Linux password",
@@ -1387,8 +1387,9 @@
     "actions": {
       "provision": "Create or reuse account",
       "sync": "Sync credentials",
-      "upgrade": "Upgrade runtime",
-      "remove": "Remove runtime"
+      "upgrade": "Démarrer / mettre à jour le daemon",
+      "remove": "Remove runtime",
+      "create_account": "Créer ou vérifier le compte"
     },
     "machine_fields": {
       "name": "Name",
@@ -1423,7 +1424,7 @@
     "open_personal": "Ouvrir mes environnements",
     "no_computers": "Aucun Computer disponible. Contactez un administrateur de l'instance.",
     "connect_action": "Connecter le compte",
-    "accepted": "Connexion démarrée. Son état sera mis à jour ci-dessous ; vous pourrez revenir plus tard.",
+    "accepted": "Request accepted. Check the runtime status below.",
     "manage_personal": "Gérer le compte, le CLI et l'historique dans Mes environnements",
     "eligibility": {
       "available": "Disponible. Saisissez le mot de passe Linux actuel du compte.",
@@ -1442,7 +1443,10 @@
       "binding_workspace_conflict": "Ce compte est connecté ailleurs. Supprimez d'abord son daemon géré dans l'ancien espace.",
       "binding_conflict": "La disponibilité a changé. Actualisez et réessayez.",
       "generic": "Connexion impossible. Consultez l'historique des opérations et réessayez."
-    }
+    },
+    "account_help": "Crée ou vérifie le compte Linux et le lie à cet espace. Les identifiants peuvent être configurés plus tard ; le daemon démarre séparément.",
+    "required_fields": "Choisissez un compte disponible, ou un Computer et un nom d’utilisateur, puis saisissez le mot de passe Linux.",
+    "new_account_help": "Si ce nom existe sur le Computer, saisissez son mot de passe Linux actuel pour vérifier la propriété. Sinon, ce mot de passe sera attribué au nouveau compte."
   },
   "admin": {
     "title": "Admin Area",
@@ -1520,7 +1524,7 @@
     "discover": "Redécouvrir les runtimes",
     "archive": "Archiver l’association",
     "delete_user": "Supprimer l’utilisateur Linux",
-    "retry_help": "La synchronisation réécrit les identifiants et redémarre le démon ; la mise à niveau remplace aussi son exécutable. Réessayer répète ces étapes. La redécouverte vérifie les CLI et actualise le démon sans redémarrer les tâches.",
+    "retry_help": "Après la liaison, configurez les identifiants et démarrez le daemon dans Mes environnements.",
     "delete_help": "Supprime définitivement le compte Linux et son dossier personnel, y compris code, configuration et identifiants. Les processus actifs bloquent la suppression. Retirez d’abord le démon géré. Cette action est irréversible.",
     "archive_help": "Masque cette association retirée et autorise la suppression du Computer. Le compte Linux, son dossier, son historique et sa propriété sont conservés.",
     "confirm_username": "Saisissez {{username}} pour confirmer",
@@ -1557,7 +1561,8 @@
       "installed": "Installé",
       "version_failed": "Échec de vérification de version",
       "check_failed": "Échec de vérification",
-      "stopped": "Arrêté"
+      "stopped": "Arrêté",
+      "pending": "Configuration en attente"
     },
     "errors": {
       "account_missing": "Recréez le compte.",
@@ -1577,7 +1582,9 @@
       "interrupted": "Vérifiez le compte et l’installation distants avant d’autoriser une nouvelle tentative.",
       "cancelled": "Opération annulée avant exécution.",
       "account_delete_failed": "Vérifiez les processus actifs et les permissions avant de réessayer la suppression.",
-      "remote_step_failed": "Vérifiez les prérequis, puis relancez l’opération affichée."
+      "remote_step_failed": "Vérifiez les prérequis, puis relancez l’opération affichée.",
+      "credentials_required": "Créez-le avec votre compte Multica dans Paramètres → Jetons API. Nécessaire pour démarrer le daemon, pas pour créer un utilisateur Linux.",
+      "credential_transfer_failed": "Lit ~/.gitconfig, ~/.config/multica-provision/ et ~/.multica/profiles/computer-<binding-id>/config.json de cette liaison. Les fichiers de démarrage du shell et les sessions CLI ne sont pas importés."
     },
     "kinds": {
       "provision": "Configurer le compte",
@@ -1586,7 +1593,10 @@
       "remove": "Retirer le démon",
       "runtime_install": "Installer le runtime",
       "runtime_discovery": "Détecter les runtimes",
-      "delete_user": "Supprimer le compte"
+      "delete_user": "Supprimer le compte",
+      "create_account": "Créer ou vérifier le compte",
+      "credentials_read": "Lire les identifiants",
+      "credentials_write": "Écrire les identifiants"
     },
     "steps": {
       "queued": "En attente",
@@ -1600,11 +1610,38 @@
       "installing_runtime": "Installation CLI",
       "checking_runtime": "Vérification de l’installation",
       "removing_daemon": "Retrait du démon",
-      "deleting_account": "Suppression du compte"
+      "deleting_account": "Suppression du compte",
+      "reading_credentials": "Lecture des identifiants"
     },
     "daemon_checked": "Démon vérifié",
     "archived": "Archivé",
     "prompt_password": "Saisissez le mot de passe Linux dans le formulaire, puis exécutez l’action sélectionnée.",
     "password_for": "Mot de passe Linux de {{username}}"
+  },
+  "credential_page": {
+    "title": "Identifiants personnels",
+    "help": "Tous les champs sont facultatifs. Enregistrez un modèle personnel ou lisez les paramètres de votre utilisateur Linux. La création du compte ne nécessite aucun identifiant.",
+    "transfer": "Lire et écrire les paramètres du compte",
+    "target": "Utilisateur Linux cible",
+    "transfer_help": "Lire remplace le formulaire. Enregistrer sauvegarde dans Multica. Écrire applique les champs non vides au compte choisi et conserve les valeurs distantes des champs vides. Le daemon ne sera pas redémarré.",
+    "read": "Lire depuis le serveur",
+    "write": "Écrire pour cet utilisateur Linux",
+    "read_done": "Paramètres lus dans le formulaire. Vérifiez avant de sauvegarder ou écrire.",
+    "write_done": "Paramètres écrits. Démarrez ou redémarrez le daemon depuis Mes environnements pour les appliquer.",
+    "saved": "Identifiants personnels enregistrés. Les comptes distants sont inchangés.",
+    "no_accounts": "Créez ou vérifiez un utilisateur Linux dans Mes environnements.",
+    "locations": "Lit ~/.gitconfig, ~/.config/multica-provision/ et ~/.multica/profiles/computer-<binding-id>/config.json de cette liaison. Les fichiers de démarrage du shell et les sessions CLI ne sont pas importés.",
+    "field_help": {
+      "git_name": "Nom d’auteur des commits Git. Consultez-le avec git config --global user.name sous l’utilisateur cible.",
+      "git_email": "Adresse vérifiée par votre hébergeur Git. Consultez-la avec git config --global user.email.",
+      "gitlab_url": "Origine de votre site GitLab, par exemple https://gitlab.example.com. Nécessaire avec un jeton GitLab.",
+      "gitlab_token": "Créez-le dans les paramètres GitLab → Access tokens. Accordez uniquement les droits de lecture/écriture nécessaires pour Git via HTTPS. Facultatif avec SSH.",
+      "git_ssh_key": "Clé SSH privée dédiée à Git ; ajoutez la clé .pub à GitLab. Distincte de la clé opérateur du Computer. Les clés avec phrase secrète ne sont pas prises en charge.",
+      "git_known_hosts": "Entrées vérifiées de ~/.ssh/known_hosts pour le serveur Git. Vérifiez les empreintes avant de faire confiance aux clés obtenues avec ssh-keyscan.",
+      "model_env": "Créez les clés dans la console du fournisseur. Noms acceptés : OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY. Une ligne KEY=value par clé.",
+      "multica_pat": "Créez-le avec votre compte Multica dans Paramètres → Jetons API. Nécessaire pour démarrer le daemon, pas pour créer un utilisateur Linux."
+    },
+    "remote_source": "Identifiants lus depuis {{username}}. Changer de compte abandonne ce brouillon et restaure votre modèle personnel.",
+    "confirm_import": "Enregistrer ces identifiants distants, y compris les secrets, comme modèle personnel utilisable avec d’autres utilisateurs Linux."
   }
 }

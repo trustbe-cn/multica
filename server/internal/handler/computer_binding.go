@@ -73,7 +73,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	if _, ok := parseUUIDOrBadRequest(w, in.WorkspaceID, "workspace_id"); !ok {
 		return
 	}
-	if in.Action != "provision" && in.Action != "sync" && in.Action != "upgrade" && in.Action != "remove" {
+	if in.Action != "provision" && in.Action != "create_account" && in.Action != "sync" && in.Action != "upgrade" && in.Action != "remove" {
 		writeError(w, 400, "Invalid operation")
 		return
 	}
@@ -88,40 +88,44 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireWorkspaceMember(w, r, in.WorkspaceID, "Workspace membership required"); !ok {
 		return
 	}
-	key, err := secretbox.LoadKey("MULTICA_COMPUTER_SECRET_KEY")
-	if err != nil {
-		writeError(w, 503, "Computer provisioning is not configured")
-		return
+	settings := computer.Settings{}
+	if in.Action == "provision" || in.Action == "sync" {
+		key, err := secretbox.LoadKey("MULTICA_COMPUTER_SECRET_KEY")
+		if err != nil {
+			writeError(w, 503, "Computer provisioning is not configured")
+			return
+		}
+		box, err := secretbox.New(key)
+		if err != nil {
+			writeError(w, 503, "Computer provisioning is not configured")
+			return
+		}
+		var cipher []byte
+		if h.DB.QueryRow(r.Context(), `SELECT ciphertext FROM computer_credential WHERE user_id=$1`, uid).Scan(&cipher) != nil {
+			writeError(w, 400, "Save your credentials first")
+			return
+		}
+		plain, err := box.Open(cipher)
+		if err != nil {
+			writeError(w, 500, "Cannot decrypt settings")
+			return
+		}
+		var saved struct {
+			Owner    string            `json:"owner"`
+			Settings computer.Settings `json:"settings"`
+		}
+		if json.Unmarshal(plain, &saved) != nil || saved.Owner != uid {
+			writeError(w, 500, "Invalid settings owner")
+			return
+		}
+		settings = saved.Settings
+		pat, err := h.Queries.GetPersonalAccessTokenByHash(r.Context(), auth.HashToken(settings.MulticaPAT))
+		if err != nil || uuidToString(pat.UserID) != uid {
+			writeError(w, 400, "Multica token must be valid and belong to you")
+			return
+		}
 	}
-	box, err := secretbox.New(key)
-	if err != nil {
-		writeError(w, 503, "Computer provisioning is not configured")
-		return
-	}
-	var cipher []byte
-	if h.DB.QueryRow(r.Context(), `SELECT ciphertext FROM computer_credential WHERE user_id=$1`, uid).Scan(&cipher) != nil {
-		writeError(w, 400, "Save your credentials first")
-		return
-	}
-	plain, err := box.Open(cipher)
-	if err != nil {
-		writeError(w, 500, "Cannot decrypt settings")
-		return
-	}
-	var saved struct {
-		Owner    string            `json:"owner"`
-		Settings computer.Settings `json:"settings"`
-	}
-	if json.Unmarshal(plain, &saved) != nil || saved.Owner != uid {
-		writeError(w, 500, "Invalid settings owner")
-		return
-	}
-	settings := saved.Settings
-	pat, err := h.Queries.GetPersonalAccessTokenByHash(r.Context(), auth.HashToken(settings.MulticaPAT))
-	if err != nil || uuidToString(pat.UserID) != uid {
-		writeError(w, 400, "Multica token must be valid and belong to you")
-		return
-	}
+
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
 		writeError(w, 500, "Cannot start operation")
@@ -138,11 +142,11 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 	keyPath := os.Getenv("MULTICA_COMPUTER_SSH_KEY")
 	binary := os.Getenv("MULTICA_COMPUTER_CLI_PATH")
 	lockDir := os.Getenv("MULTICA_COMPUTER_STATE_DIR")
-	if serverURL == "" || keyPath == "" || binary == "" || lockDir == "" {
+	if keyPath == "" || lockDir == "" || ((in.Action == "provision" || in.Action == "sync" || in.Action == "upgrade") && (serverURL == "" || binary == "")) {
 		writeError(w, 503, "Computer provisioning is not configured")
 		return
 	}
-	if in.Action != "provision" {
+	if in.Action != "provision" && in.Action != "create_account" {
 		var owned bool
 		if h.DB.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM computer_binding WHERE computer_id=$1 AND username=$2 AND user_id=$3 AND (workspace_id=$4 OR $5='remove') AND verified)`, m.ID, in.Username, uid, in.WorkspaceID, in.Action).Scan(&owned) != nil || !owned {
 			writeError(w, 404, "Create or reuse this account first")
@@ -176,7 +180,7 @@ func (h *Handler) ComputerBindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	remote := computer.SSHRemote{Host: m.Host, Port: m.Port, User: m.SSHUser, KeyPath: keyPath, BinaryPath: binary, DaemonID: b.ID, HealthPort: b.HealthPort, WorkspaceID: b.WorkspaceID, Timeout: 90 * time.Second}
-	req := computer.Request{ComputerID: m.ID, ServerURL: serverURL, Username: in.Username, Password: in.Password, GitName: settings.GitName, GitEmail: settings.GitEmail, GitLabURL: settings.GitLabURL, GitLabToken: settings.GitLabToken, GitSSHKey: settings.GitSSHKey, GitKnownHosts: settings.GitKnownHosts, ModelEnv: settings.ModelEnv, MulticaPAT: settings.MulticaPAT, FailureLimit: 5}
+	req := computer.Request{ComputerID: m.ID, ServerURL: serverURL, Username: in.Username, Password: in.Password, GitName: settings.GitName, GitEmail: settings.GitEmail, GitLabURL: settings.GitLabURL, GitLabToken: settings.GitLabToken, GitSSHKey: settings.GitSSHKey, GitKnownHosts: settings.GitKnownHosts, ModelEnv: settings.ModelEnv, MulticaPAT: settings.MulticaPAT, FailureLimit: 5, AccountOnly: in.Action == "create_account", PreserveFiles: in.Action == "upgrade"}
 	action := in.Action
 	go h.runRemoteOperation(operationID, func(ctx context.Context) (string, error) {
 		remote.Context = ctx
@@ -279,6 +283,19 @@ func (h *Handler) runComputerOperation(ctx context.Context, operationID, uid str
 		}
 		return err
 	}
+	if action == "upgrade" {
+		req.AfterAuthenticate = func() error {
+			settings, err := remote.ReadSettings(b.Username)
+			if err != nil {
+				return err
+			}
+			pat, err := h.Queries.GetPersonalAccessTokenByHash(ctx, auth.HashToken(settings.MulticaPAT))
+			if err != nil || uuidToString(pat.UserID) != uid {
+				return computer.ClassifiedError("credentials_required")
+			}
+			return nil
+		}
+	}
 	result, err := computer.Apply(remote, store, req)
 	if err != nil {
 		return err
@@ -296,6 +313,10 @@ func (h *Handler) runComputerOperation(ctx context.Context, operationID, uid str
 		return err
 	}
 
+	if req.AccountOnly {
+		state = "pending"
+		return nil
+	}
 	if req.Step != nil {
 		req.Step("waiting_registration")
 	}
@@ -334,7 +355,7 @@ ON CONFLICT(computer_id,username) DO UPDATE SET
  user_id=EXCLUDED.user_id,
  workspace_id=CASE
   WHEN NOT computer_binding.verified
-    OR ($5='provision' AND computer_binding.state IN ('removed','detached'))
+    OR ($5 IN ('provision','create_account') AND computer_binding.state IN ('removed','detached'))
   THEN $3 ELSE computer_binding.workspace_id END,
  health_port=CASE WHEN computer_binding.state='failed'
   THEN EXCLUDED.health_port ELSE computer_binding.health_port END,
@@ -342,8 +363,9 @@ ON CONFLICT(computer_id,username) DO UPDATE SET
 WHERE (
  (computer_binding.user_id=$2 AND
   (computer_binding.workspace_id=$3 OR $5='remove' OR computer_binding.state IN ('removed','detached')))
- OR (NOT computer_binding.verified AND computer_binding.state='failed' AND $5='provision')
+ OR (NOT computer_binding.verified AND computer_binding.state='failed' AND $5 IN ('provision','create_account'))
 ) AND (computer_binding.state<>'running' OR computer_binding.updated_at<now()-interval '20 minutes')
+  AND NOT ($5='create_account' AND computer_binding.verified AND computer_binding.state='ready')
   AND NOT EXISTS (SELECT 1 FROM computer_operation o WHERE o.binding_id=computer_binding.id AND o.state IN ('queued','running'))
 RETURNING id::text,computer_id::text,COALESCE(workspace_id::text,''),username,state,last_error,health_port
 `

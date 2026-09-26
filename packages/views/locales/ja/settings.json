@@ -1366,7 +1366,7 @@
     "hide": "Hide secrets",
     "loading": "Loading…",
     "setup": "Your runtime",
-    "setup_help": "Uses the current workspace. Existing Linux accounts require their current password; an incorrect password never resets the account.",
+    "setup_help": "Linux アカウントを作成または検証し、このワークスペースに関連付けます。認証情報は後から設定でき、デーモンは別途起動します。",
     "choose": "Choose a Computer",
     "username": "Linux username",
     "password": "Linux password",
@@ -1380,8 +1380,9 @@
     "actions": {
       "provision": "Create or reuse account",
       "sync": "Sync credentials",
-      "upgrade": "Upgrade runtime",
-      "remove": "Remove runtime"
+      "upgrade": "デーモンを起動・更新",
+      "remove": "Remove runtime",
+      "create_account": "アカウントを作成・検証"
     },
     "machine_fields": {
       "name": "Name",
@@ -1416,7 +1417,7 @@
     "open_personal": "自分の実行環境を開く",
     "no_computers": "利用可能な Computer がありません。管理者に追加を依頼してください。",
     "connect_action": "アカウントを接続",
-    "accepted": "接続を開始しました。状態は下に更新されます。後で戻って確認できます。",
+    "accepted": "Request accepted. Check the runtime status below.",
     "manage_personal": "アカウント、CLI、操作履歴は自分の実行環境で管理",
     "eligibility": {
       "available": "接続可能です。現在の Linux パスワードを入力してください。",
@@ -1435,7 +1436,10 @@
       "binding_workspace_conflict": "別のワークスペースに接続中です。先にそこで管理 daemon を削除してください。",
       "binding_conflict": "利用可能な状態が変わりました。更新して再試行してください。",
       "generic": "接続できませんでした。操作履歴を確認して再試行してください。"
-    }
+    },
+    "account_help": "Linux アカウントを作成または検証し、このワークスペースに関連付けます。認証情報は後から設定でき、デーモンは別途起動します。",
+    "required_fields": "利用可能なアカウント、または Computer とユーザー名を選び、Linux パスワードを入力してください。",
+    "new_account_help": "Computer にこのユーザー名が存在する場合は、現在の Linux パスワードで所有権を検証します。存在しない場合は、このパスワードで新しいアカウントを作成します。"
   },
   "admin": {
     "title": "Admin Area",
@@ -1513,7 +1517,7 @@
     "discover": "ランタイムを再検出",
     "archive": "関連付けをアーカイブ",
     "delete_user": "Linux ユーザーを削除",
-    "retry_help": "同期は認証情報を書き直してデーモンを再起動します。更新は実行ファイルも置き換えます。再試行は同じ手順を繰り返します。再検出は CLI を確認してデーモンを更新し、実行中のタスクは再起動しません。",
+    "retry_help": "関連付け後、自分の実行環境で認証情報を設定しデーモンを起動してください。",
     "delete_help": "Linux アカウントとホームディレクトリ（コード、設定、認証情報）を完全に削除します。実行中のプロセスがあると削除できません。先に管理対象デーモンを削除してください。元に戻せません。",
     "archive_help": "削除済みの関連付けを非表示にして Computer の削除を許可します。Linux アカウント、ホーム、操作履歴と所有権は保持されます。",
     "confirm_username": "確認のため {{username}} を入力",
@@ -1550,7 +1554,8 @@
       "installed": "インストール済み",
       "version_failed": "バージョン確認失敗",
       "check_failed": "確認失敗",
-      "stopped": "停止"
+      "stopped": "停止",
+      "pending": "設定待ち"
     },
     "errors": {
       "account_missing": "アカウントを再設定してください。",
@@ -1570,7 +1575,9 @@
       "interrupted": "リモートアカウントとインストール状態を確認してから再試行を許可してください。",
       "cancelled": "操作は実行前にキャンセルされました。",
       "account_delete_failed": "実行中のプロセスと権限を確認して削除を再試行してください。",
-      "remote_step_failed": "前提条件を確認し、表示された操作を再試行してください。"
+      "remote_step_failed": "前提条件を確認し、表示された操作を再試行してください。",
+      "credentials_required": "本人の Multica アカウントで設定 → API トークンから作成します。デーモンの起動に必要ですが、Linux ユーザーの作成には不要です。",
+      "credential_transfer_failed": "~/.gitconfig、~/.config/multica-provision/、この関連付けの ~/.multica/profiles/computer-<binding-id>/config.json を読み込みます。シェル起動ファイルや CLI のログインセッションは対象外です。"
     },
     "kinds": {
       "provision": "アカウント設定",
@@ -1579,7 +1586,10 @@
       "remove": "デーモン削除",
       "runtime_install": "ランタイム導入",
       "runtime_discovery": "ランタイム検出",
-      "delete_user": "アカウント削除"
+      "delete_user": "アカウント削除",
+      "create_account": "アカウントを作成・検証",
+      "credentials_read": "認証情報の読み込み",
+      "credentials_write": "認証情報の書き込み"
     },
     "steps": {
       "queued": "待機",
@@ -1593,11 +1603,38 @@
       "installing_runtime": "CLI 導入",
       "checking_runtime": "導入の検証",
       "removing_daemon": "デーモン削除",
-      "deleting_account": "アカウント削除"
+      "deleting_account": "アカウント削除",
+      "reading_credentials": "認証情報を読み込み中"
     },
     "daemon_checked": "デーモン確認日時",
     "archived": "アーカイブ済み",
     "prompt_password": "設定フォームに Linux パスワードを入力し、選択した操作を実行してください。",
     "password_for": "{{username}} の Linux パスワード"
+  },
+  "credential_page": {
+    "title": "個人の認証情報",
+    "help": "すべて任意です。個人用テンプレートを保存するか、自分の Linux ユーザーから設定を読み込めます。アカウント作成に認証情報は不要です。",
+    "transfer": "アカウント設定の読み書き",
+    "target": "対象 Linux ユーザー",
+    "transfer_help": "読み込みはフォームを置き換えます。保存は Multica に保存します。書き込みは入力済みの項目だけを対象アカウントに反映し、空欄の既存値を保持します。デーモンは再起動しません。",
+    "read": "サーバーから読み込む",
+    "write": "Linux ユーザーに書き込む",
+    "read_done": "フォームに読み込みました。確認してから保存または書き込んでください。",
+    "write_done": "書き込みました。自分の実行環境からデーモンを起動または再起動してください。",
+    "saved": "個人の認証情報を保存しました。リモート設定は変更していません。",
+    "no_accounts": "先に自分の実行環境で Linux ユーザーを作成または検証してください。",
+    "locations": "~/.gitconfig、~/.config/multica-provision/、この関連付けの ~/.multica/profiles/computer-<binding-id>/config.json を読み込みます。シェル起動ファイルや CLI のログインセッションは対象外です。",
+    "field_help": {
+      "git_name": "Git のコミット作成者名。対象ユーザーで git config --global user.name を実行すると確認できます。",
+      "git_email": "Git ホスティングで確認済みのメール。git config --global user.email で確認できます。",
+      "gitlab_url": "GitLab のサイト URL。例：https://gitlab.example.com。GitLab トークンを使う場合に必要です。",
+      "gitlab_token": "GitLab のユーザー設定 → Access tokens で作成します。HTTPS の取得・送信に必要なリポジトリ権限だけを付与します。SSH 利用時は任意です。",
+      "git_ssh_key": "Git 専用の SSH 秘密鍵。対応する .pub 公開鍵を GitLab に登録します。Computer の運用キーとは別です。パスフレーズ付きの鍵は未対応です。",
+      "git_known_hosts": "Git サーバーの検証済み ~/.ssh/known_hosts エントリ。ssh-keyscan の結果はフィンガープリントを確認してください。",
+      "model_env": "各プロバイダーの管理画面で API キーを作成します。OPENAI_API_KEY、ANTHROPIC_API_KEY、OPENROUTER_API_KEY、GEMINI_API_KEY、XAI_API_KEY に対応。1 行に KEY=value を記入します。",
+      "multica_pat": "本人の Multica アカウントで設定 → API トークンから作成します。デーモンの起動に必要ですが、Linux ユーザーの作成には不要です。"
+    },
+    "remote_source": "{{username}} から読み取った認証情報です。アカウントを切り替えるとこの下書きは破棄され、個人テンプレートに戻ります。",
+    "confirm_import": "秘密鍵を含むこれらのリモート認証情報を、他の Linux ユーザーでも使用できる個人テンプレートとして保存します。"
   }
 }

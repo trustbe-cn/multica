@@ -12,7 +12,7 @@
 | 未验证的 `failed` 记录 | 任意工作区 | 不是已拥有的账号；当前 SQL 允许重新认领，但必须通过 Linux 密码校验。 | 按新账号流程开通，不能在已有账号列表中承诺可直接复用。 |
 | 已归档账号 | 任意工作区 | 当前列表不返回；SQL 可在允许的状态下清除归档标记。 | 本阶段不作为普通候选，先确认恢复语义。 |
 
-客户端还须先确认目标工作区已创建、当前用户是成员、Computer 可用、个人凭据已保存且 PAT 属于本人。`account_state='missing'` 不是独立的所有权判定；远端账号可能需要重新创建。服务器继续验证这些条件，不能只信前端选择器。
+账号接入需先确认目标工作区已创建、当前用户是成员且 Computer 可用。`create_account` 不要求个人凭据，成功后为 `pending`（待配置）；启动守护进程时才要求远端 profile 中有本人的有效 PAT。详见[凭据指南](linux-user-credentials-guide.md)。`account_state='missing'` 不是独立的所有权判定；远端账号可能需要重新创建。服务器继续验证这些条件，不能只信前端选择器。
 
 实现中的 `GET /api/me/computer-bindings` 增加 `verified`、`account_state` 和 `operation_busy`。旧服务端缺少字段时，客户端分别回退为 `false`、`unknown` 和 `false`，不能把缺失的 `verified` 解释成可复用。`POST /api/me/computer-bindings` 的冲突响应增加 `username_unavailable`、`operation_busy`、`binding_workspace_conflict` 和 `binding_conflict` 错误码；同名占用不暴露其他所有者身份。并发下仍以服务端事务结果为准。真实数据库冲突测试尚未执行，不能仅凭 Go 编译和界面测试认定这条契约已验收。
 

@@ -15,7 +15,11 @@ const api = vi.hoisted(() => ({
   operateComputer: vi.fn(),
   listComputerBindingRuntimes: vi.fn(),
   installComputerBindingRuntime: vi.fn(),
-  getComputerBindingDetail: vi.fn(), listComputerOperations: vi.fn(), discoverComputerBinding: vi.fn(), computerBindingLifecycle: vi.fn(), recoverComputerOperation: vi.fn(),
+  getComputerBindingDetail: vi.fn(),
+  listComputerOperations: vi.fn(),
+  discoverComputerBinding: vi.fn(),
+  computerBindingLifecycle: vi.fn(),
+  recoverComputerOperation: vi.fn(),
 }));
 vi.mock("@multica/core/api", () => ({ api }));
 vi.mock("@multica/core/auth", () => {
@@ -27,8 +31,22 @@ vi.mock("@multica/core/auth", () => {
     ),
   };
 });
-vi.mock("@multica/core/paths", () => ({
-  useCurrentWorkspace: () => ({ id: "workspace-1", name: "Team" }),
+vi.mock("@multica/core/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/paths")>()),
+  useCurrentWorkspace: () => ({
+    id: "workspace-1",
+    name: "Team",
+    slug: "team",
+  }),
+}));
+vi.mock("../../navigation", () => ({
+  AppLink: ({
+    href,
+    children,
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => <a href={href}>{children}</a>,
 }));
 const settings = {
   git_name: "Alice",
@@ -59,113 +77,249 @@ beforeEach(() => {
   api.listComputerBindings.mockResolvedValue([]);
   api.saveComputerSettings.mockResolvedValue(undefined);
   api.listComputerBindingRuntimes.mockResolvedValue([]);
-  api.installComputerBindingRuntime.mockResolvedValue({operation_id:"operation-1",state:"queued"});
+  api.installComputerBindingRuntime.mockResolvedValue({
+    operation_id: "operation-1",
+    state: "queued",
+  });
   api.listComputerOperations.mockResolvedValue([]);
-  api.getComputerBindingDetail.mockResolvedValue({id:"binding-1",computer_id:"machine-1",computer_name:"Dev server",workspace_id:"workspace-1",workspace_name:"Team",username:"alice",state:"ready",account_state:"present",daemon_state:"stopped",daemon_id:"binding-1",last_error:"",checked_at:null,last_seen_at:null,archived_at:null});
+  api.getComputerBindingDetail.mockResolvedValue({
+    id: "binding-1",
+    computer_id: "machine-1",
+    computer_name: "Dev server",
+    workspace_id: "workspace-1",
+    workspace_name: "Team",
+    username: "alice",
+    state: "ready",
+    account_state: "present",
+    daemon_state: "stopped",
+    daemon_id: "binding-1",
+    last_error: "",
+    checked_at: null,
+    last_seen_at: null,
+    archived_at: null,
+  });
 });
 describe("Computers settings", () => {
-  it("saves personal settings and does not expose operator controls or multiline secrets", async () => {
+  it("links to separate credentials without reading or rendering secrets", async () => {
     mount();
-    const user = userEvent.setup();
-    const name = await screen.findByLabelText("Git author name");
+    expect(
+      await screen.findByRole("link", { name: "Personal credentials" }),
+    ).toHaveAttribute("href", "/team/settings?tab=credentials");
+    expect(screen.queryByLabelText("Git author name")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Register Computer" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Model API keys (KEY=value, one per line)"),
-    ).toHaveValue("");
-    await user.clear(name);
-    await user.type(name, "Alice Human");
-    await user.click(screen.getByRole("button", { name: "Save credentials" }));
-    await waitFor(() =>
-      expect(api.saveComputerSettings).toHaveBeenCalledWith({
-        ...settings,
-        git_name: "Alice Human",
-      }),
-    );
-    expect(api.operateComputer).not.toHaveBeenCalled();
-  });
-  it("keeps machine registration out of personal settings even for operators", async () => {
-    api.getComputerSettings.mockResolvedValue({operator:true,settings});
-    mount();
-    await screen.findByLabelText("Git author name");
-    expect(screen.queryByRole("button",{name:"Register Computer"})).not.toBeInTheDocument();
-  });
-  it("surfaces settings errors without an editable empty replacement", async () => {
-    api.getComputerSettings.mockRejectedValue(
-      new Error("Settings unavailable"),
-    );
-    mount();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Settings unavailable",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Save credentials" }),
-    ).not.toBeInTheDocument();
+    expect(api.getComputerSettings).not.toHaveBeenCalled();
   });
 });
 
 it("installs a CLI runtime through the owner's ready binding", async () => {
-  api.listComputerBindings.mockResolvedValue([{ id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice", state: "ready", last_error: "" }]);
-  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
-  api.listComputerBindingRuntimes.mockResolvedValue([{ id: "codex", display_name: "Codex", installed_version: "", can_install: true, version_required: true, probe_error: "" }]);
+  api.listComputerBindings.mockResolvedValue([
+    {
+      id: "binding-1",
+      computer_id: "machine-1",
+      workspace_id: "workspace-1",
+      username: "alice",
+      state: "ready",
+      last_error: "",
+    },
+  ]);
+  api.listComputers.mockResolvedValue([
+    { id: "machine-1", name: "Dev server", enabled: true },
+  ]);
+  api.listComputerBindingRuntimes.mockResolvedValue([
+    {
+      id: "codex",
+      display_name: "Codex",
+      installed_version: "",
+      can_install: true,
+      version_required: true,
+      probe_error: "",
+    },
+  ]);
   mount();
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "Linux User details" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Linux User details" }),
+  );
   expect(await screen.findByText("Codex")).toBeInTheDocument();
-  expect(api.listComputerBindingRuntimes).toHaveBeenCalledWith("binding-1", expect.anything());
-  await user.type(screen.getByRole("textbox", { name: "Codex version" }), "1.2.3");
+  expect(api.listComputerBindingRuntimes).toHaveBeenCalledWith(
+    "binding-1",
+    expect.anything(),
+  );
+  await user.type(
+    screen.getByRole("textbox", { name: "Codex version" }),
+    "1.2.3",
+  );
   await user.click(screen.getByRole("button", { name: "Install" }));
-  await waitFor(() => expect(api.installComputerBindingRuntime).toHaveBeenCalledWith("binding-1", "codex", "1.2.3"));
+  await waitFor(() =>
+    expect(api.installComputerBindingRuntime).toHaveBeenCalledWith(
+      "binding-1",
+      "codex",
+      "1.2.3",
+    ),
+  );
 });
 
 it("shows separate Linux User rows for different usernames on the same Computer", async () => {
   api.listComputerBindings.mockResolvedValue([
-    { id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice-dev", state: "ready", last_error: "" },
-    { id: "binding-2", computer_id: "machine-1", workspace_id: "workspace-2", username: "alice-build", state: "removed", last_error: "" },
+    {
+      id: "binding-1",
+      computer_id: "machine-1",
+      workspace_id: "workspace-1",
+      username: "alice-dev",
+      state: "ready",
+      last_error: "",
+    },
+    {
+      id: "binding-2",
+      computer_id: "machine-1",
+      workspace_id: "workspace-2",
+      username: "alice-build",
+      state: "removed",
+      last_error: "",
+    },
   ]);
-  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
+  api.listComputers.mockResolvedValue([
+    { id: "machine-1", name: "Dev server", enabled: true },
+  ]);
   mount();
   expect(await screen.findByText(/Dev server · alice-dev/)).toBeInTheDocument();
   expect(screen.getByText(/Dev server · alice-build/)).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: "Linux User details" })).toHaveLength(2);
+  expect(
+    screen.getAllByRole("button", { name: "Linux User details" }),
+  ).toHaveLength(2);
 });
 
 it("does not offer runtime installation for removed bindings", async () => {
-  api.listComputerBindings.mockResolvedValue([{ id: "binding-1", computer_id: "machine-1", workspace_id: "workspace-1", username: "alice", state: "removed", last_error: "" }]);
-  api.listComputers.mockResolvedValue([{ id: "machine-1", name: "Dev server", enabled: true }]);
+  api.listComputerBindings.mockResolvedValue([
+    {
+      id: "binding-1",
+      computer_id: "machine-1",
+      workspace_id: "workspace-1",
+      username: "alice",
+      state: "removed",
+      last_error: "",
+    },
+  ]);
+  api.listComputers.mockResolvedValue([
+    { id: "machine-1", name: "Dev server", enabled: true },
+  ]);
   mount();
   expect(await screen.findByText(/Dev server.*alice/)).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Runtimes" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Runtimes" }),
+  ).not.toBeInTheDocument();
   expect(api.listComputerBindingRuntimes).not.toHaveBeenCalled();
 });
 
 it("shows account and daemon status separately and tracks an install after reopening details", async () => {
-  api.listComputerBindings.mockResolvedValue([{id:"binding-1",computer_id:"machine-1",workspace_id:"workspace-1",username:"alice",state:"ready",last_error:""}]);
-  api.listComputerOperations.mockResolvedValue([{id:"op-1",binding_id:"binding-1",kind:"runtime_install",runtime_id:"codex",state:"running",step:"installing_runtime",requested_version:"latest",actual_version:"",error_code:"",error_summary:"",created_at:"2026-09-25T01:00:00Z",finished_at:null}]);
-  api.listComputerBindingRuntimes.mockResolvedValue([{id:"codex",display_name:"Codex",installed_version:"",can_install:true,version_required:true,probe_state:"unknown",probe_error:""}]);
-  mount();const user=userEvent.setup();
-  await user.click(await screen.findByRole("button",{name:"Linux User details"}));
+  api.listComputerBindings.mockResolvedValue([
+    {
+      id: "binding-1",
+      computer_id: "machine-1",
+      workspace_id: "workspace-1",
+      username: "alice",
+      state: "ready",
+      last_error: "",
+    },
+  ]);
+  api.listComputerOperations.mockResolvedValue([
+    {
+      id: "op-1",
+      binding_id: "binding-1",
+      kind: "runtime_install",
+      runtime_id: "codex",
+      state: "running",
+      step: "installing_runtime",
+      requested_version: "latest",
+      actual_version: "",
+      error_code: "",
+      error_summary: "",
+      created_at: "2026-09-25T01:00:00Z",
+      finished_at: null,
+    },
+  ]);
+  api.listComputerBindingRuntimes.mockResolvedValue([
+    {
+      id: "codex",
+      display_name: "Codex",
+      installed_version: "",
+      can_install: true,
+      version_required: true,
+      probe_state: "unknown",
+      probe_error: "",
+    },
+  ]);
+  mount();
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "Linux User details" }),
+  );
   expect(await screen.findByText("Present")).toBeInTheDocument();
   expect(screen.getByText(/Stopped · binding-1/)).toBeInTheDocument();
-  expect(screen.getByRole("button",{name:"Install"})).toBeDisabled();
-  await user.click(screen.getByRole("button",{name:"Linux User details"}));
-  await user.click(screen.getByRole("button",{name:"Linux User details"}));
+  expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Linux User details" }));
+  await user.click(screen.getByRole("button", { name: "Linux User details" }));
   expect(await screen.findByText(/Requested: latest/)).toBeInTheDocument();
   expect(api.installComputerBindingRuntime).not.toHaveBeenCalled();
 });
 
 it("requires typed confirmation before deleting a removed Linux account", async () => {
-  api.listComputerBindings.mockResolvedValue([{id:"binding-1",computer_id:"machine-1",workspace_id:"",username:"alice",state:"removed",last_error:""}]);
-  api.getComputerBindingDetail.mockResolvedValue({id:"binding-1",computer_id:"machine-1",computer_name:"Dev server",workspace_id:"",workspace_name:"",username:"alice",state:"removed",account_state:"present",daemon_state:"stopped",daemon_id:"binding-1",last_error:"",checked_at:null,last_seen_at:null,archived_at:null});
-  api.computerBindingLifecycle.mockResolvedValue({operation_id:"delete-1",state:"queued"});
-  mount();const user=userEvent.setup();
-  await user.click(await screen.findByRole("button",{name:"Linux User details"}));
-  await user.click(await screen.findByRole("button",{name:"Delete Linux user"}));
-  expect(screen.getByText(/Permanently delete this Linux account/)).toBeInTheDocument();
-  const confirm=screen.getByRole("button",{name:"Confirm action"});expect(confirm).toBeDisabled();
-  await user.type(screen.getByLabelText("Type alice to confirm"),"alice");
-  await user.type(screen.getByLabelText("Linux password for alice"),"test-password");
+  api.listComputerBindings.mockResolvedValue([
+    {
+      id: "binding-1",
+      computer_id: "machine-1",
+      workspace_id: "",
+      username: "alice",
+      state: "removed",
+      last_error: "",
+    },
+  ]);
+  api.getComputerBindingDetail.mockResolvedValue({
+    id: "binding-1",
+    computer_id: "machine-1",
+    computer_name: "Dev server",
+    workspace_id: "",
+    workspace_name: "",
+    username: "alice",
+    state: "removed",
+    account_state: "present",
+    daemon_state: "stopped",
+    daemon_id: "binding-1",
+    last_error: "",
+    checked_at: null,
+    last_seen_at: null,
+    archived_at: null,
+  });
+  api.computerBindingLifecycle.mockResolvedValue({
+    operation_id: "delete-1",
+    state: "queued",
+  });
+  mount();
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "Linux User details" }),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Delete Linux user" }),
+  );
+  expect(
+    screen.getByText(/Permanently delete this Linux account/),
+  ).toBeInTheDocument();
+  const confirm = screen.getByRole("button", { name: "Confirm action" });
+  expect(confirm).toBeDisabled();
+  await user.type(screen.getByLabelText("Type alice to confirm"), "alice");
+  await user.type(
+    screen.getByLabelText("Linux password for alice"),
+    "test-password",
+  );
   await user.click(confirm);
-  await waitFor(()=>expect(api.computerBindingLifecycle).toHaveBeenCalledWith("binding-1",{action:"delete_user",confirm_username:"alice",password:"test-password"}));
+  await waitFor(() =>
+    expect(api.computerBindingLifecycle).toHaveBeenCalledWith("binding-1", {
+      action: "delete_user",
+      confirm_username: "alice",
+      password: "test-password",
+    }),
+  );
 });

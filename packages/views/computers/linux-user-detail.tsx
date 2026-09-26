@@ -19,7 +19,7 @@ export function LinuxUserDetail({
   userId: string;
   bindingId: string;
   admin?: boolean;
-  onConfigure?: (action: "provision" | "sync" | "upgrade") => void;
+  onConfigure?: (action: "create_account" | "upgrade") => void;
   children?: (busy: boolean) => ReactNode;
 }) {
   const { t } = useT("settings");
@@ -113,21 +113,14 @@ export function LinuxUserDetail({
                 (d.state === "removed" || d.state === "detached") && (
                   <Button
                     variant="outline"
-                    onClick={() => onConfigure("provision")}
+                    onClick={() => onConfigure("create_account")}
                     disabled={busy}
                   >
-                    {t(($) => $.computers.actions.provision)}
+                    {t(($) => $.computers.actions.create_account)}
                   </Button>
                 )}
               {onConfigure && d.workspace_id && d.state !== "removed" && (
                 <>
-                  <Button
-                    variant="outline"
-                    onClick={() => onConfigure("sync")}
-                    disabled={busy}
-                  >
-                    {t(($) => $.computers.actions.sync)}
-                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => onConfigure("upgrade")}
@@ -137,7 +130,7 @@ export function LinuxUserDetail({
                   </Button>
                 </>
               )}
-              {["ready", "failed"].includes(d.state) && (
+              {["ready", "failed", "pending"].includes(d.state) && (
                 <Button
                   variant="outline"
                   disabled={busy}

@@ -53,11 +53,20 @@ print(json.dumps(r))`
 	return p, err
 }
 
+// ClassifiedError carries only a fixed public code, never command output.
+type ClassifiedError string
+
+func (e ClassifiedError) Error() string { return ErrorSummary(string(e)) }
+
 // ErrorCode maps transport and known prerequisite failures to safe public codes.
 // Callers store a fixed summary rather than arbitrary SSH output.
 func ErrorCode(err error, fallback string) string {
 	if err == nil {
 		return ""
+	}
+	var classified ClassifiedError
+	if errors.As(err, &classified) {
+		return string(classified)
 	}
 	if errors.Is(err, context.Canceled) {
 		return "cancelled"
@@ -108,6 +117,10 @@ func ErrorSummary(code string) string {
 		return "CLI executable is missing; install the runtime."
 	case "version_check_failed":
 		return "CLI exists but its version command failed; repair its dependencies or reinstall."
+	case "credentials_required":
+		return "Write your own valid Multica PAT to this Linux user before starting the daemon."
+	case "credential_transfer_failed":
+		return "Remote credentials are invalid; check the managed configuration files before retrying."
 	case "daemon_offline":
 		return "Daemon has not registered; check connectivity, then sync or upgrade."
 	case "interrupted":

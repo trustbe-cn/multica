@@ -2,6 +2,8 @@
 
 本文记录下一阶段的产品与实现方案。它不改变[当前模型](computer-runtime-identity-model.md)的事实描述；本文标为“拟实现”的行为尚未上线。
 
+最新调整：账号接入已拆为不依赖凭据的账号创建/验证，以及独立的个人凭据读取、写入与守护进程启动，见[凭据指南](../engineering/linux-user-credentials-guide.md)。下文原方案中的“先保存凭据”顺序以该调整为准。
+
 ## 决定与边界
 
 - 一个 Multica 用户可在不同 Computer 上拥有多个 Linux 用户，也可在**同一台 Computer 上**拥有多个不同用户名的 Linux 用户。账号以 `(computer_id, username)` 区分，每个受管账号只有一个已验证的 Multica 用户所有者；不能仅凭知道用户名接管别人的账号。

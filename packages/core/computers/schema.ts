@@ -12,6 +12,16 @@ export const ComputerSettingsSchema = z.object({
   multica_pat: z.string(),
 });
 export type ComputerSettings = z.infer<typeof ComputerSettingsSchema>;
+const CredentialWriteResultSchema = z.object({ saved: z.literal(true) });
+
+export function parseCredentialWriteResult(data: unknown) {
+  const result = CredentialWriteResultSchema.safeParse(data);
+  if (!result.success) {
+    parseWithFallback(null, CredentialWriteResultSchema, null, { endpoint: "computer-credentials/write (redacted)" });
+    throw new Error("Could not confirm credentials were written");
+  }
+  return parseWithFallback(result.data, CredentialWriteResultSchema, result.data, { endpoint: "computer-credentials/write" });
+}
 export const PersonalComputerSettingsSchema = z.object({
   operator: z.boolean(),
   settings: ComputerSettingsSchema,
@@ -42,7 +52,7 @@ export type ComputerOperation = {
   workspace_id: string;
   username: string;
   password: string;
-  action: "provision" | "sync" | "upgrade" | "remove";
+  action: "create_account" | "provision" | "sync" | "upgrade" | "remove";
 };
 
 // Never send credential-bearing malformed responses to the schema logger.

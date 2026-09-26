@@ -1373,7 +1373,7 @@
     "hide": "Hide secrets",
     "loading": "Loading…",
     "setup": "Your runtime",
-    "setup_help": "Uses the current workspace. Existing Linux accounts require their current password; an incorrect password never resets the account.",
+    "setup_help": "Create or verify the Linux account and link it to this workspace. Credentials can be configured later; the daemon is started separately.",
     "choose": "Choose a Computer",
     "username": "Linux username",
     "password": "Linux password",
@@ -1387,8 +1387,9 @@
     "actions": {
       "provision": "Create or reuse account",
       "sync": "Sync credentials",
-      "upgrade": "Upgrade runtime",
-      "remove": "Remove runtime"
+      "upgrade": "Start / upgrade daemon",
+      "remove": "Remove runtime",
+      "create_account": "Create or verify account"
     },
     "machine_fields": {
       "name": "Name",
@@ -1423,7 +1424,7 @@
     "open_personal": "Open my environments",
     "no_computers": "No Computer is available. Ask an instance administrator to add one.",
     "connect_action": "Connect account",
-    "accepted": "Connection started. The account status will update below; you can leave this page and return later.",
+    "accepted": "Request accepted. Check the runtime status below.",
     "manage_personal": "Manage account, CLI and operation history in My environments",
     "eligibility": {
       "available": "Available. Enter this account's current Linux password.",
@@ -1442,7 +1443,10 @@
       "binding_workspace_conflict": "This account is connected to another workspace. Remove its managed daemon there before connecting it here.",
       "binding_conflict": "Account availability changed. Refresh and try again.",
       "generic": "Could not connect this account. Review its operation history and retry."
-    }
+    },
+    "account_help": "Create or verify the Linux account and link it to this workspace. Credentials can be configured later; the daemon is started separately.",
+    "required_fields": "Choose an available account, or select a Computer and enter a username; then enter the Linux password.",
+    "new_account_help": "If this username already exists on the Computer, enter its current Linux password to verify ownership. Otherwise, this password will be set for the new account."
   },
   "admin": {
     "title": "Admin Area",
@@ -1520,7 +1524,7 @@
     "discover": "Rediscover runtimes",
     "archive": "Archive binding",
     "delete_user": "Delete Linux user",
-    "retry_help": "Sync rewrites credentials and restarts the daemon; upgrade also replaces its executable. Retry repeats these steps. Rediscovery checks CLI versions and asks the daemon to refresh; it does not restart running tasks.",
+    "retry_help": "Account connected; configure credentials and start the daemon in My environments.",
     "delete_help": "Permanently delete this Linux account and its home directory, including code, configuration and credentials. Running processes block deletion. Remove the managed daemon first. This cannot be undone.",
     "archive_help": "Hide this removed binding and allow Computer deletion. The Linux account, home directory and operation history are retained. Archived ownership stays reserved.",
     "confirm_username": "Type {{username}} to confirm",
@@ -1557,7 +1561,8 @@
       "installed": "Installed",
       "version_failed": "Version check failed",
       "check_failed": "Check failed",
-      "stopped": "Stopped"
+      "stopped": "Stopped",
+      "pending": "Pending configuration"
     },
     "errors": {
       "account_missing": "Account missing; provision it again.",
@@ -1577,7 +1582,9 @@
       "interrupted": "Check the remote account and assets before allowing a retry.",
       "cancelled": "Operation was cancelled before execution.",
       "account_delete_failed": "Check running processes and permissions, then retry deletion.",
-      "remote_step_failed": "Check prerequisites, then retry the displayed operation."
+      "remote_step_failed": "Check prerequisites, then retry the displayed operation.",
+      "credentials_required": "Create under Settings → API tokens using your own Multica account. Required to start the managed daemon, not to create a Linux user.",
+      "credential_transfer_failed": "Reads ~/.gitconfig and ~/.config/multica-provision/, plus the binding’s ~/.multica/profiles/computer-<binding-id>/config.json. Shell startup files and vendor CLI login sessions are not imported."
     },
     "kinds": {
       "provision": "Provision account",
@@ -1586,7 +1593,10 @@
       "remove": "Remove daemon",
       "runtime_install": "Install runtime",
       "runtime_discovery": "Discover runtimes",
-      "delete_user": "Delete account"
+      "delete_user": "Delete account",
+      "create_account": "Create or verify account",
+      "credentials_read": "Read credentials",
+      "credentials_write": "Write credentials"
     },
     "steps": {
       "queued": "Waiting",
@@ -1600,11 +1610,38 @@
       "installing_runtime": "Installing CLI",
       "checking_runtime": "Verifying installation",
       "removing_daemon": "Removing daemon",
-      "deleting_account": "Deleting account"
+      "deleting_account": "Deleting account",
+      "reading_credentials": "Reading credentials"
     },
     "daemon_checked": "Daemon checked",
     "archived": "Archived",
     "prompt_password": "Enter the Linux password in the setup form, then execute the selected action.",
     "password_for": "Linux password for {{username}}"
+  },
+  "credential_page": {
+    "title": "Personal credentials",
+    "help": "All fields are optional. Save a personal template here, or read settings from one of your Linux users. Creating an account does not require credentials.",
+    "transfer": "Read and write account settings",
+    "target": "Linux user",
+    "transfer_help": "Read replaces this form with the account’s settings; Save stores the form in Multica. Write applies non-empty fields to the selected account, preserving remote values for blank fields. It does not start or restart the daemon.",
+    "read": "Read from server",
+    "write": "Write to Linux user",
+    "read_done": "Settings read into the form. Review them before saving or writing.",
+    "write_done": "Settings written. Start or restart the daemon from My environments to apply them.",
+    "saved": "Personal credentials saved. Remote accounts were not changed.",
+    "no_accounts": "Create or verify a Linux user in My environments first.",
+    "locations": "Reads ~/.gitconfig and ~/.config/multica-provision/, plus the binding’s ~/.multica/profiles/computer-<binding-id>/config.json. Shell startup files and vendor CLI login sessions are not imported.",
+    "field_help": {
+      "git_name": "Your Git commit author name. Read the current value with git config --global user.name as the target Linux user.",
+      "git_email": "Use an email verified by your Git hosting service. Read it with git config --global user.email.",
+      "gitlab_url": "Your GitLab site origin, for example https://gitlab.example.com. Required only when using a GitLab token.",
+      "gitlab_token": "Create in GitLab user settings → Access tokens. For Git over HTTPS, grant only the repository read/write permissions you need. Optional when using SSH.",
+      "git_ssh_key": "Use a dedicated private SSH key for Git access; register its .pub key with GitLab. This is separate from the Computer operator key. Passphrase-protected keys are not supported.",
+      "git_known_hosts": "Trusted SSH host key entries for your Git server, from a verified ~/.ssh/known_hosts. Verify host fingerprints before trusting keys obtained with ssh-keyscan.",
+      "model_env": "Create API keys in the relevant provider console. Supported names: OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY. One KEY=value per line.",
+      "multica_pat": "Create under Settings → API tokens using your own Multica account. Required to start the managed daemon, not to create a Linux user."
+    },
+    "remote_source": "Credentials read from {{username}}. Switching accounts discards this draft and restores your personal template.",
+    "confirm_import": "Save these remote credentials, including secrets, as my personal template for use with other Linux users."
   }
 }

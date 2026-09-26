@@ -1,6 +1,6 @@
 import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
 import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
-import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
+import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, parseCredentialWriteResult, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
 import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema } from "./schemas";
@@ -956,6 +956,12 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
+  async readComputerCredentials(id: string, password: string) {
+    return parseComputerSettings(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/credentials/read`, { method: "POST", body: JSON.stringify({ password }) }));
+  }
+  async writeComputerCredentials(id: string, password: string, settings: ComputerSettings) {
+    return parseCredentialWriteResult(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/credentials/write`, { method: "POST", body: JSON.stringify({ password, settings }) }));
+  }
   async getComputerSettings() { return parseComputerSettings(await this.fetch<unknown>("/api/me/computer-settings")); }
   async saveComputerSettings(input: ComputerSettings) { await this.fetch("/api/me/computer-settings", { method: "PUT", body: JSON.stringify(input) }); }
   async getInstanceAccess() { return parseWithFallback(await this.fetch<unknown>("/api/me/instance-access"), InstanceAccessSchema, {admin:false}, {endpoint:"/api/me/instance-access"}); }

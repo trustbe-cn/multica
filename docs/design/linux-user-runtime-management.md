@@ -7,7 +7,8 @@
 
 - **Admin Area → Computers** 只管理实例级 Computer：登记、连接检查、启用/停用、删除（无未归档绑定时）。
 - **Admin Area → Linux Users** 管理托管绑定的运维视图：查看 Computer、Linux 用户、所属 Multica User、工作区、状态和错误；不提供普通 runtime 安装入口。
-- **设置 → 我的运行环境** 是 Multica 用户管理自己 Linux User 的主入口：创建/复用、同步、升级、移除，以及在该账号环境中探测和安装 CLI runtime。
+- **设置 → 我的运行环境** 是 Multica 用户管理自己 Linux User 的主入口：创建/验证账号、启动或升级守护进程、移除，以及在该账号环境中探测和安装 CLI runtime。
+- **设置 → 个人凭据** 独立管理可选配置模板、从本人账号读取与向账号写入；见[字段与操作指南](../engineering/linux-user-credentials-guide.md)。
 - 工作区的 **运行环境** 页面继续管理 daemon 注册的 `agent_runtime`、共享范围和 Agent 可用性；它不负责在主机上安装 CLI。
 
 ## 资源与权限
@@ -34,9 +35,12 @@ Admin Area
 └── Linux Users
 
 设置
-└── 我的运行环境
-    ├── Computer + Linux User 绑定
-    └── 绑定内的 CLI runtimes
+├── 我的运行环境
+│   ├── Computer + Linux User 绑定
+│   └── 绑定内的 CLI runtimes
+└── 个人凭据
+    ├── 个人配置模板
+    └── 从所选 Linux 用户读取 / 写入
 ```
 
 “我的运行环境”按绑定展示，每一行包含 Computer 名称、Linux 用户名、工作区和状态。展开绑定后显示 runtime 版本、探测错误和安装/更新控件。用户不需要再次输入 Linux 用户名。

@@ -549,7 +549,7 @@ func (h *Handler) ownedRuntimeBinding(w http.ResponseWriter, r *http.Request, ui
 		writeError(w, 500, "Cannot read Linux User binding")
 		return computer.Machine{}, "", "", false
 	}
-	if !verified || (state != "ready" && state != "failed") {
+	if !verified || (state != "ready" && state != "failed" && state != "pending") {
 		writeError(w, 409, "Linux User is not ready")
 		return computer.Machine{}, "", "", false
 	}
