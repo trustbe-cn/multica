@@ -75,6 +75,9 @@ func ErrorCode(err error, fallback string) string {
 		return "ssh_timeout"
 	}
 	var exit *exec.ExitError
+	if fallback == "installer_failed" && errors.As(err, &exit) && (exit.ExitCode() == 124 || exit.ExitCode() == 137) {
+		return "installer_timeout"
+	}
 	if errors.As(err, &exit) && exit.ExitCode() == 255 {
 		return "ssh_unreachable"
 	}
@@ -119,6 +122,8 @@ func ErrorSummary(code string) string {
 		return "CLI exists but its version command failed; repair its dependencies or reinstall."
 	case "credentials_required":
 		return "Write your own valid Multica PAT to this Linux user before starting the daemon."
+	case "installer_timeout":
+		return "Installation exceeded its time limit; check the Computer's access to the package source, then retry."
 	case "credential_transfer_failed":
 		return "Remote credentials are invalid; check the managed configuration files before retrying."
 	case "daemon_offline":

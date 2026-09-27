@@ -302,12 +302,14 @@ func RuntimeProtocolFamily(runtimeType string) (string, bool) {
 // npm runtimes use system Node/npm. The operator's shell configuration must not affect installs.
 func runtimeUserCommand(script string) string {
 	script = `set -eu; export PATH="$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.grok/bin:/usr/local/bin:/usr/bin:/bin"; cd "$HOME"; mkdir -p "$HOME/.local/bin"; ` + script
-	return "runuser -u {{user}} -- sh -c " + shellQuote(script)
+	// runuser creates a new session. Put the timeout inside that session so it
+	// can terminate the installer and its children before the outer SSH expires.
+	return "runuser -u {{user}} -- timeout -k 10s 270s sh -c " + shellQuote(script)
 }
 
 func npmRuntimeInstall(pkg, command string) string {
 	return runtimeUserCommand(`command -v node >/dev/null && command -v npm >/dev/null || { echo "Install Node.js and npm in /usr/local/bin or /usr/bin; login-shell and nvm paths are not loaded" >&2; exit 127; }; ` +
-		`NPM_CONFIG_PREFIX="$HOME/.local" npm install --prefix "$HOME/.local" -g ` + pkg + `@{{version}}; ` + command + ` --version >/dev/null`)
+		`NPM_CONFIG_PREFIX="$HOME/.local" npm install --prefix "$HOME/.local" --no-audit --no-fund --fetch-timeout=60000 --fetch-retries=1 -g ` + pkg + `@{{version}}; ` + command + ` --version >/dev/null`)
 }
 
 func scriptRuntimeInstall(url, invocation, command string) string {

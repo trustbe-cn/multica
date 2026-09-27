@@ -1570,6 +1570,7 @@
       "package_manager_failed": "관리자가 패키지 관리자를 복구해야 합니다.",
       "node_npm_missing": "/usr/local/bin 또는 /usr/bin에 Node.js와 npm을 설치하세요.",
       "bun_missing": "독립 실행 런타임을 설치하거나 관리 PATH에 Bun을 추가하세요.",
+      "installer_timeout": "설치 시간이 초과되었습니다. 이 Computer에서 패키지 배포처로 연결할 수 있는지 확인한 후 다시 시도하세요.",
       "installer_failed": "설치 출처와 필수 조건을 확인한 후 다시 설치하세요.",
       "cli_missing": "이 CLI 런타임을 설치하세요.",
       "version_check_failed": "CLI 버전 확인에 실패했습니다. 종속성을 복구하거나 다시 설치하세요.",
@@ -1578,8 +1579,8 @@
       "cancelled": "실행 전에 취소되었습니다.",
       "account_delete_failed": "실행 중인 프로세스와 권한을 확인한 후 삭제를 다시 시도하세요.",
       "remote_step_failed": "필수 조건을 확인한 후 표시된 작업을 다시 시도하세요.",
-      "credentials_required": "본인 Multica 계정의 설정 → API 토큰에서 생성하세요. 데몬 시작에 필요하며 Linux 사용자 생성에는 필요하지 않습니다.",
-      "credential_transfer_failed": "~/.gitconfig, ~/.config/multica-provision/, 이 연결의 ~/.multica/profiles/computer-<binding-id>/config.json을 읽습니다. 셸 시작 파일과 CLI 로그인 세션은 가져오지 않습니다."
+      "credentials_required": "이 Linux 사용자에 본인 소유의 유효한 Multica API 토큰이 없습니다. 설정 → API 토큰에서 생성하고 이 Linux 사용자의 자격 증명 페이지에서 기록한 후 데몬 작업을 다시 시도하세요.",
+      "credential_transfer_failed": "이 Linux 사용자의 관리되는 자격 증명을 읽거나 쓸 수 없습니다. 설정 파일과 권한을 확인한 후 다시 시도하세요."
     },
     "kinds": {
       "provision": "계정 설정",

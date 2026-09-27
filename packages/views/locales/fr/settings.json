@@ -1577,6 +1577,7 @@
       "package_manager_failed": "Un administrateur doit réparer le gestionnaire de paquets.",
       "node_npm_missing": "Installez Node.js et npm dans /usr/local/bin ou /usr/bin.",
       "bun_missing": "Installez le runtime autonome ou ajoutez Bun au PATH géré.",
+      "installer_timeout": "L’installation a dépassé le délai. Vérifiez l’accès de ce Computer à la source du paquet, puis réessayez.",
       "installer_failed": "Vérifiez la source et les prérequis, puis réinstallez.",
       "cli_missing": "Installez ce runtime CLI.",
       "version_check_failed": "Le CLI existe mais sa version est illisible ; réparez ses dépendances ou réinstallez-le.",
@@ -1585,8 +1586,8 @@
       "cancelled": "Opération annulée avant exécution.",
       "account_delete_failed": "Vérifiez les processus actifs et les permissions avant de réessayer la suppression.",
       "remote_step_failed": "Vérifiez les prérequis, puis relancez l’opération affichée.",
-      "credentials_required": "Créez-le avec votre compte Multica dans Paramètres → Jetons API. Nécessaire pour démarrer le daemon, pas pour créer un utilisateur Linux.",
-      "credential_transfer_failed": "Lit ~/.gitconfig, ~/.config/multica-provision/ et ~/.multica/profiles/computer-<binding-id>/config.json de cette liaison. Les fichiers de démarrage du shell et les sessions CLI ne sont pas importés."
+      "credentials_required": "Cet utilisateur Linux ne dispose pas d’un jeton API Multica valide vous appartenant. Créez-en un dans Paramètres → Jetons API, écrivez-le depuis la page des identifiants de cet utilisateur Linux, puis relancez l’opération du daemon.",
+      "credential_transfer_failed": "Impossible de lire ou d’écrire les identifiants gérés de cet utilisateur Linux. Vérifiez les fichiers de configuration et leurs permissions, puis réessayez."
     },
     "kinds": {
       "provision": "Configurer le compte",

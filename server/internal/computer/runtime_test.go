@@ -72,6 +72,18 @@ func TestComputerErrorCodesDoNotExposeRawSecrets(t *testing.T) {
 	}
 }
 
+func TestInstallerTimeoutDoesNotBecomeSSHTimeout(t *testing.T) {
+	for _, code := range []string{"124", "137"} {
+		err := exec.Command("sh", "-c", "exit "+code).Run()
+		if got := ErrorCode(err, "installer_failed"); got != "installer_timeout" {
+			t.Fatalf("exit %s mapped to %s", code, got)
+		}
+		if got := ErrorCode(err, "version_check_failed"); got != "version_check_failed" {
+			t.Fatalf("probe exit %s incorrectly mapped to %s", code, got)
+		}
+	}
+}
+
 func TestRuntimeProbeRejectsShellSyntaxBeforeExecution(t *testing.T) {
 	for _, command := range []string{"cli;id", "cli name", "$(id)", "cli\nid", "/tmp/cli", "-cli"} {
 		runner := &recordRunner{}

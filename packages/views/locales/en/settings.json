@@ -1577,6 +1577,7 @@
       "package_manager_failed": "An administrator must repair the package manager.",
       "node_npm_missing": "Install Node.js and npm in /usr/local/bin or /usr/bin.",
       "bun_missing": "Install the standalone runtime or provide Bun in the managed PATH.",
+      "installer_timeout": "Installation timed out. Check this Computer’s access to the package source, then retry.",
       "installer_failed": "Installer failed; check its source and prerequisites, then retry installation.",
       "cli_missing": "Install this CLI runtime.",
       "version_check_failed": "CLI exists but its version command failed; repair dependencies or reinstall.",
@@ -1585,8 +1586,8 @@
       "cancelled": "Operation was cancelled before execution.",
       "account_delete_failed": "Check running processes and permissions, then retry deletion.",
       "remote_step_failed": "Check prerequisites, then retry the displayed operation.",
-      "credentials_required": "Create under Settings → API tokens using your own Multica account. Required to start the managed daemon, not to create a Linux user.",
-      "credential_transfer_failed": "Reads ~/.gitconfig and ~/.config/multica-provision/, plus the binding’s ~/.multica/profiles/computer-<binding-id>/config.json. Shell startup files and vendor CLI login sessions are not imported."
+      "credentials_required": "This Linux user has no valid Multica API token belonging to you. Create one under Settings → API tokens, write it from this Linux user’s Credentials page, then retry the daemon operation.",
+      "credential_transfer_failed": "Could not read or write this Linux user’s managed credentials. Check the configuration files and their permissions, then retry."
     },
     "kinds": {
       "provision": "Provision account",

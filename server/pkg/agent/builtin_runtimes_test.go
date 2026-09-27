@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAdminInstallDescriptorsUseTargetUserEnvironment(t *testing.T) {
@@ -16,6 +17,33 @@ func TestAdminInstallDescriptorsUseTargetUserEnvironment(t *testing.T) {
 		if !rt.LatestOnly && !strings.Contains(rt.InstallCommand, "{{version}}") {
 			t.Errorf("%s advertises version pinning but discards the version", rt.ID)
 		}
+	}
+}
+
+func TestRuntimeInstallerTimeoutStopsNewSessionChildren(t *testing.T) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is required to simulate runuser's session boundary")
+	}
+	dir := t.TempDir()
+	// Simulate runuser's session without root and use only a test-created CLI.
+	runuser := "#!" + python + "\nimport os,sys\nos.setsid()\nos.execvp(sys.argv[4],sys.argv[4:])\n"
+	if err := os.WriteFile(filepath.Join(dir, "runuser"), []byte(runuser), 0700); err != nil {
+		t.Fatal(err)
+	}
+	command := runtimeUserCommand(`(sleep 1; touch "$HOME/escaped") & wait`)
+	command = strings.Replace(command, "270s", "0.1s", 1)
+	command = strings.Replace(command, "10s", "0.1s", 1)
+	cmd := exec.Command("sh", "-c", strings.ReplaceAll(command, "{{user}}", "tester"))
+	cmd.Env = []string{"HOME=" + dir, "PATH=" + dir + ":/usr/bin:/bin"}
+	cmd.WaitDelay = 2 * time.Second
+	out, err := cmd.CombinedOutput()
+	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 124 {
+		t.Fatalf("expected installer timeout, got %v: %s", err, out)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	if _, err := os.Stat(filepath.Join(dir, "escaped")); !os.IsNotExist(err) {
+		t.Fatalf("installer child survived timeout: %v", err)
 	}
 }
 

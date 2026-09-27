@@ -1570,6 +1570,7 @@
       "package_manager_failed": "管理者がパッケージ管理を修復する必要があります。",
       "node_npm_missing": "/usr/local/bin または /usr/bin に Node.js と npm をインストールしてください。",
       "bun_missing": "単体ランタイムをインストールするか、管理 PATH に Bun を追加してください。",
+      "installer_timeout": "インストールがタイムアウトしました。この Computer からパッケージ配布元への接続を確認して再試行してください。",
       "installer_failed": "取得元と前提条件を確認し、インストールを再試行してください。",
       "cli_missing": "この CLI ランタイムをインストールしてください。",
       "version_check_failed": "CLI のバージョン確認に失敗しました。依存関係を修復するか再インストールしてください。",
@@ -1578,8 +1579,8 @@
       "cancelled": "操作は実行前にキャンセルされました。",
       "account_delete_failed": "実行中のプロセスと権限を確認して削除を再試行してください。",
       "remote_step_failed": "前提条件を確認し、表示された操作を再試行してください。",
-      "credentials_required": "本人の Multica アカウントで設定 → API トークンから作成します。デーモンの起動に必要ですが、Linux ユーザーの作成には不要です。",
-      "credential_transfer_failed": "~/.gitconfig、~/.config/multica-provision/、この関連付けの ~/.multica/profiles/computer-<binding-id>/config.json を読み込みます。シェル起動ファイルや CLI のログインセッションは対象外です。"
+      "credentials_required": "この Linux ユーザーには、あなたの有効な Multica API トークンが設定されていません。設定 → API トークンで作成し、この Linux ユーザーの認証情報画面から書き込んで、デーモン操作を再試行してください。",
+      "credential_transfer_failed": "この Linux ユーザーの管理対象の認証情報を読み書きできません。設定ファイルと権限を確認して再試行してください。"
     },
     "kinds": {
       "provision": "アカウント設定",

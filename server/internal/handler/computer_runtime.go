@@ -195,7 +195,7 @@ func (h *Handler) installBindingRuntime(ctx context.Context, op, bindingID, user
 	cmd := strings.ReplaceAll(strings.ReplaceAll(target.install, "{{user}}", user), "{{version}}", version)
 	// The root-owned remote lock and process-group timeout survive lost HTTP/SSH
 	// clients. A retry cannot overlap an orphaned installer on the same account.
-	_, installErr := remote.RunCommandContext(ctx, "sudo -n timeout -k 15s 300s flock -n /run/lock/multica-runtime-"+user+" "+cmd)
+	_, installErr := remote.RunCommandContext(ctx, "sudo -n timeout -k 15s 300s flock -n --close /run/lock/multica-runtime-"+user+" "+cmd)
 	h.operationStep(op, "checking_runtime")
 	p, probeErr := remote.ProbeRuntime(ctx, user, target.command)
 	if probeErr != nil {
@@ -205,6 +205,9 @@ func (h *Handler) installBindingRuntime(ctx context.Context, op, bindingID, user
 		return p.Version, saveErr
 	}
 	if installErr != nil {
+		// The follow-up probe records observable assets, but must not attribute
+		// an installation failure to the verification step.
+		h.operationStep(op, "installing_runtime")
 		code := computer.ErrorCode(installErr, "installer_failed")
 		if code == "installer_failed" && p.State == "version_failed" {
 			code = "version_check_failed"

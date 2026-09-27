@@ -1570,6 +1570,7 @@
       "package_manager_failed": "请管理员修复包管理器后重试。",
       "node_npm_missing": "请在 /usr/local/bin 或 /usr/bin 安装 Node.js 和 npm。",
       "bun_missing": "请安装独立运行时，或让 Bun 在受管 PATH 中可用。",
+      "installer_timeout": "安装超时。请检查此 Computer 到软件包来源的网络连接后重试。",
       "installer_failed": "安装器失败，请检查来源和前置条件后重新安装。",
       "cli_missing": "请安装此 CLI 运行时。",
       "version_check_failed": "CLI 存在但版本命令失败，请修复依赖或重装。",
@@ -1578,8 +1579,8 @@
       "cancelled": "操作已在执行前取消。",
       "account_delete_failed": "请检查运行中的进程和权限后重试删除。",
       "remote_step_failed": "请检查前置条件，再重试所显示的操作。",
-      "credentials_required": "使用本人 Multica 账号，在设置的 API Token 页面创建。启动受管守护进程需要它，创建 Linux 用户不需要。",
-      "credential_transfer_failed": "读取 ~/.gitconfig、~/.config/multica-provision/ 和此绑定的 ~/.multica/profiles/computer-<binding-id>/config.json。不导入 shell 启动脚本或各 CLI 的登录会话。"
+      "credentials_required": "此 Linux 用户未配置有效且属于你的 Multica API Token。请在设置 → API Token 创建，再到此 Linux 用户的「账号凭据」中写入，然后重试守护进程操作。",
+      "credential_transfer_failed": "无法读取或写入此 Linux 用户的受管凭据，请检查配置文件及其权限后重试。"
     },
     "kinds": {
       "provision": "开通账号",
