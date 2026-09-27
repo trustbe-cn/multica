@@ -134,7 +134,7 @@ func TestComputerBindingDetailAndHistoryOwnerBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.Call(t, testHandler.ComputerBindingDetail, bindingRequest("GET", binding, nil)).Want(200).JSON(&d)
-	if !d.OperationBusy {
+	if !d.OperationBusy || d.LatestOperation == nil || d.LatestOperation.ID != op || d.LatestOperation.State != "queued" {
 		t.Fatalf("detail omits active operation: %+v", d)
 	}
 	testutil.Call(t, testHandler.RecoverComputerOperation, bindingRequest("POST", binding, map[string]string{"operation_id": op, "action": "cancel"})).Want(200)

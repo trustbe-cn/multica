@@ -21,6 +21,30 @@ export function bindingSummary(binding: ComputerBinding): string {
   return "unknown";
 }
 
+export type BindingPrimaryAction = "operations" | "create_account" | "credentials";
+
+/** The single next step for an account detail header. Ready accounts have none. */
+export function bindingPrimaryAction(
+  binding: ComputerBinding,
+): BindingPrimaryAction | null {
+  switch (bindingSummary(binding)) {
+    case "running":
+    case "interrupted":
+    case "unavailable":
+      return "operations";
+    case "pending":
+      return "credentials";
+    case "unverified":
+    case "failed":
+    case "removed":
+    case "detached":
+    case "missing":
+      return "create_account";
+    default:
+      return null;
+  }
+}
+
 export function bindingWorkspaceLabel(
   binding: Pick<
     ComputerBinding,

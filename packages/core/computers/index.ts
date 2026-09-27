@@ -94,4 +94,8 @@ export function useComputerCredentials(userId: string) {
   });
   return { read, write, loadTemplate, saveTemplate };
 }
-export { bindingSummary, bindingWorkspaceLabel } from "./summary";
+export {
+  bindingSummary,
+  bindingWorkspaceLabel,
+  bindingPrimaryAction,
+} from "./summary";

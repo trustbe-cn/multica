@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import {
+  bindingSummary,
   useLinuxUserDetail,
   type ComputerLifecycleInput,
 } from "@multica/core/computers";
@@ -45,7 +46,9 @@ export function LinuxUserDetail({
     data.busy ||
     data.lifecycle.isPending ||
     data.discover.isPending ||
-    d?.state === "running";
+    d?.state === "running" ||
+    d?.operation_busy === true ||
+    d?.state === "interrupted";
   const error =
     data.detail.error ||
     data.operations.error ||
@@ -54,6 +57,7 @@ export function LinuxUserDetail({
     data.recover.error ||
     data.check.error;
   const states = t(($) => $.linux_user.states, { returnObjects: true });
+  const hints = t(($) => $.linux_user_pages.hints, { returnObjects: true });
   const kinds = t(($) => $.linux_user.kinds, { returnObjects: true });
   const steps = t(($) => $.linux_user.steps, { returnObjects: true });
   const errors = t(($) => $.linux_user.errors, { returnObjects: true });
@@ -72,7 +76,132 @@ export function LinuxUserDetail({
       {data.detail.isPending && (
         <p role="status">{t(($) => $.computers.loading)}</p>
       )}
-      {d && view !== "operations" && (
+      {d && view === "overview" && (
+        <>
+          <p className="max-w-2xl text-body text-muted-foreground">
+            {hints[bindingSummary(d) as keyof typeof hints] ?? hints.unknown}
+          </p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dt>{t(($) => $.linux_user.account)}</dt>
+            <dd>{stateLabel(d.account_state)}</dd>
+            <dt>{t(($) => $.linux_user.binding)}</dt>
+            <dd>
+              {d.archived_at
+                ? t(($) => $.linux_user.archived)
+                : stateLabel(d.state)}
+            </dd>
+            <dt>{t(($) => $.linux_user.daemon)}</dt>
+            <dd>{stateLabel(d.daemon_state)}</dd>
+            <dt>{t(($) => $.linux_user_pages.latest_operation)}</dt>
+            <dd>
+              {data.operations.data?.[0] ? (
+                <>
+                  {kinds[data.operations.data[0].kind as keyof typeof kinds] ??
+                    t(($) => $.linux_user.unknown)}{" "}
+                  · {stateLabel(data.operations.data[0].state)}
+                </>
+              ) : (
+                "—"
+              )}
+            </dd>
+          </dl>
+          <section className="space-y-2" aria-labelledby="linux-user-lifecycle">
+            <h3 id="linux-user-lifecycle" className="font-medium">
+              {t(($) => $.linux_user_pages.lifecycle)}
+            </h3>
+            {busy && (
+              <p className="text-sm text-muted-foreground">
+                {d.state === "interrupted"
+                  ? t(($) => $.linux_user_pages.states.interrupted)
+                  : t(($) => $.linux_user_pages.states.running)}
+              </p>
+            )}
+            {!admin && !d.archived_at && (
+              <div className="flex flex-wrap gap-2">
+                {onConfigure &&
+                  d.verified &&
+                  d.workspace_id &&
+                  d.state !== "removed" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => onConfigure("upgrade")}
+                      disabled={busy}
+                    >
+                      {t(($) => $.computers.actions.upgrade)}
+                    </Button>
+                  )}
+                <Button
+                  variant="outline"
+                  disabled={data.check.isPending || busy}
+                  onClick={() => data.check.mutate()}
+                >
+                  {t(($) => $.admin.linux_user_check)}
+                </Button>
+                {["ready", "failed", "pending"].includes(d.state) && (
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => data.discover.mutate()}
+                  >
+                    {t(($) => $.linux_user.discover)}
+                  </Button>
+                )}
+              </div>
+            )}
+            {!admin && !d.archived_at && (
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-sm font-medium">
+                  {t(($) => $.linux_user_pages.danger)}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {d.state !== "removed" && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => setAction("remove")}
+                    >
+                      {t(($) => $.computers.actions.remove)}
+                    </Button>
+                  )}
+                  {d.state === "removed" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => setAction("archive")}
+                      >
+                        {t(($) => $.linux_user.archive)}
+                      </Button>
+                      {d.account_state !== "missing" && (
+                        <Button
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => setAction("delete_user")}
+                        >
+                          {t(($) => $.linux_user.delete_user)}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+                {d.state !== "removed" && (
+                  <p className="text-sm text-muted-foreground">
+                    {t(($) => $.computers.remove_help)}
+                  </p>
+                )}
+                {d.state === "removed" && (
+                  <p className="text-sm text-muted-foreground">
+                    {t(($) => $.linux_user.archive_help)}{" "}
+                    {d.account_state !== "missing" &&
+                      t(($) => $.linux_user.delete_help)}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+      {d && view === "all" && (
         <>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm break-all">
             <dt>{t(($) => $.computers.title)}</dt>
@@ -188,6 +317,9 @@ export function LinuxUserDetail({
               )}
             </div>
           )}
+        </>
+      )}
+      {d && view !== "operations" && (
           <Dialog
             open={!!action}
             onOpenChange={(open) => {
@@ -290,7 +422,6 @@ export function LinuxUserDetail({
               </DialogContent>
             )}
           </Dialog>
-        </>
       )}
       {view !== "overview" && (
         <>

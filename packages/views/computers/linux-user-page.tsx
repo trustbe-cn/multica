@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useLinuxUserDetail } from "@multica/core/computers";
+import {
+  bindingPrimaryAction,
+  useLinuxUserDetail,
+} from "@multica/core/computers";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +65,7 @@ export function LinuxUserPage({
       view,
       fromWorkspace: location.fromWorkspace,
     });
+  const primary = d ? bindingPrimaryAction(d) : null;
   const back = location.fromWorkspace
     ? settingsHref(navigation.pathname, navigation.searchParams, "linux-users")
     : linuxUserHref(navigation.pathname, navigation.searchParams);
@@ -80,9 +84,39 @@ export function LinuxUserPage({
   return (
     <SettingsTab
       title={
-        d
-          ? `${d.username} · ${d.computer_name}`
-          : t(($) => $.linux_user.details)
+        <span className="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {d
+              ? `${d.username} · ${d.computer_name}`
+              : t(($) => $.linux_user.details)}
+          </span>
+          {primary === "create_account" && (
+            <Button
+              disabled={data.busy || needsRecovery}
+              onClick={() => setAction("create_account")}
+            >
+              {t(($) => $.computers.actions.create_account)}
+            </Button>
+          )}
+          {primary === "credentials" && (
+            <AppLink
+              href={href("credentials")}
+              onClick={(event) => guard(event, href("credentials"))}
+              className="text-body underline"
+            >
+              {t(($) => $.linux_user_pages.primary_credentials)}
+            </AppLink>
+          )}
+          {primary === "operations" && (
+            <AppLink
+              href={href("operations")}
+              onClick={(event) => guard(event, href("operations"))}
+              className="text-body underline"
+            >
+              {t(($) => $.linux_user_pages.primary_operations)}
+            </AppLink>
+          )}
+        </span>
       }
     >
       <AppLink
@@ -118,7 +152,9 @@ export function LinuxUserPage({
       {data.detail.isPending && (
         <p role="status">{t(($) => $.computers.loading)}</p>
       )}
-      {(data.busy || needsRecovery) && location.view !== "operations" && (
+      {(data.busy || needsRecovery) &&
+        primary !== "operations" &&
+        location.view !== "operations" && (
         <AppLink
           className="text-body underline"
           href={href("operations")}

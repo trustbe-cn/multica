@@ -35,16 +35,23 @@ func (h *Handler) bindingDetail(w http.ResponseWriter, r *http.Request, admin bo
 		return
 	}
 	var d bindingDetail
+	var op bindingOperationSummary
 	err := h.DB.QueryRow(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),b.username,
  CASE WHEN b.state='running' AND EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at<now()) THEN 'interrupted' ELSE b.state END,b.last_error,b.verified,
  COALESCE(c.name,b.computer_id::text),COALESCE(w.name,''),CASE WHEN b.workspace_id IS NULL THEN 'none' WHEN w.id IS NOT NULL THEN 'accessible' ELSE 'unavailable' END,b.account_state,b.checked_at,b.archived_at,
  (SELECT max(last_seen_at) FROM agent_runtime WHERE daemon_id=b.id::text AND owner_id=b.user_id AND workspace_id=b.workspace_id),
  b.daemon_state,b.daemon_checked_at,
- EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at>=now())
- FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id AND ($3::boolean OR EXISTS(SELECT 1 FROM member m WHERE m.workspace_id=w.id AND m.user_id=$2)) WHERE b.id=$1`, id, uid, admin).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.Verified, &d.ComputerName, &d.WorkspaceName, &d.WorkspaceAccess, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt, &d.OperationBusy)
+ EXISTS(SELECT 1 FROM computer_operation o WHERE o.binding_id=b.id AND o.state IN ('queued','running') AND o.deadline_at>=now()),
+ COALESCE(op.id::text,''),COALESCE(op.kind,''),COALESCE(op.effective_state,''),COALESCE(op.error_code,''),op.finished_at
+ FROM computer_binding b LEFT JOIN computer c ON c.id=b.computer_id LEFT JOIN workspace w ON w.id=b.workspace_id AND ($3::boolean OR EXISTS(SELECT 1 FROM member m WHERE m.workspace_id=w.id AND m.user_id=$2))
+ LEFT JOIN LATERAL (SELECT id,kind,finished_at,CASE WHEN state IN ('queued','running') AND deadline_at<now() THEN 'interrupted' ELSE state END AS effective_state,error_code FROM computer_operation WHERE binding_id=b.id ORDER BY created_at DESC,id DESC LIMIT 1) op ON true
+ WHERE b.id=$1`, id, uid, admin).Scan(&d.ID, &d.ComputerID, &d.WorkspaceID, &d.Username, &d.State, &d.LastError, &d.Verified, &d.ComputerName, &d.WorkspaceName, &d.WorkspaceAccess, &d.AccountState, &d.CheckedAt, &d.ArchivedAt, &d.LastSeenAt, &d.DaemonState, &d.DaemonCheckedAt, &d.OperationBusy, &op.ID, &op.Kind, &op.State, &op.ErrorCode, &op.FinishedAt)
 	if err != nil {
 		writeError(w, 500, "Cannot read Linux User details")
 		return
+	}
+	if op.ID != "" {
+		d.LatestOperation = &op
 	}
 	d.DaemonID = d.ID
 	writeJSON(w, 200, d)

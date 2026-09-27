@@ -154,7 +154,8 @@ it("lands on a list, uses detail links, and never reads credentials or runtimes 
     { id: "machine-1", name: "Dev server", enabled: true },
   ]);
   mount();
-  expect(await screen.findByText("Dev server · alice")).toBeInTheDocument();
+  expect(await screen.findByText("alice")).toBeInTheDocument();
+  expect(screen.getAllByText("Dev server")).toHaveLength(2);
   expect(screen.getByText("Needs configuration")).toBeInTheDocument();
   expect(screen.getByText("Workspace unavailable")).toBeInTheDocument();
   expect(screen.queryByText("private-uuid")).not.toBeInTheDocument();
@@ -164,6 +165,70 @@ it("lands on a list, uses detail links, and never reads credentials or runtimes 
   expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
   expect(api.getComputerSettings).not.toHaveBeenCalled();
   expect(api.listComputerBindingRuntimes).not.toHaveBeenCalled();
+});
+it("separates an empty account list from a search miss", async () => {
+  api.listComputers.mockResolvedValue([]);
+  mount();
+  expect(
+    await screen.findByText(/You don't have a Linux user yet/),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/No Computer is available/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole("textbox", { name: "Search by username or Computer" }),
+  ).not.toBeInTheDocument();
+});
+it("does not show an empty Computer state when the Computer query fails", async () => {
+  api.listComputerBindings.mockResolvedValue([]);
+  api.listComputers.mockRejectedValue(new Error("Computer service unavailable"));
+  mount();
+  expect(
+    await screen.findByText("Computer service unavailable"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/No Computer is available/)).not.toBeInTheDocument();
+});
+it("explains a search miss without treating it as an empty account list", async () => {
+  api.listComputers.mockResolvedValue([
+    { id: "machine-1", name: "Dev server", enabled: true },
+  ]);
+  api.listComputerBindings.mockResolvedValue([binding]);
+  mount();
+  const user = userEvent.setup();
+  await user.type(
+    await screen.findByRole("textbox", { name: "Search by username or Computer" }),
+    "nobody",
+  );
+  expect(
+    await screen.findByText("No Linux users match this search."),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/You don't have a Linux user yet/),
+  ).not.toBeInTheDocument();
+});
+it("links a failed operation without printing the raw error", async () => {
+  api.listComputers.mockResolvedValue([
+    { id: "machine-1", name: "Dev server", enabled: true },
+  ]);
+  api.listComputerBindings.mockResolvedValue([
+    {
+      ...binding,
+      state: "failed",
+      last_error: "ssh timeout raw",
+      latest_operation: {
+        id: "op-1",
+        kind: "create_account",
+        state: "failed",
+        error_code: "ssh_timeout",
+        finished_at: null,
+      },
+    },
+  ]);
+  mount();
+  expect(await screen.findByText("Last operation failed")).toBeInTheDocument();
+  expect(screen.queryByText("ssh timeout raw")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Create or verify account/ })).toHaveAttribute(
+    "href",
+    expect.stringContaining("linux_user_view=operations"),
+  );
 });
 it("opens a creation dialog, accepts without credentials, and navigates to operation progress", async () => {
   api.listComputers.mockResolvedValue([
@@ -240,6 +305,59 @@ it("keeps workspace return context while changing detail sections", async () => 
     screen.getByRole("link", { name: "Back to workspace Linux users" }),
   ).toHaveAttribute("href", "/team/settings?tab=linux-users");
   expect(screen.queryByText("Present")).not.toBeInTheDocument();
+});
+it("puts configure credentials ahead of daemon startup while an account is pending", async () => {
+  api.getComputerBindingDetail.mockResolvedValue({
+    ...binding,
+    computer_name: "Dev server",
+    daemon_state: "stopped",
+    daemon_id: "binding-1",
+    state: "pending",
+  });
+  mount("/team/settings?tab=computers&linux_user=binding-1");
+  expect(
+    await screen.findByText(/cannot run yet/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Configure account credentials" }),
+  ).toHaveAttribute("href", expect.stringContaining("linux_user_view=credentials"));
+  expect(
+    screen.getByRole("button", { name: "Start / upgrade daemon" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Delete Linux user" }),
+  ).not.toBeInTheDocument();
+});
+it("offers verification as the main step after management is removed", async () => {
+  api.getComputerBindingDetail.mockResolvedValue({
+    ...binding,
+    computer_name: "Dev server",
+    state: "removed",
+    daemon_state: "stopped",
+    daemon_id: "binding-1",
+  });
+  mount("/team/settings?tab=computers&linux_user=binding-1");
+  expect(
+    await screen.findByRole("button", { name: "Create or verify account" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Delete Linux user" }),
+  ).toBeInTheDocument();
+});
+it("disables lifecycle actions while an operation is running", async () => {
+  api.getComputerBindingDetail.mockResolvedValue({
+    ...binding,
+    computer_name: "Dev server",
+    state: "running",
+    operation_busy: true,
+    daemon_state: "stopped",
+    daemon_id: "binding-1",
+  });
+  mount("/team/settings?tab=computers&linux_user=binding-1");
+  expect(
+    await screen.findByRole("link", { name: "View the operation" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove runtime" })).toBeDisabled();
 });
 it("requires typed confirmation in a separate dialog before deleting an account", async () => {
   api.getComputerBindingDetail.mockResolvedValue({

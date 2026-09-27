@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
 import { ComputerBindingSchema } from "./schema";
-import { bindingSummary, bindingWorkspaceLabel } from "./summary";
+import {
+  bindingPrimaryAction,
+  bindingSummary,
+  bindingWorkspaceLabel,
+} from "./summary";
 const base = ComputerBindingSchema.parse({
   id: "b",
   computer_id: "c",
@@ -49,6 +53,15 @@ it("keeps runtime failure separate but prioritizes unconfirmed interruption", ()
       },
     }),
   ).toBe("ready");
+});
+it("picks one next step from the account summary", () => {
+  expect(bindingPrimaryAction({ ...base, state: "pending" })).toBe("credentials");
+  expect(bindingPrimaryAction({ ...base, state: "ready" })).toBeNull();
+  expect(bindingPrimaryAction({ ...base, state: "removed" })).toBe("create_account");
+  expect(bindingPrimaryAction({ ...base, state: "running" })).toBe("operations");
+  expect(bindingPrimaryAction({ ...base, account_state: "unavailable" })).toBe(
+    "operations",
+  );
 });
 it("never renders a workspace UUID or an inaccessible name", () => {
   expect(bindingWorkspaceLabel(base)).toEqual({ name: null, key: "unknown" });
