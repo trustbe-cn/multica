@@ -128,7 +128,7 @@ func ErrorSummary(code string) string {
 	case "runtime_cache_unavailable":
 		return "An administrator must configure the runtime cache server URL before installation."
 	case "runtime_download_failed":
-		return "Multica Server could not download the runtime; ask an administrator to check its access to the upstream source, then retry."
+		return "Multica Server could not download the runtime; copy the error information and ask an administrator to check the server download logs, then retry."
 	case "installer_timeout":
 		return "Installation exceeded its time limit; check the Computer's access to the package source, then retry."
 	case "credential_transfer_failed":

@@ -1,3 +1,7 @@
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
 import { expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -116,4 +120,80 @@ it("shows a safe empty history and keeps administrative history read only", () =
   expect(
     screen.queryByRole("button", { name: en.linux_user.cancel }),
   ).not.toBeInTheDocument();
+});
+
+it("copies complete safe diagnostics over HTTP and reports success", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "navigator",
+    Object.defineProperty(Object.create(navigator), "clipboard", {
+      value: undefined,
+    }),
+  );
+  let copied = "";
+  const execCopy = vi.fn(() => {
+    copied = (document.activeElement as HTMLTextAreaElement).value;
+    return true;
+  });
+  Object.defineProperty(document, "execCommand", {
+    configurable: true,
+    value: execCopy,
+  });
+  try {
+    mount([failed]);
+    const button = screen.getByRole("button", {
+      name: en.linux_user_pages.tables.copy_error,
+    });
+    button.focus();
+    await user.click(button);
+    expect(execCopy).toHaveBeenCalledWith("copy");
+    expect(JSON.parse(copied)).toMatchObject({
+      operation_id: failed.id,
+      binding_id: failed.binding_id,
+      runtime: "codex",
+      step: "installing_runtime",
+      requested_version: failed.requested_version,
+      actual_version: failed.actual_version,
+      error_code: failed.error_code,
+      error: en.linux_user.errors.runtime_download_failed,
+      started_at: failed.started_at,
+      finished_at: failed.finished_at,
+    });
+    expect(copied).not.toContain("unsafe raw error");
+    expect(button).toHaveFocus();
+    expect(toast.success).toHaveBeenCalledWith(
+      en.linux_user_pages.tables.error_copied,
+    );
+  } finally {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, "execCommand");
+  }
+});
+
+it("reports clipboard failure and offers copy only for failed operations", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "navigator",
+    Object.defineProperty(Object.create(navigator), "clipboard", {
+      value: undefined,
+    }),
+  );
+  Object.defineProperty(document, "execCommand", {
+    configurable: true,
+    value: () => false,
+  });
+  try {
+    mount([failed, { ...failed, id: "success", state: "succeeded" }]);
+    const buttons = screen.getAllByRole("button", {
+      name: en.linux_user_pages.tables.copy_error,
+    });
+    expect(buttons).toHaveLength(1);
+    await user.click(buttons[0]!);
+    expect(toast.error).toHaveBeenCalledWith(
+      en.linux_user_pages.tables.error_copy_failed,
+    );
+  } finally {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, "execCommand");
+  }
 });

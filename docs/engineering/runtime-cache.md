@@ -20,6 +20,10 @@ to 16 MiB, with at most three concurrent upstream downloads. Space is reserved
 before downloading and older, less recently used entries are evicted first.
 Metadata expires after one hour, immutable release files after 30 days. Successful
 version checks live for one hour; failed version checks retry after one minute.
+npm metadata requests negotiate the abbreviated install format, which retains
+dependencies, optional platform packages, executable mappings, and integrity data
+without full registry documents and readmes. Upstream downloads have a four-minute
+deadline within the managed installer’s overall time limit.
 Downloads are deduplicated, hashed, written to temporary files, and published by
 atomic rename. Restart cleanup removes incomplete temporary and orphaned files.
 
@@ -29,6 +33,10 @@ atomic rename. Restart cleanup removes incomplete temporary and orphaned files.
 installations use a temporary server registry URL; package metadata is rewritten
 at response time so tarballs also come from the server. Oh-My-Pi and Kimi installer
 URLs and supported release URLs are rewritten through that same entry point.
+Kimi’s official `code.kimi.com` → `cdn.kimi.com` redirects are supported only
+under `/kimi-code/`. OMP’s installer response extends its 30-second curl low-speed
+window to 250 seconds so a cold cache can finish the binary download before
+responding; stored upstream scripts remain unchanged.
 Grok's installer script is cached, but other downloads made by its upstream
 installer are not guaranteed to use the cache. The admin page displays this limit.
 
@@ -59,6 +67,13 @@ Admin API routes require an instance administrator:
 
 Installer downloads use `GET`/`HEAD` on
 `/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*`.
+Failed Linux-user operation rows offer **Copy error information** with the operation
+ID, runtime, versions, failure stage/code, safe summary, and UTC timestamps. Use
+the operation ID to correlate server download warnings; copied summaries contain
+no raw SSH output or temporary download capabilities. A download failure can mean
+network failure, rejected upstream redirects, or cache limits; consult the server
+log rather than assuming a connectivity problem.
+
 Do not retain these temporary URLs in application data or expose them in UI copy.
 A reverse proxy must forward this API path, including scoped npm package paths,
 and allow sufficient upstream response time for a cold artifact download.

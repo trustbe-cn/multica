@@ -108,3 +108,44 @@ func TestCachedRuntimeInstallCommandUsesServerRegistry(t *testing.T) {
 		t.Fatalf("wrong registry or package arguments: %s", args)
 	}
 }
+
+func TestRuntimeDownloadKimiCDNCapability(t *testing.T) {
+	t.Setenv("MULTICA_COMPUTER_SERVER_URL", "https://multica.invalid")
+	_, binding := operationBinding(t)
+	op, err := testHandler.beginBindingOperation(context.Background(), testUserID, binding, "runtime_install", "kimi", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbfx.Exec(t, `UPDATE computer_operation SET state='running' WHERE id=$1`, op)
+	client := &http.Client{Transport: runtimeCacheTestTransport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/plain"}}, Body: io.NopCloser(strings.NewReader("curl https://cdn.kimi.com/kimi-code/latest"))}, nil
+	})}
+	h := &Handler{DB: testHandler.DB, runtimeDownloads: computer.NewRuntimeDownloadCache(t.TempDir(), client)}
+	router := chi.NewRouter()
+	router.Get("/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*", h.RuntimeDownload)
+	base := runtimeDownloadBase("", op, time.Now())
+	for _, tc := range []struct {
+		path   string
+		status int
+	}{
+		{"/cdn.kimi.com/kimi-code/install.sh", 200},
+		{"/cdn.kimi.com/private/install.sh", 403},
+		{"/cdn.kimi.com/kimi-code/%2e%2e/private", 403},
+		{"/registry.npmjs.org/tool", 403},
+	} {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest("GET", base+tc.path, nil))
+		if rr.Code != tc.status {
+			t.Fatalf("%s: got %d want %d", tc.path, rr.Code, tc.status)
+		}
+		if tc.status == 200 && !strings.Contains(rr.Body.String(), base+"/cdn.kimi.com/kimi-code/latest") {
+			t.Fatal("CDN URL bypassed cache")
+		}
+	}
+	dbfx.Exec(t, `UPDATE computer_operation SET runtime_id='codex' WHERE id=$1`, op)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest("GET", base+"/cdn.kimi.com/kimi-code/install.sh", nil))
+	if rr.Code != 403 {
+		t.Fatal("accepted Kimi CDN for different runtime")
+	}
+}

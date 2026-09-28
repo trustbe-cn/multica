@@ -174,3 +174,64 @@ func TestRuntimeDownloadSourceBoundaries(t *testing.T) {
 		t.Fatal("did not route upstream URLs through server")
 	}
 }
+
+func TestRuntimeDownloadsRequestNpmInstallMetadata(t *testing.T) {
+	cache := NewRuntimeDownloadCache(t.TempDir(), &http.Client{Transport: versionTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Accept") != "application/vnd.npm.install-v1+json" {
+			response := versionResponse(200, "oversized full package metadata")
+			response.ContentLength = 17 << 20
+			return response, nil
+		}
+		return versionResponse(200, `{"dist-tags":{"latest":"1.2.3"},"versions":{"1.2.3":{"bin":{"tool":"cli.js"},"optionalDependencies":{"tool-linux":"1.2.3"},"dist":{"integrity":"sha512-test","tarball":"https://registry.npmjs.org/tool/-/tool.tgz"}}}}`), nil
+	})})
+	file, _, err := cache.Open(context.Background(), "https://registry.npmjs.org/opencode-ai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	data, _ := io.ReadAll(file)
+	for _, field := range []string{"dist-tags", "optionalDependencies", "integrity", "tarball", "bin"} {
+		if !strings.Contains(string(data), field) {
+			t.Errorf("missing install metadata: %s", field)
+		}
+	}
+}
+
+func TestRuntimeDownloadsKimiOfficialCDNRedirect(t *testing.T) {
+	for _, destination := range []string{"https://cdn.kimi.com/kimi-code/install.sh", "https://cdn.kimi.com/private/install.sh", "https://cdn.kimi.com.evil.invalid/kimi-code/install.sh"} {
+		t.Run(destination, func(t *testing.T) {
+			client := &http.Client{Transport: versionTransport(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host == "code.kimi.com" {
+					res := versionResponse(302, "")
+					res.Header.Set("Location", destination)
+					return res, nil
+				}
+				return versionResponse(200, "official installer"), nil
+			})}
+			cache := NewRuntimeDownloadCache(t.TempDir(), client)
+			file, _, err := cache.Open(context.Background(), "https://code.kimi.com/kimi-code/install.sh")
+			if file != nil {
+				file.Close()
+			}
+			if (err == nil) != (destination == "https://cdn.kimi.com/kimi-code/install.sh") {
+				t.Fatalf("unexpected redirect result: %v", err)
+			}
+		})
+	}
+}
+
+func TestRuntimeDownloadPreparesOnlyOMPInstallerTimeout(t *testing.T) {
+	base := "http://multica.invalid/api/runtime-downloads/op/expiry/signature"
+	upstream := []byte(`curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 "https://github.com/${REPO}/releases/download/${LATEST}/${BINARY}" -o "$dest"`)
+	prepared := string(PrepareRuntimeDownload(upstream, "https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh", base))
+	if !strings.Contains(prepared, "--speed-time 250") || !strings.Contains(prepared, base+"/github.com/") {
+		t.Fatalf("cold cache download would still time out: %s", prepared)
+	}
+	if !strings.Contains(string(upstream), "--speed-time 30") {
+		t.Fatal("mutated original cache bytes")
+	}
+	other := string(PrepareRuntimeDownload(upstream, "https://code.kimi.com/kimi-code/install.sh", base))
+	if !strings.Contains(other, "--speed-time 30") {
+		t.Fatal("changed unrelated installer options")
+	}
+}

@@ -21,6 +21,9 @@ import (
 )
 
 const RuntimeCacheLimit = int64(10 << 30)
+
+// RuntimeDownloadTimeout leaves time for installation inside the 270-second user command.
+const RuntimeDownloadTimeout = 4 * time.Minute
 const runtimeArtifactLimit = int64(512 << 20)
 
 var ErrRuntimeCacheBusy = errors.New("runtime downloads are in progress")
@@ -171,7 +174,7 @@ func (c *RuntimeDownloadCache) Open(ctx context.Context, source string) (*os.Fil
 }
 
 func (c *RuntimeDownloadCache) download(source, id string) (RuntimeCacheEntry, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), RuntimeDownloadTimeout)
 	defer cancel()
 	select {
 	case c.slots <- struct{}{}:
@@ -202,6 +205,10 @@ func (c *RuntimeDownloadCache) download(source, id string) (RuntimeCacheEntry, e
 	}
 	req.Header.Set("User-Agent", "Multica-runtime-cache")
 	req.Header.Set("Accept", "application/json")
+	if req.URL.Host == "registry.npmjs.org" && runtimeMetadata(source) {
+		// Full packuments include readmes and release history unrelated to installation.
+		req.Header.Set("Accept", "application/vnd.npm.install-v1+json")
+	}
 	client := *c.client
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) > 5 || !allowedRuntimeRedirect(req.URL) {
@@ -352,7 +359,7 @@ func AllowedRuntimeSource(source string) bool {
 		return strings.HasPrefix(u.Path, "/repos/can1357/oh-my-pi/releases/")
 	case "github.com":
 		return strings.HasPrefix(u.Path, "/can1357/oh-my-pi/releases/download/")
-	case "code.kimi.com":
+	case "code.kimi.com", "cdn.kimi.com":
 		return strings.HasPrefix(u.Path, "/kimi-code/")
 	case "x.ai":
 		return strings.HasPrefix(u.Path, "/cli/")
@@ -376,8 +383,18 @@ func allowedRuntimeRedirect(u *url.URL) bool {
 // are inserted only into responses and never persisted in shared metadata.
 func MirrorRuntimeURLs(data []byte, base string) []byte {
 	replacements := []string{}
-	for _, host := range []string{"registry.npmjs.org", "raw.githubusercontent.com", "api.github.com", "github.com", "code.kimi.com", "x.ai"} {
+	for _, host := range []string{"registry.npmjs.org", "raw.githubusercontent.com", "api.github.com", "github.com", "code.kimi.com", "cdn.kimi.com", "x.ai"} {
 		replacements = append(replacements, "https://"+host+"/", base+"/"+host+"/")
 	}
 	return []byte(strings.NewReplacer(replacements...).Replace(string(data)))
+}
+
+// PrepareRuntimeDownload adapts metadata at response time; cached upstream bytes
+// stay unchanged. OMP's low-speed deadline must include a complete cold-cache fill.
+func PrepareRuntimeDownload(data []byte, source, base string) []byte {
+	data = MirrorRuntimeURLs(data, base)
+	if source == "https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh" {
+		data = []byte(strings.ReplaceAll(string(data), "--speed-time 30", "--speed-time 250"))
+	}
+	return data
 }

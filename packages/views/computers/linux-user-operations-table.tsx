@@ -11,7 +11,9 @@ import {
   TableRow,
 } from "@multica/ui/components/ui/table";
 import { Button } from "@multica/ui/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Copy } from "lucide-react";
+import { copyText } from "@multica/ui/lib/clipboard";
+import { toast } from "sonner";
 import { useT } from "../i18n";
 import { LinuxUserStatus, LinuxUserTime } from "./linux-user-table-parts";
 
@@ -102,7 +104,33 @@ function OperationRow({
     kinds[op.kind as keyof typeof kinds] ?? t(($) => $.linux_user.unknown);
   const failure = op.error_code
     ? (errors[op.error_code as keyof typeof errors] ?? op.error_summary)
-    : "";
+    : op.error_summary;
+  const copyError = async () => {
+    const text = JSON.stringify(
+      {
+        operation_id: op.id,
+        binding_id: op.binding_id,
+        kind: op.kind,
+        runtime: op.runtime_id,
+        state: op.state,
+        step: op.step,
+        requested_version: op.requested_version,
+        actual_version: op.actual_version,
+        error_code: op.error_code,
+        error: failure || t(($) => $.linux_user.unknown),
+        created_at: op.created_at,
+        started_at: op.started_at,
+        finished_at: op.finished_at,
+      },
+      null,
+      2,
+    );
+    if (await copyText(text)) {
+      toast.success(t(($) => $.linux_user_pages.tables.error_copied));
+    } else {
+      toast.error(t(($) => $.linux_user_pages.tables.error_copy_failed));
+    }
+  };
   const duration =
     op.started_at && op.finished_at
       ? Math.max(
@@ -174,6 +202,12 @@ function OperationRow({
         </TableCell>
         <TableCell className="pr-4">
           <div className="flex items-center justify-end gap-2">
+            {op.state === "failed" && (
+              <Button variant="outline" size="sm" onClick={copyError}>
+                <Copy aria-hidden="true" />
+                {t(($) => $.linux_user_pages.tables.copy_error)}
+              </Button>
+            )}
             {onRecover && recoverable && (
               <Button
                 variant="outline"

@@ -42,7 +42,7 @@ func (h *Handler) runtimeCache() (*computer.RuntimeDownloadCache, *computer.Runt
 				}
 				dir = filepath.Join(state, "runtime-cache")
 			}
-			h.runtimeDownloads = computer.NewRuntimeDownloadCache(dir, &http.Client{Timeout: 2 * time.Minute})
+			h.runtimeDownloads = computer.NewRuntimeDownloadCache(dir, &http.Client{Timeout: computer.RuntimeDownloadTimeout})
 		}
 		h.runtimeVersions = computer.NewRuntimeVersionCache(&http.Client{Transport: runtimeCacheTransport{h.runtimeDownloads}, Timeout: 10 * time.Second})
 	})
@@ -105,7 +105,7 @@ func (h *Handler) RuntimeDownload(w http.ResponseWriter, r *http.Request) {
 			case "omp":
 				allowed = host == "raw.githubusercontent.com" || host == "api.github.com" || host == "github.com"
 			case "kimi":
-				allowed = host == "code.kimi.com"
+				allowed = host == "code.kimi.com" || host == "cdn.kimi.com"
 			case "grok":
 				allowed = host == "x.ai"
 			default:
@@ -144,7 +144,7 @@ func (h *Handler) RuntimeDownload(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 502, "Runtime metadata is too large")
 			return
 		}
-		data = computer.MirrorRuntimeURLs(data, base)
+		data = computer.PrepareRuntimeDownload(data, source, base)
 		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 		if r.Method != http.MethodHead {
 			w.Write(data)
