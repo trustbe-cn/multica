@@ -1643,6 +1643,21 @@
     "confirm_import": "비밀 키를 포함한 원격 자격 증명을 다른 Linux 사용자에게도 사용할 개인 템플릿으로 저장합니다."
   },
   "linux_user_pages": {
+    "tables": {
+      "operation": "작업 / 런타임",
+      "step": "실행 단계",
+      "versions": "요청 → 실제 버전",
+      "created": "생성 시간",
+      "started": "시작 시간",
+      "finished": "완료 시간",
+      "duration": "소요 시간",
+      "seconds": "{{count}}초",
+      "details_named": "{{operation}} 세부 정보",
+      "recent_limit": "최근 작업 50개",
+      "health": "계정 상태",
+      "item": "항목",
+      "observed": "확인 / 완료 시간"
+    },
     "create": "Linux 사용자 만들기",
     "search": "사용자 이름 또는 Computer 검색",
     "empty": "일치하는 Linux 사용자가 없습니다.",

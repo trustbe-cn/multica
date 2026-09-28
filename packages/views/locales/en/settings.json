@@ -1650,6 +1650,21 @@
     "confirm_import": "Save these remote credentials, including secrets, as my personal template for use with other Linux users."
   },
   "linux_user_pages": {
+    "tables": {
+      "operation": "Operation / runtime",
+      "step": "Stage",
+      "versions": "Requested → actual",
+      "created": "Created",
+      "started": "Started",
+      "finished": "Finished",
+      "duration": "Duration",
+      "seconds": "{{count}} s",
+      "details_named": "Details for {{operation}}",
+      "recent_limit": "Most recent 50 operations",
+      "health": "Account status",
+      "item": "Item",
+      "observed": "Checked / completed"
+    },
     "create": "New Linux user",
     "search": "Search by username or Computer",
     "empty": "No Linux users match this list.",

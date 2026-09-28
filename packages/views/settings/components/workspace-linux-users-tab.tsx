@@ -5,7 +5,6 @@ import { useAuthStore } from "@multica/core/auth";
 import { clientErrorMessage, errorCode } from "@multica/core/api";
 import {
   bindingEligibility,
-  bindingSummary,
   useComputers,
   type ComputerBinding,
 } from "@multica/core/computers";
@@ -20,6 +19,7 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { AppLink, useNavigation } from "../../navigation";
 import { LinuxPasswordInput } from "../../computers/linux-password-input";
+import { LinuxUsersTable } from "../../computers/linux-users-table";
 import { LinuxUserOperationForm } from "../../computers/linux-user-operation-form";
 import { useT } from "../../i18n";
 import { SettingsTab } from "./settings-layout";
@@ -58,12 +58,13 @@ function WorkspaceAccounts({
   const machineName = (id: string) =>
     data.machines.data?.find((m) => m.id === id)?.name ??
     t(($) => $.linux_user.unknown);
-  const href = (b: ComputerBinding) =>
+  const href = (b: ComputerBinding, operations = false) =>
     linuxUserHref(navigation.pathname, navigation.searchParams, {
       id: b.id,
+      view: operations ? "operations" : "overview",
+      operation: operations ? b.latest_operation?.id : undefined,
       fromWorkspace: true,
     });
-  const states = t(($) => $.linux_user_pages.states, { returnObjects: true });
   return (
     <SettingsTab
       title={
@@ -114,27 +115,14 @@ function WorkspaceAccounts({
       {!connected.length && !data.bindings.isPending && (
         <p>{t(($) => $.workspace_linux_users.none_connected)}</p>
       )}
-      <ul className="space-y-3">
-        {connected.map((b) => (
-          <li
-            key={b.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
-          >
-            <div className="min-w-0">
-              <p className="break-words font-medium">
-                {machineName(b.computer_id)} · {b.username}
-              </p>
-              <p className="text-caption text-muted-foreground">
-                {states[bindingSummary(b) as keyof typeof states] ??
-                  t(($) => $.linux_user.unknown)}
-              </p>
-            </div>
-            <AppLink href={href(b)} className="underline">
-              {t(($) => $.linux_user.details)}
-            </AppLink>
-          </li>
-        ))}
-      </ul>
+      {connected.length > 0 && (
+        <LinuxUsersTable
+          accounts={connected}
+          machineName={machineName}
+          href={href}
+          showWorkspace={false}
+        />
+      )}
     </SettingsTab>
   );
 }

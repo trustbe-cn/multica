@@ -1650,6 +1650,21 @@
     "confirm_import": "Enregistrer ces identifiants distants, y compris les secrets, comme modèle personnel utilisable avec d’autres utilisateurs Linux."
   },
   "linux_user_pages": {
+    "tables": {
+      "operation": "Opération / runtime",
+      "step": "Étape",
+      "versions": "Version demandée → réelle",
+      "created": "Création",
+      "started": "Début",
+      "finished": "Fin",
+      "duration": "Durée",
+      "seconds": "{{count}} s",
+      "details_named": "Détails de {{operation}}",
+      "recent_limit": "Les 50 dernières opérations",
+      "health": "État du compte",
+      "item": "Élément",
+      "observed": "Vérification / fin"
+    },
     "create": "Nouvel utilisateur Linux",
     "search": "Rechercher un utilisateur ou un Computer",
     "empty": "Aucun utilisateur Linux ne correspond à cette liste.",

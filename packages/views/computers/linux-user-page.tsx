@@ -199,6 +199,7 @@ export function LinuxUserPage({
               bindingId={bindingId}
               view={location.view}
               operationId={location.operation}
+              operationsHref={href("operations")}
               onConfigure={setAction}
             />
           )}

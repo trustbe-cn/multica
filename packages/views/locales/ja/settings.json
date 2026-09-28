@@ -1643,6 +1643,21 @@
     "confirm_import": "秘密鍵を含むこれらのリモート認証情報を、他の Linux ユーザーでも使用できる個人テンプレートとして保存します。"
   },
   "linux_user_pages": {
+    "tables": {
+      "operation": "操作 / ランタイム",
+      "step": "実行段階",
+      "versions": "要求 → 実際のバージョン",
+      "created": "作成日時",
+      "started": "開始日時",
+      "finished": "完了日時",
+      "duration": "所要時間",
+      "seconds": "{{count}} 秒",
+      "details_named": "{{operation}}の詳細",
+      "recent_limit": "直近 50 件の操作",
+      "health": "アカウント状態",
+      "item": "項目",
+      "observed": "確認 / 完了日時"
+    },
     "create": "Linux ユーザーを作成",
     "search": "ユーザー名または Computer を検索",
     "empty": "該当する Linux ユーザーはありません。",

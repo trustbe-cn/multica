@@ -6,13 +6,24 @@ import {
   useLinuxUserDetail,
   type ComputerLifecycleInput,
 } from "@multica/core/computers";
-import { Button } from "@multica/ui/components/ui/button";
+import { AppLink } from "../navigation";
+import { Button, buttonVariants } from "@multica/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@multica/ui/components/ui/table";
+import { LinuxUserStatus, LinuxUserTime } from "./linux-user-table-parts";
+import { LinuxUserOperationsTable } from "./linux-user-operations-table";
 import { Input } from "@multica/ui/components/ui/input";
 import { LinuxPasswordInput } from "./linux-password-input";
 import { useT } from "../i18n";
@@ -25,12 +36,14 @@ export function LinuxUserDetail({
   children,
   view = "all",
   operationId,
+  operationsHref,
 }: {
   userId: string;
   bindingId: string;
   admin?: boolean;
   view?: "all" | "overview" | "operations";
   operationId?: string | null;
+  operationsHref?: string;
   onConfigure?: (action: "create_account" | "upgrade") => void;
   children?: (busy: boolean) => ReactNode;
 }) {
@@ -59,8 +72,6 @@ export function LinuxUserDetail({
   const states = t(($) => $.linux_user.states, { returnObjects: true });
   const hints = t(($) => $.linux_user_pages.hints, { returnObjects: true });
   const kinds = t(($) => $.linux_user.kinds, { returnObjects: true });
-  const steps = t(($) => $.linux_user.steps, { returnObjects: true });
-  const errors = t(($) => $.linux_user.errors, { returnObjects: true });
   const stateLabel = (state: string) =>
     states[state as keyof typeof states] ?? t(($) => $.linux_user.unknown);
   return (
@@ -81,78 +92,183 @@ export function LinuxUserDetail({
           <p className="max-w-2xl text-body text-muted-foreground">
             {hints[bindingSummary(d) as keyof typeof hints] ?? hints.unknown}
           </p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            <dt>{t(($) => $.linux_user.account)}</dt>
-            <dd>{stateLabel(d.account_state)}</dd>
-            <dt>{t(($) => $.linux_user.binding)}</dt>
-            <dd>
-              {d.archived_at
-                ? t(($) => $.linux_user.archived)
-                : stateLabel(d.state)}
-            </dd>
-            <dt>{t(($) => $.linux_user.daemon)}</dt>
-            <dd>{stateLabel(d.daemon_state)}</dd>
-            <dt>{t(($) => $.linux_user_pages.latest_operation)}</dt>
-            <dd>
-              {data.operations.data?.[0] ? (
-                <>
-                  {kinds[data.operations.data[0].kind as keyof typeof kinds] ??
-                    t(($) => $.linux_user.unknown)}{" "}
-                  · {stateLabel(data.operations.data[0].state)}
-                </>
-              ) : (
-                "—"
-              )}
-            </dd>
-          </dl>
-          <section className="space-y-2" aria-labelledby="linux-user-lifecycle">
-            <h3 id="linux-user-lifecycle" className="font-medium">
-              {t(($) => $.linux_user_pages.lifecycle)}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-body font-semibold">
+              {t(($) => $.linux_user_pages.tables.health)}
             </h3>
-            {busy && (
-              <p className="text-sm text-muted-foreground">
-                {d.state === "interrupted"
-                  ? t(($) => $.linux_user_pages.states.interrupted)
-                  : t(($) => $.linux_user_pages.states.running)}
-              </p>
-            )}
-            {!admin && !d.archived_at && (
-              <div className="flex flex-wrap gap-2">
-                {onConfigure &&
-                  d.verified &&
-                  d.workspace_id &&
-                  d.state !== "removed" && (
-                    <Button
-                      variant="outline"
-                      onClick={() => onConfigure("upgrade")}
-                      disabled={busy}
-                    >
-                      {t(($) => $.computers.actions.upgrade)}
-                    </Button>
-                  )}
-                <Button
-                  variant="outline"
-                  disabled={data.check.isPending || busy}
-                  onClick={() => data.check.mutate()}
-                >
-                  {t(($) => $.admin.linux_user_check)}
-                </Button>
-                {["ready", "failed", "pending"].includes(d.state) && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={data.check.isPending || busy}
+                aria-busy={data.check.isPending}
+                onClick={() => data.check.mutate()}
+              >
+                {t(($) => $.admin.linux_user_check)}
+              </Button>
+              {!admin &&
+                !d.archived_at &&
+                ["ready", "failed", "pending"].includes(d.state) && (
                   <Button
                     variant="outline"
+                    size="sm"
                     disabled={busy}
+                    aria-busy={data.discover.isPending}
                     onClick={() => data.discover.mutate()}
                   >
                     {t(($) => $.linux_user.discover)}
                   </Button>
                 )}
-              </div>
-            )}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-lg border bg-card">
+            <Table
+              aria-label={t(($) => $.linux_user_pages.tables.health)}
+              className="min-w-[600px]"
+            >
+              <TableHeader className="bg-muted/40">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-4">
+                    {t(($) => $.linux_user_pages.tables.item)}
+                  </TableHead>
+                  <TableHead>
+                    {t(($) => $.linux_user_pages.columns.status)}
+                  </TableHead>
+                  <TableHead>
+                    {t(($) => $.linux_user_pages.tables.observed)}
+                  </TableHead>
+                  <TableHead className="pr-4 text-right">
+                    {t(($) => $.linux_user_pages.runtime_versions.actions)}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="py-3 pl-4 font-medium">
+                    {t(($) => $.linux_user.account)}
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserStatus
+                      state={d.account_state}
+                      label={stateLabel(d.account_state)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserTime value={d.checked_at} />
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">—</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-3 pl-4 font-medium">
+                    {t(($) => $.linux_user.binding)}
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserStatus
+                      state={d.archived_at ? "archived" : d.state}
+                      label={
+                        d.archived_at
+                          ? t(($) => $.linux_user.archived)
+                          : stateLabel(d.state)
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserTime value={d.checked_at} />
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">—</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-3 pl-4 font-medium">
+                    {t(($) => $.linux_user.daemon)}
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserStatus
+                      state={d.daemon_state}
+                      label={stateLabel(d.daemon_state)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserTime value={d.daemon_checked_at} />
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">
+                    {!admin &&
+                    !d.archived_at &&
+                    onConfigure &&
+                    d.verified &&
+                    d.workspace_id &&
+                    d.state !== "removed" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => onConfigure("upgrade")}
+                      >
+                        {t(($) => $.computers.actions.upgrade)}
+                      </Button>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-3 pl-4 font-medium">
+                    {t(($) => $.linux_user_pages.latest_operation)}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {data.operations.data?.[0] ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {kinds[
+                            data.operations.data[0].kind as keyof typeof kinds
+                          ] ?? t(($) => $.linux_user.unknown)}
+                        </span>
+                        <LinuxUserStatus
+                          state={data.operations.data[0].state}
+                          label={stateLabel(data.operations.data[0].state)}
+                        />
+                      </div>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserTime
+                      value={data.operations.data?.[0]?.finished_at}
+                    />
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">
+                    {operationsHref && data.operations.data?.[0] ? (
+                      <AppLink
+                        href={operationsHref}
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                      >
+                        {t(($) => $.linux_user_pages.tables.details_named, {
+                          operation:
+                            kinds[
+                              data.operations.data[0].kind as keyof typeof kinds
+                            ] ?? t(($) => $.linux_user.operations),
+                        })}
+                      </AppLink>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <section
+            className="space-y-3"
+            aria-label={t(($) => $.linux_user_pages.danger)}
+          >
             {!admin && !d.archived_at && (
               <div className="space-y-2 border-t pt-3">
-                <h4 className="text-sm font-medium">
+                <h3 className="text-body font-semibold">
                   {t(($) => $.linux_user_pages.danger)}
-                </h4>
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {d.state !== "removed" && (
                     <Button
@@ -320,173 +436,124 @@ export function LinuxUserDetail({
         </>
       )}
       {d && view !== "operations" && (
-          <Dialog
-            open={!!action}
-            onOpenChange={(open) => {
-              if (!open && !data.lifecycle.isPending) {
-                setAction(null);
-                setPassword("");
-                setConfirmation("");
-                data.lifecycle.reset();
-              }
-            }}
-          >
-            {action && (
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {action === "delete_user"
-                      ? t(($) => $.linux_user.delete_user)
-                      : action === "archive"
-                        ? t(($) => $.linux_user.archive)
-                        : t(($) => $.computers.actions.remove)}
-                  </DialogTitle>
-                </DialogHeader>
-                <form
-                  className="space-y-2 rounded-lg border p-3"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    try {
-                      await data.lifecycle.mutateAsync({
-                        action,
-                        confirm_username: confirmation,
-                        ...(action !== "archive" ? { password } : {}),
-                      });
-                      setAction(null);
-                      setConfirmation("");
-                      setPassword("");
-                      data.lifecycle.reset();
-                    } catch {
-                      /* The mutation error stays visible. */
-                    }
-                  }}
-                >
-                  {data.lifecycle.error && (
-                    <p role="alert" className="text-destructive">
-                      {data.lifecycle.error.message}
-                    </p>
-                  )}
-                  <p>
-                    {action === "delete_user"
-                      ? t(($) => $.linux_user.delete_help)
-                      : action === "archive"
-                        ? t(($) => $.linux_user.archive_help)
-                        : t(($) => $.computers.remove_help)}
+        <Dialog
+          open={!!action}
+          onOpenChange={(open) => {
+            if (!open && !data.lifecycle.isPending) {
+              setAction(null);
+              setPassword("");
+              setConfirmation("");
+              data.lifecycle.reset();
+            }
+          }}
+        >
+          {action && (
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {action === "delete_user"
+                    ? t(($) => $.linux_user.delete_user)
+                    : action === "archive"
+                      ? t(($) => $.linux_user.archive)
+                      : t(($) => $.computers.actions.remove)}
+                </DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-2 rounded-lg border p-3"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  try {
+                    await data.lifecycle.mutateAsync({
+                      action,
+                      confirm_username: confirmation,
+                      ...(action !== "archive" ? { password } : {}),
+                    });
+                    setAction(null);
+                    setConfirmation("");
+                    setPassword("");
+                    data.lifecycle.reset();
+                  } catch {
+                    /* The mutation error stays visible. */
+                  }
+                }}
+              >
+                {data.lifecycle.error && (
+                  <p role="alert" className="text-destructive">
+                    {data.lifecycle.error.message}
                   </p>
-                  <label className="block">
-                    {t(($) => $.linux_user.confirm_username, {
+                )}
+                <p>
+                  {action === "delete_user"
+                    ? t(($) => $.linux_user.delete_help)
+                    : action === "archive"
+                      ? t(($) => $.linux_user.archive_help)
+                      : t(($) => $.computers.remove_help)}
+                </p>
+                <label className="block">
+                  {t(($) => $.linux_user.confirm_username, {
+                    username: d.username,
+                  })}
+                  <Input
+                    required
+                    value={confirmation}
+                    onChange={(e) => setConfirmation(e.target.value)}
+                  />
+                </label>
+                {action !== "archive" && (
+                  <LinuxPasswordInput
+                    key={`${bindingId}:${action}`}
+                    label={t(($) => $.linux_user.password_for, {
                       username: d.username,
                     })}
-                    <Input
-                      required
-                      value={confirmation}
-                      onChange={(e) => setConfirmation(e.target.value)}
-                    />
-                  </label>
-                  {action !== "archive" && (
-                    <LinuxPasswordInput
-                      key={`${bindingId}:${action}`}
-                      label={t(($) => $.linux_user.password_for, {
-                        username: d.username,
-                      })}
-                      required
-                      autoComplete="off"
-                      value={password}
-                      disabled={busy}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  )}
-                  <div className="flex gap-2">
-                    <Button
-                      type="submit"
-                      variant="destructive"
-                      disabled={busy || confirmation !== d.username}
-                    >
-                      {t(($) => $.linux_user.confirm)}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={data.lifecycle.isPending}
-                      onClick={() => {
-                        setAction(null);
-                        setPassword("");
-                        setConfirmation("");
-                        data.lifecycle.reset();
-                      }}
-                    >
-                      {t(($) => $.linux_user.cancel)}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            )}
-          </Dialog>
+                    required
+                    autoComplete="off"
+                    value={password}
+                    disabled={busy}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    variant="destructive"
+                    disabled={busy || confirmation !== d.username}
+                  >
+                    {t(($) => $.linux_user.confirm)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={data.lifecycle.isPending}
+                    onClick={() => {
+                      setAction(null);
+                      setPassword("");
+                      setConfirmation("");
+                      data.lifecycle.reset();
+                    }}
+                  >
+                    {t(($) => $.linux_user.cancel)}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          )}
+        </Dialog>
       )}
       {view !== "overview" && (
-        <>
-          <h4 className="font-medium">{t(($) => $.linux_user.operations)}</h4>
-          {data.operations.data?.length === 0 && (
-            <p>{t(($) => $.linux_user.no_operations)}</p>
-          )}
-          <ol className="space-y-2">
-            {data.operations.data?.map((op) => (
-              <li
-                key={op.id}
-                id={`operation-${op.id}`}
-                aria-current={operationId === op.id ? "true" : undefined}
-                className={`rounded border p-2 text-sm ${operationId === op.id ? "border-primary bg-accent" : ""}`}
-              >
-                <p>
-                  {kinds[op.kind as keyof typeof kinds] ??
-                    t(($) => $.linux_user.unknown)}{" "}
-                  {op.runtime_id} · {stateLabel(op.state)} ·{" "}
-                  {steps[op.step as keyof typeof steps] ??
-                    t(($) => $.linux_user.unknown)}
-                </p>
-                <p className="text-muted-foreground">
-                  {new Date(op.created_at).toLocaleString()}
-                  {op.finished_at &&
-                    ` → ${new Date(op.finished_at).toLocaleString()}`}
-                </p>
-                {op.requested_version && (
-                  <p>
-                    {t(($) => $.linux_user.versions, {
-                      requested: op.requested_version,
-                      actual: op.actual_version || "—",
-                    })}
-                  </p>
-                )}
-                {op.error_code && (
-                  <p className="text-destructive">
-                    {errors[op.error_code as keyof typeof errors] ??
-                      op.error_summary}
-                  </p>
-                )}
-                {!admin &&
-                  (op.state === "queued" ||
-                    (op.state === "interrupted" && !op.finished_at)) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={data.recover.isPending}
-                      onClick={() =>
-                        data.recover.mutate({
-                          id: op.id,
-                          action:
-                            op.state === "queued" ? "cancel" : "acknowledge",
-                        })
-                      }
-                    >
-                      {op.state === "queued"
-                        ? t(($) => $.linux_user.cancel)
-                        : t(($) => $.linux_user.acknowledge)}
-                    </Button>
-                  )}
-              </li>
-            ))}
-          </ol>
-        </>
+        <LinuxUserOperationsTable
+          operations={data.operations.data ?? []}
+          operationId={operationId}
+          recovering={data.recover.isPending}
+          onRecover={
+            admin
+              ? undefined
+              : (op) =>
+                  data.recover.mutate({
+                    id: op.id,
+                    action: op.state === "queued" ? "cancel" : "acknowledge",
+                  })
+          }
+        />
       )}
       {children?.(busy)}
     </section>
