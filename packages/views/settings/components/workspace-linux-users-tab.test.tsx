@@ -140,6 +140,8 @@ it("clears the password when switching modes and shares the create form", async 
   await user.click(
     screen.getByRole("button", { name: en.workspace_linux_users.connect }),
   );
+  // Select an available account first so the password field appears
+  await user.click(screen.getByRole("radio", { name: /alice-worker/ }));
   await user.type(screen.getByLabelText("Linux password"), "first-secret");
   await user.click(
     screen.getByRole("button", { name: en.workspace_linux_users.new }),

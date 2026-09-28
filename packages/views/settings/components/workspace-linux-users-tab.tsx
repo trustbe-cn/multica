@@ -18,11 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import { Badge } from "@multica/ui/components/ui/badge";
+import { Toggle } from "@multica/ui/components/ui/toggle";
 import { AppLink, useNavigation } from "../../navigation";
 import { LinuxPasswordInput } from "../../computers/linux-password-input";
 import { LinuxUserOperationForm } from "../../computers/linux-user-operation-form";
 import { useT } from "../../i18n";
-import { SettingsTab } from "./settings-layout";
+import { SettingsTab, SettingsSection } from "./settings-layout";
 import { linuxUserHref } from "./settings-navigation";
 
 export function WorkspaceLinuxUsersTab() {
@@ -64,77 +66,93 @@ function WorkspaceAccounts({
       fromWorkspace: true,
     });
   const states = t(($) => $.linux_user_pages.states, { returnObjects: true });
-  return (
-    <SettingsTab
-      title={
-        <span className="flex flex-wrap items-center justify-between gap-3">
-          <span>{t(($) => $.workspace_linux_users.connected)}</span>
-          <Dialog
-            open={open}
-            onOpenChange={(value) => {
-              if (!submitting) setOpen(value);
-            }}
-          >
-            <DialogTrigger render={<Button />}>
-              {t(($) => $.workspace_linux_users.connect)}
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {t(($) => $.workspace_linux_users.connect)}
-                </DialogTitle>
-              </DialogHeader>
-              {open && (
-                <ConnectionForm
-                  busy={submitting}
-                  onBusyChange={setSubmitting}
-                  userId={userId}
-                  workspaceId={workspaceId}
-                  onAccepted={(b) => {
-                    setOpen(false);
-                    navigation.push(
-                      linuxUserHref(
-                        navigation.pathname,
-                        navigation.searchParams,
-                        { id: b.id, view: "operations", fromWorkspace: true },
-                      ),
-                    );
-                  }}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
-        </span>
-      }
+
+  const statusVariant = (
+    b: ComputerBinding,
+  ): "default" | "secondary" | "destructive" | "outline" => {
+    const summary = bindingSummary(b);
+    if (summary === "ready") return "secondary";
+    if (summary === "running" || summary === "interrupted") return "default";
+    return "destructive";
+  };
+
+  const dialog = (
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!submitting) setOpen(value);
+      }}
     >
-      {data.bindings.error && <p role="alert">{data.bindings.error.message}</p>}
-      {data.bindings.isPending && (
-        <p role="status">{t(($) => $.computers.loading)}</p>
-      )}
-      {!connected.length && !data.bindings.isPending && (
-        <p>{t(($) => $.workspace_linux_users.none_connected)}</p>
-      )}
-      <ul className="space-y-3">
-        {connected.map((b) => (
-          <li
-            key={b.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
-          >
-            <div className="min-w-0">
-              <p className="break-words font-medium">
-                {machineName(b.computer_id)} · {b.username}
-              </p>
-              <p className="text-caption text-muted-foreground">
-                {states[bindingSummary(b) as keyof typeof states] ??
-                  t(($) => $.linux_user.unknown)}
-              </p>
-            </div>
-            <AppLink href={href(b)} className="underline">
-              {t(($) => $.linux_user.details)}
-            </AppLink>
-          </li>
-        ))}
-      </ul>
+      <DialogTrigger render={<Button />}>
+        {t(($) => $.workspace_linux_users.connect)}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {t(($) => $.workspace_linux_users.connect)}
+          </DialogTitle>
+        </DialogHeader>
+        {open && (
+          <ConnectionForm
+            busy={submitting}
+            onBusyChange={setSubmitting}
+            userId={userId}
+            workspaceId={workspaceId}
+            onAccepted={(b) => {
+              setOpen(false);
+              navigation.push(
+                linuxUserHref(
+                  navigation.pathname,
+                  navigation.searchParams,
+                  { id: b.id, view: "operations", fromWorkspace: true },
+                ),
+              );
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  return (
+    <SettingsTab title={t(($) => $.workspace_linux_users.title)}>
+      <SettingsSection
+        title={t(($) => $.workspace_linux_users.connected)}
+        action={dialog}
+      >
+        {data.bindings.error && (
+          <p role="alert">{data.bindings.error.message}</p>
+        )}
+        {data.bindings.isPending && (
+          <p role="status">{t(($) => $.computers.loading)}</p>
+        )}
+        {!connected.length && !data.bindings.isPending && (
+          <p className="text-body text-muted-foreground">
+            {t(($) => $.workspace_linux_users.none_connected)}
+          </p>
+        )}
+        <ul className="space-y-2">
+          {connected.map((b) => (
+            <li
+              key={b.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
+            >
+              <div className="min-w-0 space-y-1">
+                <p className="break-words font-medium">
+                  {machineName(b.computer_id)} · {b.username}
+                </p>
+                <Badge variant={statusVariant(b)}>
+                  {states[bindingSummary(b) as keyof typeof states] ??
+                    t(($) => $.linux_user.unknown)}
+                </Badge>
+              </div>
+              <AppLink href={href(b)} className="shrink-0 underline">
+                {t(($) => $.linux_user.details)}
+              </AppLink>
+            </li>
+          ))}
+        </ul>
+      </SettingsSection>
     </SettingsTab>
   );
 }
@@ -159,18 +177,19 @@ function ConnectionForm({
       <div
         role="group"
         aria-label={t(($) => $.workspace_linux_users.mode)}
-        className="flex flex-wrap gap-2"
+        className="flex rounded-md border p-0.5 w-fit gap-0.5"
       >
         {(["existing", "new"] as const).map((value) => (
-          <Button
+          <Toggle
             key={value}
-            variant={mode === value ? "secondary" : "outline"}
-            aria-pressed={mode === value}
+            pressed={mode === value}
             disabled={busy}
-            onClick={() => setMode(value)}
+            onPressedChange={() => setMode(value)}
+            variant="outline"
+            className="border-transparent data-[state=on]:bg-background data-[state=on]:shadow-sm"
           >
             {t(($) => $.workspace_linux_users[value])}
-          </Button>
+          </Toggle>
         ))}
       </div>
       {mode === "new" ? (
@@ -319,19 +338,21 @@ function ExistingConnectionForm({
           );
         })}
       </fieldset>
-      <LinuxPasswordInput
-        autoComplete="off"
-        required
-        disabled={data.operate.isPending}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      {selected && (
+        <LinuxPasswordInput
+          autoComplete="off"
+          required
+          disabled={data.operate.isPending}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      )}
       {error && (
         <p role="alert" className="text-destructive">
           {error}
         </p>
       )}
-      {(!selected || !password) && (
+      {!selected && (
         <p className="text-caption text-muted-foreground">
           {t(($) => $.workspace_linux_users.required_fields)}
         </p>

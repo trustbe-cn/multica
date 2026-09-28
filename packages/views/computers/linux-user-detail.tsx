@@ -105,7 +105,7 @@ export function LinuxUserDetail({
               )}
             </dd>
           </dl>
-          <section className="space-y-2" aria-labelledby="linux-user-lifecycle">
+          <section className="space-y-3" aria-labelledby="linux-user-lifecycle">
             <h3 id="linux-user-lifecycle" className="font-medium">
               {t(($) => $.linux_user_pages.lifecycle)}
             </h3>
@@ -149,8 +149,8 @@ export function LinuxUserDetail({
               </div>
             )}
             {!admin && !d.archived_at && (
-              <div className="space-y-2 border-t pt-3">
-                <h4 className="text-sm font-medium">
+              <div className="space-y-2 pt-2">
+                <h4 className="text-sm font-medium text-muted-foreground">
                   {t(($) => $.linux_user_pages.danger)}
                 </h4>
                 <div className="flex flex-wrap gap-2">
@@ -184,18 +184,15 @@ export function LinuxUserDetail({
                     </>
                   )}
                 </div>
-                {d.state !== "removed" && (
-                  <p className="text-sm text-muted-foreground">
-                    {t(($) => $.computers.remove_help)}
-                  </p>
-                )}
-                {d.state === "removed" && (
-                  <p className="text-sm text-muted-foreground">
-                    {t(($) => $.linux_user.archive_help)}{" "}
-                    {d.account_state !== "missing" &&
-                      t(($) => $.linux_user.delete_help)}
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  {d.state !== "removed"
+                    ? t(($) => $.computers.remove_help)
+                    : <>
+                        {t(($) => $.linux_user.archive_help)}{" "}
+                        {d.account_state !== "missing" &&
+                          t(($) => $.linux_user.delete_help)}
+                      </>}
+                </p>
               </div>
             )}
           </section>
@@ -343,7 +340,7 @@ export function LinuxUserDetail({
                   </DialogTitle>
                 </DialogHeader>
                 <form
-                  className="space-y-2 rounded-lg border p-3"
+                  className="space-y-3"
                   onSubmit={async (event) => {
                     event.preventDefault();
                     try {
@@ -440,8 +437,8 @@ export function LinuxUserDetail({
                 <p>
                   {kinds[op.kind as keyof typeof kinds] ??
                     t(($) => $.linux_user.unknown)}{" "}
-                  {op.runtime_id} · {stateLabel(op.state)} ·{" "}
-                  {steps[op.step as keyof typeof steps] ??
+                  · {stateLabel(op.state)}{" "}
+                  · {steps[op.step as keyof typeof steps] ??
                     t(($) => $.linux_user.unknown)}
                 </p>
                 <p className="text-muted-foreground">
