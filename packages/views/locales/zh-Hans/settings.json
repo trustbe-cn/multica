@@ -1737,7 +1737,21 @@
       "manage_named": "管理 {{runtime}} 版本",
       "details_named": "{{runtime}} 详情",
       "install_help": "安装要求",
-      "checked": "最新版本检测时间"
+      "checked": "最新版本检测时间",
+      "batch_install": "安装或更新（{{count}}）",
+      "select_all": "全选可安装的运行时",
+      "select_named": "选择 {{runtime}}",
+      "batch_help": "逐项安装，失败后继续下一项，已是最新版本的会跳过。批量完成前请保持应用打开。",
+      "batch_progress": "已完成 {{completed}} / {{total}} · 失败 {{failed}} 项",
+      "batch_stopped": "无法确认当前操作状态，批量任务已停止。请查看操作记录后重试。",
+      "batch_states": {
+        "waiting": "等待中",
+        "installing": "安装中…",
+        "succeeded": "成功",
+        "failed": "失败",
+        "skipped": "已是最新 · 已跳过",
+        "stopped": "已停止"
+      }
     }
   },
   "runtime_cache": {

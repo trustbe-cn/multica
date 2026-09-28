@@ -1744,7 +1744,21 @@
       "manage_named": "Manage {{runtime}} version",
       "details_named": "{{runtime}} details",
       "install_help": "Installation requirements",
-      "checked": "Latest version checked"
+      "checked": "Latest version checked",
+      "batch_install": "Install or update ({{count}})",
+      "select_all": "Select all installable runtimes",
+      "select_named": "Select {{runtime}}",
+      "batch_help": "Installs run one at a time; failed items are skipped and current versions are kept. Keep the app open until the batch finishes.",
+      "batch_progress": "{{completed}} / {{total}} completed · {{failed}} failed",
+      "batch_stopped": "Batch stopped because the current operation could not be confirmed. Check operation history before retrying.",
+      "batch_states": {
+        "waiting": "Waiting",
+        "installing": "Installing…",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "skipped": "Already current · skipped",
+        "stopped": "Stopped"
+      }
     }
   },
   "runtime_cache": {

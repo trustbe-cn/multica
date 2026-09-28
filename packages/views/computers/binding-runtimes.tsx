@@ -13,9 +13,12 @@ import {
 import {
   useComputerBindingRuntimes,
   useComputerBindingRuntimeInstall,
+  useComputerBindingRuntimeBatch,
+  type RuntimeBatchStatus,
   type AdminComputerRuntime,
 } from "@multica/core/computers";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import {
   Table,
@@ -53,6 +56,22 @@ export function BindingRuntimes({
     true,
     busy,
   );
+  const [selected, setSelected] = useState<string[]>([]);
+  const batch = useComputerBindingRuntimeBatch(userId, bindingId);
+  const installable =
+    runtimes.data?.filter((runtime) => runtime.can_install) ?? [];
+  const chosen = installable.filter((runtime) => selected.includes(runtime.id));
+  const locked = busy || isInstalling || batch.isPending;
+  const batchLabels = t(
+    ($) => $.linux_user_pages.runtime_versions.batch_states,
+    { returnObjects: true },
+  );
+  const completed = [...batch.results.values()].filter((status) =>
+    ["succeeded", "failed", "skipped"].includes(status),
+  ).length;
+  const failed = [...batch.results.values()].filter(
+    (status) => status === "failed",
+  ).length;
   return (
     <section
       className="space-y-4"
@@ -62,23 +81,65 @@ export function BindingRuntimes({
         <h3 className="text-body font-semibold">
           {t(($) => $.linux_user_pages.views.runtimes)}
         </h3>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={runtimes.isFetching || isInstalling}
-          aria-busy={runtimes.isFetching}
-          onClick={() => void runtimes.refetch()}
-        >
-          <RefreshCw
-            aria-hidden="true"
-            className={
-              runtimes.isFetching ? "motion-safe:animate-spin" : undefined
-            }
-          />
-          {t(($) => $.admin.refresh)}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={locked || chosen.length === 0}
+            aria-busy={batch.isPending}
+            onClick={() => batch.start(chosen)}
+          >
+            {batch.isPending ? (
+              <Loader2
+                aria-hidden="true"
+                className="motion-safe:animate-spin"
+              />
+            ) : (
+              <Download aria-hidden="true" />
+            )}
+            {t(($) => $.linux_user_pages.runtime_versions.batch_install, {
+              count: batch.isPending ? batch.results.size : chosen.length,
+            })}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={runtimes.isFetching || isInstalling}
+            aria-busy={runtimes.isFetching}
+            onClick={() => void runtimes.refetch()}
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={
+                runtimes.isFetching ? "motion-safe:animate-spin" : undefined
+              }
+            />
+            {t(($) => $.admin.refresh)}
+          </Button>
+        </div>
       </div>
+      <p className="text-caption text-muted-foreground">
+        {t(($) => $.linux_user_pages.runtime_versions.batch_help)}
+      </p>
+      {batch.results.size > 0 && (
+        <p
+          role="status"
+          className={
+            batch.stopped
+              ? "text-caption text-destructive"
+              : "text-caption text-muted-foreground"
+          }
+        >
+          {batch.stopped
+            ? t(($) => $.linux_user_pages.runtime_versions.batch_stopped)
+            : t(($) => $.linux_user_pages.runtime_versions.batch_progress, {
+                completed,
+                total: batch.results.size,
+                failed,
+              })}
+        </p>
+      )}
       {runtimes.isPending && (
         <p role="status">{t(($) => $.computers.loading)}</p>
       )}
@@ -94,13 +155,31 @@ export function BindingRuntimes({
         <div className="overflow-hidden rounded-lg border bg-card">
           <Table
             aria-label={t(($) => $.linux_user_pages.views.runtimes)}
-            className="min-w-[640px]"
+            className="min-w-[720px]"
           >
             <TableHeader className="bg-muted/40">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-4">
-                  {t(($) => $.admin.runtimes_title)}
+                <TableHead className="w-10 pl-4">
+                  <Checkbox
+                    aria-label={t(
+                      ($) => $.linux_user_pages.runtime_versions.select_all,
+                    )}
+                    checked={
+                      installable.length > 0 &&
+                      chosen.length === installable.length
+                    }
+                    indeterminate={
+                      chosen.length > 0 && chosen.length < installable.length
+                    }
+                    disabled={locked || installable.length === 0}
+                    onCheckedChange={(checked) =>
+                      setSelected(
+                        checked ? installable.map((runtime) => runtime.id) : [],
+                      )
+                    }
+                  />
                 </TableHead>
+                <TableHead>{t(($) => $.admin.runtimes_title)}</TableHead>
                 <TableHead>
                   {t(($) => $.linux_user_pages.runtime_versions.installed)}
                 </TableHead>
@@ -120,7 +199,21 @@ export function BindingRuntimes({
                   runtime={runtime}
                   bindingId={bindingId}
                   userId={userId}
-                  busy={busy || isInstalling}
+                  busy={locked}
+                  selected={selected.includes(runtime.id)}
+                  onSelect={(checked) =>
+                    setSelected((current) =>
+                      checked
+                        ? [...current, runtime.id]
+                        : current.filter((id) => id !== runtime.id),
+                    )
+                  }
+                  batchStatus={batch.results.get(runtime.id)}
+                  batchLabel={
+                    batch.results.has(runtime.id)
+                      ? batchLabels[batch.results.get(runtime.id)!]
+                      : undefined
+                  }
                 />
               ))}
             </TableBody>
@@ -147,11 +240,19 @@ function RuntimeRow({
   bindingId,
   userId,
   busy,
+  selected,
+  onSelect,
+  batchStatus,
+  batchLabel,
 }: {
   runtime: AdminComputerRuntime;
   bindingId: string;
   userId: string;
   busy: boolean;
+  selected: boolean;
+  onSelect: (checked: boolean) => void;
+  batchStatus?: RuntimeBatchStatus;
+  batchLabel?: string;
 }) {
   const { t } = useT("settings");
   const [version, setVersion] = useState("");
@@ -201,14 +302,38 @@ function RuntimeRow({
   const detailsId = `runtime-assets-${runtime.id}`;
   return (
     <Fragment>
-      <TableRow>
-        <TableCell className="py-3 pl-4">
+      <TableRow data-state={selected ? "selected" : undefined}>
+        <TableCell className="pl-4">
+          <Checkbox
+            aria-label={t(
+              ($) => $.linux_user_pages.runtime_versions.select_named,
+              { runtime: runtime.display_name },
+            )}
+            checked={selected}
+            disabled={busy || !runtime.can_install}
+            onCheckedChange={onSelect}
+          />
+        </TableCell>
+        <TableCell className="py-3">
           <div className="flex items-center gap-2.5 font-medium">
             <span aria-hidden="true">
               <ProviderLogo provider={runtime.id} className="size-5 shrink-0" />
             </span>
             {runtime.display_name}
           </div>
+          {batchLabel && (
+            <span
+              className={`mt-1 inline-flex items-center gap-1 text-caption ${batchStatus === "failed" || batchStatus === "stopped" ? "text-destructive" : batchStatus === "succeeded" ? "text-success" : "text-muted-foreground"}`}
+            >
+              {batchStatus === "installing" && (
+                <Loader2
+                  aria-hidden="true"
+                  className="size-3 motion-safe:animate-spin"
+                />
+              )}
+              {batchLabel}
+            </span>
+          )}
           {runtime.probe_error && (
             <p className="mt-1 max-w-56 whitespace-normal text-caption text-destructive">
               {t(($) => $.admin.runtimes_probe_failed)}
@@ -396,7 +521,7 @@ function RuntimeRow({
       </TableRow>
       {expanded && (
         <TableRow id={detailsId} className="bg-muted/20 hover:bg-muted/20">
-          <TableCell colSpan={5} className="whitespace-normal px-4 py-3">
+          <TableCell colSpan={6} className="whitespace-normal px-4 py-3">
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-caption [&_dt]:text-muted-foreground [&_dd]:break-all">
               <dt>{t(($) => $.linux_user.path)}</dt>
               <dd>{runtime.executable_path || "—"}</dd>

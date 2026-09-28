@@ -9,8 +9,12 @@ import { BindingRuntimes } from "./binding-runtimes";
 const api = vi.hoisted(() => ({
   listComputerBindingRuntimes: vi.fn(),
   installComputerBindingRuntime: vi.fn(),
+  listComputerOperations: vi.fn(),
 }));
-vi.mock("@multica/core/api", () => ({ api }));
+vi.mock("@multica/core/api", async (original) => ({
+  ...(await original<typeof import("@multica/core/api")>()),
+  api,
+}));
 const installed = {
   id: "codex",
   display_name: "Codex",
@@ -133,4 +137,57 @@ it("refreshes installed versions immediately when a remote operation completes",
   ]);
   view.setBusy(false);
   expect(await screen.findByText("codex-cli 1.2.4")).toBeInTheDocument();
+});
+
+it("selects installable runtimes with mixed state and submits the batch without individual dialogs", async () => {
+  api.listComputerBindingRuntimes.mockResolvedValue([
+    { ...installed, latest_version: "1.2.4", update_available: true },
+    {
+      ...installed,
+      id: "omp",
+      display_name: "OMP",
+      installed_version: "",
+      latest_version: "18.4.0",
+    },
+    { ...installed, id: "custom", display_name: "Custom", can_install: false },
+  ]);
+  api.installComputerBindingRuntime.mockImplementation(
+    async (_binding, id) => ({ operation_id: id, state: "queued" }),
+  );
+  api.listComputerOperations.mockResolvedValue([
+    { id: "codex", state: "failed", error_summary: "Failed" },
+    { id: "omp", state: "succeeded" },
+  ]);
+  mount();
+  const user = userEvent.setup();
+  const all = await screen.findByRole("checkbox", {
+    name: "Select all installable runtimes",
+  });
+  expect(
+    screen.getByRole("button", { name: "Install or update (0)" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("checkbox", { name: "Select Custom" }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await user.click(screen.getByRole("checkbox", { name: "Select Codex" }));
+  expect(all).toBePartiallyChecked();
+  await user.click(all);
+  expect(all).toBeChecked();
+  await user.click(
+    screen.getByRole("button", { name: "Install or update (2)" }),
+  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(
+    await screen.findByText("2 / 2 completed · 1 failed"),
+  ).toBeInTheDocument();
+  expect(api.installComputerBindingRuntime.mock.calls).toEqual([
+    ["binding", "codex", "1.2.4"],
+    ["binding", "omp", "18.4.0"],
+  ]);
+  expect(
+    within(screen.getByText("Codex").closest("tr")!).getByText("Failed"),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByText("OMP").closest("tr")!).getByText("Succeeded"),
+  ).toBeInTheDocument();
 });

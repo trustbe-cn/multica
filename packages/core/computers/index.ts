@@ -101,3 +101,6 @@ export {
 } from "./summary";
 
 export { useRuntimeCache } from "./runtime-cache";
+
+export { useComputerBindingRuntimeBatch } from "./runtime-batch";
+export type { RuntimeBatchStatus } from "./runtime-batch";

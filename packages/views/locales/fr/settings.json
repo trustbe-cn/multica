@@ -1744,7 +1744,21 @@
       "manage_named": "Gérer la version de {{runtime}}",
       "details_named": "Détails de {{runtime}}",
       "install_help": "Conditions d’installation",
-      "checked": "Dernière vérification de version"
+      "checked": "Dernière vérification de version",
+      "batch_install": "Installer ou mettre à jour ({{count}})",
+      "select_all": "Sélectionner tous les runtimes installables",
+      "select_named": "Sélectionner {{runtime}}",
+      "batch_help": "Les installations se suivent ; les échecs et les versions à jour sont ignorés. Gardez l’application ouverte jusqu’à la fin du lot.",
+      "batch_progress": "{{completed}} / {{total}} terminés · {{failed}} en échec",
+      "batch_stopped": "Lot arrêté : l’état de l’opération actuelle est inconnu. Consultez l’historique avant de réessayer.",
+      "batch_states": {
+        "waiting": "En attente",
+        "installing": "Installation…",
+        "succeeded": "Réussi",
+        "failed": "Échec",
+        "skipped": "À jour · ignoré",
+        "stopped": "Arrêté"
+      }
     }
   },
   "runtime_cache": {
