@@ -1,3 +1,4 @@
+import { AgentRuntimeListSchema, AgentRuntimeSchema } from "./schemas";
 import { RuntimeCacheSchema, type RuntimeCache } from "../computers/runtime-cache-schema";
 import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
 import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
@@ -1984,9 +1985,8 @@ export class ApiClient {
     // workspace_id alone is not enough: the server resolves the workspace from
     // the slug header first, so a caller listing another workspace's runtimes
     // must override the header too.
-    return this.fetch(`/api/runtimes?${search}`, {
-      headers: workspaceHeader(workspaceSlug),
-    });
+    const raw = await this.fetch<unknown>(`/api/runtimes?${search}`, { headers: workspaceHeader(workspaceSlug) });
+    return parseWithFallback<AgentRuntime[]>(raw, AgentRuntimeListSchema, [], { endpoint: "/api/runtimes" });
   }
 
   async listCloudRuntimeNodes(
@@ -2347,10 +2347,10 @@ export class ApiClient {
       apply_to_machine?: boolean;
     },
   ): Promise<AgentRuntime> {
-    return this.fetch(`/api/runtimes/${runtimeId}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    });
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}`, { method: "PATCH", body: JSON.stringify(patch) });
+    const result = parseWithFallback<AgentRuntime | null>(raw, AgentRuntimeSchema, null, { endpoint: "/api/runtimes/:id" });
+    if (!result) throw new Error("Could not read the updated runtime");
+    return result;
   }
 
   // ---------------------------------------------------------------------

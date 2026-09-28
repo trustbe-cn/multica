@@ -3542,3 +3542,31 @@ export const RuntimeProfileSchema = z
     runtime_type: profile.runtime_type || profile.protocol_family,
   }));
 export const RuntimeProfileListSchema = z.array(RuntimeProfileSchema);
+
+
+export const AgentRuntimeSchema = z.object({
+  id: z.string().min(1),
+  workspace_id: z.string(),
+  daemon_id: z.string().nullable().catch(null),
+  name: z.string(),
+  custom_name: z.string().nullable().catch(null),
+  runtime_mode: z.enum(["local", "cloud"]).catch("local"),
+  provider: z.string(),
+  launch_header: z.string().catch(""),
+  status: z.enum(["online", "offline"]).catch("offline"),
+  device_info: z.string().catch(""),
+  metadata: z.record(z.string(), z.unknown()).catch({}),
+  owner_id: z.string().nullable().catch(null),
+  visibility: z.enum(["private", "public"]).catch("private"),
+  profile_id: z.string().nullable().catch(null),
+  last_seen_at: z.string().nullable().catch(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  execution_source: z.object({
+    binding_id: z.string().min(1),
+    linux_user: z.string().min(1),
+    host: z.string().min(1),
+    preferred: z.boolean().catch(false),
+  }).nullable().catch(null),
+});
+export const AgentRuntimeListSchema = z.array(AgentRuntimeSchema);

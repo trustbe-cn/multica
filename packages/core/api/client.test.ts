@@ -3108,3 +3108,29 @@ it("requests an asynchronous runtime receipt and retains its durable operation I
   expect(result).toEqual({operation_id:"operation-1",state:"queued"});
   expect(new Headers(fetchMock.mock.calls[0]?.[1].headers).get("Prefer")).toBe("respond-async");
 });
+
+
+describe("runtime execution source response compatibility", () => {
+  const runtime = { id: "rt", workspace_id: "ws", name: "Claude (host)", provider: "claude", status: "online" };
+  async function read(value: unknown) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(value))));
+    return new ApiClient("https://api.example.test").listRuntimes();
+  }
+  it("accepts old servers and defaults unknown access and availability conservatively", async () => {
+    const result = (await read([{ ...runtime, status: "future", visibility: "future" }]))[0]!;
+    expect(result.execution_source).toBeNull();
+    expect(result.status).toBe("offline");
+    expect(result.visibility).toBe("private");
+  });
+  it("validates source metadata without discarding a valid runtime", async () => {
+    expect((await read([{ ...runtime, execution_source: { linux_user: 42 } }]))[0]!.execution_source).toBeNull();
+    const source = { binding_id: "binding", linux_user: "mas_glite", host: "host", preferred: true };
+    expect((await read([{ ...runtime, execution_source: source }]))[0]!.execution_source).toEqual(source);
+    expect((await read([{ ...runtime, execution_source: { ...source, preferred: "true" } }]))[0]!.execution_source?.preferred).toBe(false);
+    expect(await read({ runtimes: null })).toEqual([]);
+  });
+  it("rejects malformed runtime mutation receipts", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "rt" }))));
+    await expect(new ApiClient("https://api.example.test").updateRuntime("rt", { custom_name: "CLI" })).rejects.toThrow("Could not read the updated runtime");
+  });
+});

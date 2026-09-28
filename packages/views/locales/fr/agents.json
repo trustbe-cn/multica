@@ -441,7 +441,9 @@
       "remove_aria": "Supprimer l'avatar",
       "select_image_toast": "Veuillez sélectionner un fichier image.",
       "upload_failed_toast": "Échec de l'envoi de l'avatar"
-    }
+    },
+    "runtime_credentials_help": "L’authentification utilise la configuration du compte système du runtime choisi. Installer un CLI ne configure pas sa clé API.",
+    "runtime_select": "Choisir un runtime"
   },
   "conversation_starters": {
     "label": "Amorces de conversation",

@@ -328,7 +328,9 @@
       "remove_aria": "アバターを削除",
       "select_image_toast": "画像ファイルを選択してください。",
       "upload_failed_toast": "アバターのアップロードに失敗しました"
-    }
+    },
+    "runtime_credentials_help": "モデル認証には、選択したランタイムの OS ユーザー設定を使用します。CLI のインストールだけでは API キーは設定されません。",
+    "runtime_select": "ランタイムを選択"
   },
   "conversation_starters": {
     "label": "会話の開始例",
