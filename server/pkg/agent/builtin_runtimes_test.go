@@ -55,7 +55,7 @@ func TestRuntimeInstallCommands(t *testing.T) {
 		{name: "private npm", id: "codex", version: "1.2.3"},
 		{name: "npm latest checks registry", id: "codex", version: "latest"},
 		{name: "grok native directory", id: "grok", version: "1.2.3", args: "1.2.3\n"},
-		{name: "grok latest", id: "grok", version: "latest", args: "latest\n"},
+		{name: "grok latest", id: "grok", version: "latest", args: "\n"},
 		{name: "kimi native directory", id: "kimi", version: "1.2.3", args: "--version\n1.2.3\n"},
 		{name: "kimi latest without version argument", id: "kimi", version: "latest", args: "\n"},
 		{name: "omp standalone without bun", id: "omp", version: "1.2.3", args: "--binary\n--ref\nv1.2.3\n"},
@@ -83,7 +83,7 @@ touch "$HOME/executed"
 printf '%s\n' "$@" > "$HOME/installer-args"
 if [ "$MISSING_BINARY" = 1 ]; then exit 0; fi
 case "$INSTALL_TARGET" in
- grok) bindir="$HOME/.grok/bin";;
+ grok) test "${1:-}" != latest || exit 45; bindir="$HOME/.grok/bin";;
  kimi) test "$KIMI_INSTALL_DIR" = "$HOME/.kimi-code" || exit 43; test -z "$KIMI_VERSION" || exit 44; bindir="$KIMI_INSTALL_DIR/bin";;
  omp) test "$PI_INSTALL_DIR" = "$HOME/.local/bin" || exit 43; bindir="$PI_INSTALL_DIR";;
 esac

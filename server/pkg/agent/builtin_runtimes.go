@@ -172,8 +172,8 @@ var ProtocolFamilyInstalls = []ProtocolFamilyInstall{
 		InstallerSource: "https://x.ai/cli/install.sh",
 		DisplayName:     "Grok",
 		DefaultCommand:  "grok",
-		// The installer accepts a version as its first positional argument.
-		InstallCommand: scriptRuntimeInstall("https://x.ai/cli/install.sh", `bash "$installer" "{{version}}"`, "grok"),
+		// Latest uses no argument; the upstream installer rejects the literal "latest".
+		InstallCommand: scriptRuntimeInstall("https://x.ai/cli/install.sh", `if [ "{{version}}" = latest ]; then bash "$installer"; else bash "$installer" "{{version}}"; fi`, "grok"),
 	},
 	{
 		ID:              "kimi",

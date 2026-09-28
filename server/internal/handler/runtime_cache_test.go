@@ -149,3 +149,58 @@ func TestRuntimeDownloadKimiCDNCapability(t *testing.T) {
 		t.Fatal("accepted Kimi CDN for different runtime")
 	}
 }
+
+func TestRuntimeDownloadGrokPublicSourcesAndRanges(t *testing.T) {
+	t.Setenv("MULTICA_COMPUTER_SERVER_URL", "https://multica.invalid")
+	_, binding := operationBinding(t)
+	op, err := testHandler.beginBindingOperation(context.Background(), testUserID, binding, "runtime_install", "grok", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbfx.Exec(t, `UPDATE computer_operation SET state='running' WHERE id=$1`, op)
+	body := "BINARY https://x.ai/cli/ unchanged"
+	calls := 0
+	client := &http.Client{Transport: runtimeCacheTestTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/octet-stream"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}
+	h := &Handler{DB: testHandler.DB, runtimeDownloads: computer.NewRuntimeDownloadCache(t.TempDir(), client)}
+	router := chi.NewRouter()
+	router.Get("/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*", h.RuntimeDownload)
+	router.Head("/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*", h.RuntimeDownload)
+	base := runtimeDownloadBase("", op, time.Now())
+	for _, source := range []string{"/x.ai/cli", "/storage.googleapis.com/grok-build-public-artifacts/cli"} {
+		path := base + source + "/grok-1.0.41-linux-x86_64.gz"
+		for _, method := range []string{"HEAD", "GET"} {
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(method, path, nil)
+			if method == "GET" {
+				req.Header.Set("Range", "bytes=0-5")
+			}
+			router.ServeHTTP(rr, req)
+			if method == "HEAD" {
+				if rr.Code != 200 || rr.Header().Get("Content-Length") != strconv.Itoa(len(body)) || rr.Body.Len() != 0 {
+					t.Fatalf("invalid artifact HEAD: %d %v", rr.Code, rr.Header())
+				}
+			} else if rr.Code != 206 || rr.Body.String() != "BINARY" {
+				t.Fatalf("corrupted range: %d %q", rr.Code, rr.Body.String())
+			}
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("range requests bypassed cache: %d upstream requests", calls)
+	}
+	for _, source := range []string{"/storage.googleapis.com/unrelated-bucket/cli/file", "/registry.npmjs.org/tool"} {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest("GET", base+source, nil))
+		if rr.Code != 403 {
+			t.Fatalf("accepted unrelated source %s", source)
+		}
+	}
+	dbfx.Exec(t, `UPDATE computer_operation SET runtime_id='codex' WHERE id=$1`, op)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest("GET", base+"/storage.googleapis.com/grok-build-public-artifacts/cli/stable", nil))
+	if rr.Code != 403 {
+		t.Fatal("accepted Grok source for another runtime")
+	}
+}

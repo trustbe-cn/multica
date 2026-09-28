@@ -91,6 +91,8 @@ func runtimeVersionSource(id, installer string) (string, string) {
 		return "https://api.github.com/repos/can1357/oh-my-pi/releases/latest", "github"
 	case "kimi":
 		return "https://code.kimi.com/kimi-code/latest", "text"
+	case "grok":
+		return "https://x.ai/cli/stable", "text"
 	default:
 		return "", ""
 	}

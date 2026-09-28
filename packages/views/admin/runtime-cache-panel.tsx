@@ -191,9 +191,7 @@ export function RuntimeCachePanel({ userId }: { userId: string }) {
                               )}
                     </TableCell>
                     <TableCell className="whitespace-normal text-caption text-muted-foreground">
-                      {runtime.id === "grok"
-                        ? t(($) => $.runtime_cache.installer_only)
-                        : t(($) => $.runtime_cache.full)}
+                      {t(($) => $.runtime_cache.full)}
                     </TableCell>
                   </TableRow>
                 ))}

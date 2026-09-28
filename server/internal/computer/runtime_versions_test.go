@@ -145,3 +145,20 @@ func TestRuntimeVersionCacheDeduplicatesExpiresAndRetries(t *testing.T) {
 		t.Fatal("unknown runtime must not claim a version")
 	}
 }
+
+func TestRuntimeGrokVersionUsesPublicStableChannel(t *testing.T) {
+	endpoint, format := runtimeVersionSource("grok", "https://x.ai/cli/install.sh")
+	if endpoint != "https://x.ai/cli/stable" || format != "text" {
+		t.Fatalf("wrong Grok channel endpoint/format: %s %s", endpoint, format)
+	}
+	client := &http.Client{Transport: versionTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() != endpoint {
+			t.Fatal("unexpected version source")
+		}
+		return versionResponse(200, "1.0.41"), nil
+	})}
+	version, err := fetchRuntimeVersion(context.Background(), client, endpoint, format)
+	if err != nil || version != "1.0.41" {
+		t.Fatalf("invalid stable version: %s %v", version, err)
+	}
+}

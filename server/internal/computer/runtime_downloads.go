@@ -123,6 +123,10 @@ func cacheID(source string) string {
 }
 func runtimeMetadata(source string) bool {
 	u, _ := url.Parse(source)
+	if (u.Host == "x.ai" && strings.HasPrefix(u.Path, "/cli/grok-")) ||
+		(u.Host == "storage.googleapis.com" && strings.HasPrefix(u.Path, "/grok-build-public-artifacts/cli/grok-")) {
+		return false
+	}
 	return !(strings.HasSuffix(u.Path, ".tgz") || strings.HasSuffix(u.Path, ".tar.gz") || strings.Contains(u.Path, "/releases/download/") || strings.Contains(u.Path, "/binaries/"))
 }
 func (c *RuntimeDownloadCache) cachedLocked(id string) (RuntimeCacheEntry, bool) {
@@ -363,6 +367,8 @@ func AllowedRuntimeSource(source string) bool {
 		return strings.HasPrefix(u.Path, "/kimi-code/")
 	case "x.ai":
 		return strings.HasPrefix(u.Path, "/cli/")
+	case "storage.googleapis.com":
+		return strings.HasPrefix(u.Path, "/grok-build-public-artifacts/cli/")
 	default:
 		return false
 	}
@@ -383,7 +389,7 @@ func allowedRuntimeRedirect(u *url.URL) bool {
 // are inserted only into responses and never persisted in shared metadata.
 func MirrorRuntimeURLs(data []byte, base string) []byte {
 	replacements := []string{}
-	for _, host := range []string{"registry.npmjs.org", "raw.githubusercontent.com", "api.github.com", "github.com", "code.kimi.com", "cdn.kimi.com", "x.ai"} {
+	for _, host := range []string{"registry.npmjs.org", "raw.githubusercontent.com", "api.github.com", "github.com", "code.kimi.com", "cdn.kimi.com", "x.ai", "storage.googleapis.com"} {
 		replacements = append(replacements, "https://"+host+"/", base+"/"+host+"/")
 	}
 	return []byte(strings.NewReplacer(replacements...).Replace(string(data)))

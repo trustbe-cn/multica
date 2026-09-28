@@ -107,7 +107,7 @@ func (h *Handler) RuntimeDownload(w http.ResponseWriter, r *http.Request) {
 			case "kimi":
 				allowed = host == "code.kimi.com" || host == "cdn.kimi.com"
 			case "grok":
-				allowed = host == "x.ai"
+				allowed = host == "x.ai" || host == "storage.googleapis.com"
 			default:
 				allowed = strings.HasPrefix(target.source, "npm:") && host == "registry.npmjs.org"
 			}

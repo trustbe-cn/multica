@@ -37,8 +37,11 @@ Kimi’s official `code.kimi.com` → `cdn.kimi.com` redirects are supported onl
 under `/kimi-code/`. OMP’s installer response extends its 30-second curl low-speed
 window to 250 seconds so a cold cache can finish the binary download before
 responding; stored upstream scripts remain unchanged.
-Grok's installer script is cached, but other downloads made by its upstream
-installer are not guaranteed to use the cache. The admin page displays this limit.
+Grok’s public installer, stable version pointer, and release files use the cache,
+including its official `storage.googleapis.com/grok-build-public-artifacts/cli/`
+source. Compressed and uncompressed Grok binaries use the artifact size limit
+and support HEAD and byte-range requests. Vendor account/deployment API calls
+remain outside this public artifact cache.
 
 A six-minute, HMAC-authenticated capability binds download access to one active
 `runtime_install` operation. Each request verifies its expiry, signature, operation
@@ -64,6 +67,14 @@ Keep proxy credentials in deployment secrets/environment configuration. Do not
 commit authenticated proxy URLs. HTTPS proxy certificates must match the proxy
 hostname. Configure this variable in the backend container's environment, then
 recreate that service after active Computer operations finish.
+
+For an SSH egress host, run a persistent `ssh -N -D` client alongside the backend
+and use `socks5h://runtime-proxy:1080` on the private Compose network. Pin the SSH
+host key, mount a dedicated forwarding key, and restrict that account to the
+approved upstream hosts on port 443. Keep the SOCKS port unpublished; configure
+SSH keepalives and container restart so interrupted tunnels reconnect. Deployment
+keys, service definitions, and rollback records belong in the separate deployment
+checkout, not this repository.
 
 ## Management
 

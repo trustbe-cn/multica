@@ -168,9 +168,9 @@ func TestRuntimeDownloadSourceBoundaries(t *testing.T) {
 		}
 	}
 	base := "https://multica.invalid/api/runtime-downloads/operation/expires/signature"
-	source := []byte("curl https://code.kimi.com/kimi-code/latest; curl https://api.github.com/repos/can1357/oh-my-pi/releases/latest")
+	source := []byte("curl https://code.kimi.com/kimi-code/latest; curl https://api.github.com/repos/can1357/oh-my-pi/releases/latest; curl https://storage.googleapis.com/grok-build-public-artifacts/cli/stable")
 	mirrored := string(MirrorRuntimeURLs(source, base))
-	if !strings.Contains(mirrored, base+"/code.kimi.com/") || !strings.Contains(mirrored, base+"/api.github.com/") {
+	if !strings.Contains(mirrored, base+"/code.kimi.com/") || !strings.Contains(mirrored, base+"/api.github.com/") || !strings.Contains(mirrored, base+"/storage.googleapis.com/grok-build-public-artifacts/cli/") {
 		t.Fatal("did not route upstream URLs through server")
 	}
 }
@@ -233,5 +233,24 @@ func TestRuntimeDownloadPreparesOnlyOMPInstallerTimeout(t *testing.T) {
 	other := string(PrepareRuntimeDownload(upstream, "https://code.kimi.com/kimi-code/install.sh", base))
 	if !strings.Contains(other, "--speed-time 30") {
 		t.Fatal("changed unrelated installer options")
+	}
+}
+
+func TestRuntimeDownloadsGrokArtifactsAreBinary(t *testing.T) {
+	for _, host := range []string{"x.ai/cli", "storage.googleapis.com/grok-build-public-artifacts/cli"} {
+		for _, suffix := range []string{"", ".gz", ".zst", ".exe"} {
+			source := "https://" + host + "/grok-1.0.41-linux-x86_64" + suffix
+			if !AllowedRuntimeSource(source) || runtimeMetadata(source) {
+				t.Errorf("Grok artifact rejected or treated as small metadata: %s", source)
+			}
+		}
+		if !runtimeMetadata("https://"+host+"/stable") || !runtimeMetadata("https://"+host+"/install.sh") {
+			t.Error("mutable version/installer treated as immutable binary")
+		}
+	}
+	for _, source := range []string{"https://storage.googleapis.com/other-bucket/cli/grok-1.0.41", "https://storage.googleapis.com/grok-build-public-artifacts/private", "https://storage.googleapis.com/grok-build-public-artifacts/cli/../private"} {
+		if AllowedRuntimeSource(source) {
+			t.Errorf("accepted unrelated GCS source: %s", source)
+		}
 	}
 }
