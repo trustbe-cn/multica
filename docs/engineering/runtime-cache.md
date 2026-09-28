@@ -49,6 +49,22 @@ Downloaded binaries are served unchanged; npm retains its own package integrity
 checks. Hashes in the cache inventory identify stored bytes and are not vendor
 signatures. No agent CLI is executed on the server to fill the cache.
 
+## Upstream proxy
+
+Set `MULTICA_RUNTIME_DOWNLOAD_PROXY` on the backend to an HTTP, HTTPS, SOCKS5,
+or SOCKS5H proxy URL, including its port. For example,
+`http://proxy.example:3128` or `socks5h://proxy.example:1080`.
+This setting applies to runtime metadata, installers, artifacts, and upstream
+redirects; installed Computers still download from Multica Server. Other backend
+HTTP clients are unaffected. An empty value retains Go's standard `HTTP_PROXY`,
+`HTTPS_PROXY`, and `NO_PROXY` behavior. Invalid non-empty configuration fails the
+download instead of silently connecting directly.
+
+Keep proxy credentials in deployment secrets/environment configuration. Do not
+commit authenticated proxy URLs. HTTPS proxy certificates must match the proxy
+hostname. Configure this variable in the backend container's environment, then
+recreate that service after active Computer operations finish.
+
 ## Management
 
 The shared web/desktop Admin Area contains **Runtime cache**:

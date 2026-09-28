@@ -42,7 +42,7 @@ func (h *Handler) runtimeCache() (*computer.RuntimeDownloadCache, *computer.Runt
 				}
 				dir = filepath.Join(state, "runtime-cache")
 			}
-			h.runtimeDownloads = computer.NewRuntimeDownloadCache(dir, &http.Client{Timeout: computer.RuntimeDownloadTimeout})
+			h.runtimeDownloads = computer.NewRuntimeDownloadCache(dir, computer.NewRuntimeDownloadClient(os.Getenv("MULTICA_RUNTIME_DOWNLOAD_PROXY")))
 		}
 		h.runtimeVersions = computer.NewRuntimeVersionCache(&http.Client{Transport: runtimeCacheTransport{h.runtimeDownloads}, Timeout: 10 * time.Second})
 	})
