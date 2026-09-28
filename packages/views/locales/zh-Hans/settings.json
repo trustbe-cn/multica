@@ -1705,6 +1705,20 @@
       "deleted": "原工作区已删除",
       "none": "未接入工作区",
       "unknown": "工作区信息不可用"
+    },
+    "runtime_versions": {
+      "installed": "已安装版本",
+      "latest": "最新版本",
+      "actions": "操作",
+      "checking": "检测中...",
+      "unavailable": "检测失败，将自动重试",
+      "unsupported": "暂不支持自动检测",
+      "up_to_date": "已是最新",
+      "manage": "管理版本",
+      "manage_named": "管理 {{runtime}} 版本",
+      "details_named": "{{runtime}} 详情",
+      "install_help": "安装要求",
+      "checked": "最新版本检测时间"
     }
   }
 }

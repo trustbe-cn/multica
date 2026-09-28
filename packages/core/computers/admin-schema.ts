@@ -54,6 +54,12 @@ export const AdminComputerRuntimeSchema = z.object({
   id: z.string(),
   display_name: z.string(),
   installed_version: z.string(),
+  latest_version: z.string().catch(""),
+  latest_version_state: z
+    .enum(["checking", "ready", "unavailable", "unsupported"])
+    .catch("unavailable"),
+  latest_version_checked_at: z.string().nullable().catch(null),
+  update_available: z.boolean().nullable().catch(null),
   can_install: z.boolean(),
   version_required: z.boolean().default(true),
   supports_version: z.boolean().catch(true).optional(),

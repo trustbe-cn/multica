@@ -53,6 +53,7 @@ func TestRuntimeInstallCommands(t *testing.T) {
 		downloadFails, missingBinary bool
 	}{
 		{name: "private npm", id: "codex", version: "1.2.3"},
+		{name: "npm latest checks registry", id: "codex", version: "latest"},
 		{name: "grok native directory", id: "grok", version: "1.2.3", args: "1.2.3\n"},
 		{name: "grok latest", id: "grok", version: "latest", args: "latest\n"},
 		{name: "kimi native directory", id: "kimi", version: "1.2.3", args: "--version\n1.2.3\n"},
@@ -133,8 +134,15 @@ exit "$DOWNLOAD_EXIT"`,
 			}
 			if tc.id == "codex" {
 				args, err := os.ReadFile(filepath.Join(dir, "npm-args"))
-				if err != nil || !strings.Contains(string(args), dir+"/.local") || !strings.Contains(string(args), "@openai/codex@1.2.3") {
+				if err != nil || !strings.Contains(string(args), dir+"/.local") || !strings.Contains(string(args), "@openai/codex@"+tc.version) {
 					t.Fatalf("wrong npm destination/package: %s, %v", args, err)
+				}
+				wantCache := "--prefer-offline"
+				if tc.version == "latest" {
+					wantCache = "--prefer-online"
+				}
+				if !strings.Contains(string(args), wantCache+"\n") {
+					t.Fatalf("wrong npm cache policy for %s: %s", tc.version, args)
 				}
 			}
 		})

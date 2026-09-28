@@ -29,7 +29,11 @@ func runtimeTargets() []runtimeTarget {
 	return list
 }
 
+var runtimeVersions = computer.NewRuntimeVersionCache(&http.Client{Timeout: 10 * time.Second})
+
 type runtimeAsset struct {
+	computer.RuntimeVersion
+	UpdateAvailable   *bool      `json:"update_available"`
 	ID                string     `json:"id"`
 	DisplayName       string     `json:"display_name"`
 	InstalledVersion  string     `json:"installed_version"`
@@ -60,6 +64,12 @@ func (h *Handler) ComputerBindingRuntimes(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		writeError(w, 500, "Cannot read runtime assets")
 		return
+	}
+	for i, target := range runtimeTargets() {
+		list[i].RuntimeVersion = runtimeVersions.Get(target.id, target.source)
+		if list[i].LatestVersionState == "ready" && list[i].ProbeState == "installed" {
+			list[i].UpdateAvailable = computer.RuntimeUpdateAvailable(list[i].InstalledVersion, list[i].LatestVersion)
+		}
 	}
 	writeJSON(w, 200, list)
 }

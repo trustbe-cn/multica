@@ -1712,6 +1712,20 @@
       "deleted": "Ancien espace de travail supprimé",
       "none": "Aucun espace de travail",
       "unknown": "Informations indisponibles"
+    },
+    "runtime_versions": {
+      "installed": "Version installée",
+      "latest": "Dernière version",
+      "actions": "Actions",
+      "checking": "Vérification...",
+      "unavailable": "Vérification indisponible, nouvel essai automatique",
+      "unsupported": "Vérification automatique indisponible",
+      "up_to_date": "À jour",
+      "manage": "Gérer la version",
+      "manage_named": "Gérer la version de {{runtime}}",
+      "details_named": "Détails de {{runtime}}",
+      "install_help": "Conditions d’installation",
+      "checked": "Dernière vérification de version"
     }
   }
 }

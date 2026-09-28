@@ -8,7 +8,8 @@ import {
   type ComputerBinding,
 } from "@multica/core/computers";
 import { useAuthStore } from "@multica/core/auth";
-import { Button } from "@multica/ui/components/ui/button";
+import { ChevronRight, Plus } from "lucide-react";
+import { Button, buttonVariants } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import {
   Dialog,
@@ -91,6 +92,7 @@ function PersonalComputersList({ userId }: { userId: string }) {
             }}
           >
             <DialogTrigger render={<Button />}>
+              <Plus aria-hidden="true" />
               {t(($) => $.linux_user_pages.create)}
             </DialogTrigger>
             <DialogContent>
@@ -213,9 +215,10 @@ function PersonalComputersList({ userId }: { userId: string }) {
                 </ListCell>
                 <AppLink
                   href={href(binding)}
-                  className="shrink-0 text-body underline"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   {t(($) => $.linux_user.details)}
+                  <ChevronRight aria-hidden="true" />
                 </AppLink>
               </li>
             );

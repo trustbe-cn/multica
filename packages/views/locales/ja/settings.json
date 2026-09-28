@@ -1705,6 +1705,20 @@
       "deleted": "元のワークスペースは削除済み",
       "none": "ワークスペース未接続",
       "unknown": "ワークスペース情報なし"
+    },
+    "runtime_versions": {
+      "installed": "インストール済み",
+      "latest": "最新バージョン",
+      "actions": "操作",
+      "checking": "確認中...",
+      "unavailable": "確認できません。自動で再試行します",
+      "unsupported": "自動確認は未対応です",
+      "up_to_date": "最新です",
+      "manage": "バージョン管理",
+      "manage_named": "{{runtime}} のバージョン管理",
+      "details_named": "{{runtime}} の詳細",
+      "install_help": "インストール要件",
+      "checked": "最新バージョンの確認日時"
     }
   }
 }

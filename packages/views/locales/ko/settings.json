@@ -1705,6 +1705,20 @@
       "deleted": "이전 워크스페이스 삭제됨",
       "none": "워크스페이스 미연결",
       "unknown": "워크스페이스 정보 없음"
+    },
+    "runtime_versions": {
+      "installed": "설치된 버전",
+      "latest": "최신 버전",
+      "actions": "작업",
+      "checking": "확인 중...",
+      "unavailable": "확인 실패, 자동으로 재시도합니다",
+      "unsupported": "자동 확인 미지원",
+      "up_to_date": "최신 버전",
+      "manage": "버전 관리",
+      "manage_named": "{{runtime}} 버전 관리",
+      "details_named": "{{runtime}} 상세 정보",
+      "install_help": "설치 요구 사항",
+      "checked": "최신 버전 확인 시간"
     }
   }
 }

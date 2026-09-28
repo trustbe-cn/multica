@@ -308,8 +308,11 @@ func runtimeUserCommand(script string) string {
 }
 
 func npmRuntimeInstall(pkg, command string) string {
+	// Reuse the target user's npm cache for pinned releases. The mutable latest
+	// tag still checks the registry so a manual update cannot reuse an old tag.
 	return runtimeUserCommand(`command -v node >/dev/null && command -v npm >/dev/null || { echo "Install Node.js and npm in /usr/local/bin or /usr/bin; login-shell and nvm paths are not loaded" >&2; exit 127; }; ` +
-		`NPM_CONFIG_PREFIX="$HOME/.local" npm install --prefix "$HOME/.local" --no-audit --no-fund --fetch-timeout=60000 --fetch-retries=1 -g ` + pkg + `@{{version}}; ` + command + ` --version >/dev/null`)
+		`cache_mode=--prefer-offline; if [ "{{version}}" = latest ]; then cache_mode=--prefer-online; fi; ` +
+		`NPM_CONFIG_PREFIX="$HOME/.local" npm install "$cache_mode" --prefix "$HOME/.local" --no-audit --no-fund --fetch-timeout=60000 --fetch-retries=1 -g ` + pkg + `@{{version}}; ` + command + ` --version >/dev/null`)
 }
 
 func scriptRuntimeInstall(url, invocation, command string) string {

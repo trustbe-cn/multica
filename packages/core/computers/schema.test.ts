@@ -76,3 +76,41 @@ it("parses optional runtime versions and tolerates old or malformed capability f
   expect(AdminComputerRuntimeSchema.parse(base)).toMatchObject({version_required:true});
   expect(AdminComputerRuntimeSchema.parse({...base,supports_version:"unexpected"})).toMatchObject({supports_version:true});
 });
+
+it("tolerates missing or malformed latest-version metadata without claiming an update", () => {
+  const base = {
+    id: "codex",
+    display_name: "Codex",
+    installed_version: "1.2.3",
+    can_install: true,
+  };
+  for (const data of [
+    base,
+    {
+      ...base,
+      latest_version: 123,
+      latest_version_state: "future",
+      latest_version_checked_at: false,
+      update_available: "true",
+    },
+  ]) {
+    expect(AdminComputerRuntimeSchema.parse(data)).toMatchObject({
+      latest_version: "",
+      latest_version_state: "unavailable",
+      latest_version_checked_at: null,
+      update_available: null,
+    });
+  }
+  expect(
+    AdminComputerRuntimeSchema.parse({
+      ...base,
+      latest_version: "1.2.4",
+      latest_version_state: "ready",
+      update_available: true,
+    }),
+  ).toMatchObject({
+    latest_version: "1.2.4",
+    latest_version_state: "ready",
+    update_available: true,
+  });
+});

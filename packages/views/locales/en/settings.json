@@ -1712,6 +1712,20 @@
       "deleted": "Original workspace deleted",
       "none": "No workspace",
       "unknown": "Workspace information unavailable"
+    },
+    "runtime_versions": {
+      "installed": "Installed version",
+      "latest": "Latest version",
+      "actions": "Actions",
+      "checking": "Checking...",
+      "unavailable": "Check unavailable; retrying automatically",
+      "unsupported": "Automatic check unavailable",
+      "up_to_date": "Up to date",
+      "manage": "Manage version",
+      "manage_named": "Manage {{runtime}} version",
+      "details_named": "{{runtime}} details",
+      "install_help": "Installation requirements",
+      "checked": "Latest version checked"
     }
   }
 }

@@ -21,7 +21,15 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@multica/ui/components/ui/alert-dialog";
-import { Button } from "@multica/ui/components/ui/button";
+import {
+  ArrowLeft,
+  History,
+  KeyRound,
+  LayoutDashboard,
+  Terminal,
+} from "lucide-react";
+import { cn } from "@multica/ui/lib/utils";
+import { Button, buttonVariants } from "@multica/ui/components/ui/button";
 import { AppLink, useNavigation } from "../navigation";
 import { useT } from "../i18n";
 import { SettingsTab } from "../settings/components/settings-layout";
@@ -35,6 +43,13 @@ import { LinuxUserDetail } from "./linux-user-detail";
 import { BindingRuntimes } from "./binding-runtimes";
 import { LinuxUserOperationForm } from "./linux-user-operation-form";
 import { AccountCredentials } from "../settings/components/credentials-tab";
+
+const viewIcons = {
+  overview: LayoutDashboard,
+  credentials: KeyRound,
+  runtimes: Terminal,
+  operations: History,
+};
 
 export function LinuxUserPage({
   userId,
@@ -102,7 +117,7 @@ export function LinuxUserPage({
             <AppLink
               href={href("credentials")}
               onClick={(event) => guard(event, href("credentials"))}
-              className="text-body underline"
+              className={buttonVariants({ variant: "default", size: "sm" })}
             >
               {t(($) => $.linux_user_pages.primary_credentials)}
             </AppLink>
@@ -111,7 +126,7 @@ export function LinuxUserPage({
             <AppLink
               href={href("operations")}
               onClick={(event) => guard(event, href("operations"))}
-              className="text-body underline"
+              className={buttonVariants({ variant: "default", size: "sm" })}
             >
               {t(($) => $.linux_user_pages.primary_operations)}
             </AppLink>
@@ -122,27 +137,37 @@ export function LinuxUserPage({
       <AppLink
         href={back}
         onClick={(e) => guard(e, back)}
-        className="text-body underline"
+        className={buttonVariants({ variant: "ghost", size: "sm" })}
       >
+        <ArrowLeft aria-hidden="true" />
         {location.fromWorkspace
           ? t(($) => $.linux_user_pages.back_workspace)
           : t(($) => $.linux_user_pages.back)}
       </AppLink>
       <nav
         aria-label={t(($) => $.linux_user.details)}
-        className="flex flex-wrap gap-2"
+        className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/50 p-1 sm:grid-cols-4"
       >
-        {linuxUserViews.map((view) => (
-          <AppLink
-            key={view}
-            href={href(view)}
-            onClick={(e) => guard(e, href(view))}
-            aria-current={view === location.view ? "page" : undefined}
-            className={`rounded-md px-3 py-2 text-body ${view === location.view ? "bg-accent font-medium hover:bg-accent" : "hover:bg-muted"}`}
-          >
-            {t(($) => $.linux_user_pages.views[view])}
-          </AppLink>
-        ))}
+        {linuxUserViews.map((view) => {
+          const Icon = viewIcons[view];
+          return (
+            <AppLink
+              key={view}
+              href={href(view)}
+              onClick={(e) => guard(e, href(view))}
+              aria-current={view === location.view ? "page" : undefined}
+              className={cn(
+                "inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-body font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                view === location.view
+                  ? "border-border bg-background text-foreground shadow-sm hover:bg-background"
+                  : "border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground",
+              )}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {t(($) => $.linux_user_pages.views[view])}
+            </AppLink>
+          );
+        })}
       </nav>
       {data.detail.error && (
         <p role="alert" className="text-destructive">
@@ -155,17 +180,17 @@ export function LinuxUserPage({
       {(data.busy || needsRecovery) &&
         primary !== "operations" &&
         location.view !== "operations" && (
-        <AppLink
-          className="text-body underline"
-          href={href("operations")}
-          onClick={(event) => guard(event, href("operations"))}
-        >
-          {needsRecovery
-            ? t(($) => $.linux_user_pages.states.interrupted)
-            : t(($) => $.linux_user_pages.states.running)}{" "}
-          · {t(($) => $.linux_user.operations)}
-        </AppLink>
-      )}
+          <AppLink
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+            href={href("operations")}
+            onClick={(event) => guard(event, href("operations"))}
+          >
+            {needsRecovery
+              ? t(($) => $.linux_user_pages.states.interrupted)
+              : t(($) => $.linux_user_pages.states.running)}{" "}
+            · {t(($) => $.linux_user.operations)}
+          </AppLink>
+        )}
       {d && (
         <div key={location.view}>
           {(location.view === "overview" || location.view === "operations") && (
