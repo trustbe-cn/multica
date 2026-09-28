@@ -160,7 +160,7 @@ func (s SSHRemote) CreateUser(username, password string) error {
 	if s.Timeout < 8*time.Minute {
 		s.Timeout = 8 * time.Minute
 	}
-	script := `import os,shutil,signal,subprocess,sys
+	script := initializeZshScript + `import os,shutil,signal,subprocess,sys
 # SSH hangups and shutdowns should unwind through the account rollback path.
 def interrupted(signum, frame):
     raise RuntimeError("provisioning interrupted")
@@ -193,6 +193,7 @@ run_installer(["apt-get","install","-y","--no-install-recommends","zsh","htop","
 subprocess.run(["useradd","--create-home","--shell","/usr/bin/zsh",u],check=True,timeout=30)
 try:
     subprocess.run(["chpasswd"],input=u+":"+pw+"\n",text=True,check=True,timeout=15)
+    initialize_zsh(u)
 except BaseException:
     subprocess.run(["userdel","-r",u],check=True,timeout=30)
     raise

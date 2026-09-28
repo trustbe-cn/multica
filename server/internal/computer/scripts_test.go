@@ -289,7 +289,7 @@ else test "$FAIL_STAGE" != apt; fi`,
 	}
 }
 
-// Shell customization must never roll back an otherwise usable Linux account.
+// Shell initialization must not depend on customization downloads.
 func TestCreateUserDoesNotRequireShellCustomizationDownload(t *testing.T) {
 	dir := t.TempDir()
 	for name, script := range map[string]string{
@@ -306,7 +306,9 @@ func TestCreateUserDoesNotRequireShellCustomizationDownload(t *testing.T) {
 	if err := remote.CreateUser("alice", "test-password"); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("sh", "-c", strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n "))
+	command := strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n ")
+	command = strings.Replace(command, "account=pwd.getpwnam(u)", `account=type("Account",(),dict(pw_dir=os.environ["TEST_DIR"],pw_uid=os.getuid(),pw_gid=os.getgid()))()`, 1)
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Env = append(os.Environ(), "PATH="+dir+":/usr/bin:/bin", "TEST_DIR="+dir)
 	cmd.Stdin = strings.NewReader(rec.stdin)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -315,9 +317,98 @@ func TestCreateUserDoesNotRequireShellCustomizationDownload(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "account")); err != nil {
 		t.Fatal("account not created")
 	}
+	if body, err := os.ReadFile(filepath.Join(dir, ".zshrc")); err != nil || len(body) == 0 {
+		t.Fatalf("new account lacks zsh startup configuration: %v", err)
+	}
 	for _, name := range []string{"network", "deleted"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
 			t.Fatalf("unexpected step: %s", name)
 		}
 	}
+}
+
+func runZshInitializer(t *testing.T, home string) error {
+	t.Helper()
+	script := strings.Replace(initializeZshScript, "account=pwd.getpwnam(u)", `account=type("Account",(),dict(pw_dir=os.environ["COMPUTER_TEST_HOME"],pw_uid=os.getuid(),pw_gid=os.getgid()))()`, 1)
+	cmd := exec.Command("python3", "-c", script+"\ninitialize_zsh(\"test-user\")\n")
+	cmd.Env = append(os.Environ(), "COMPUTER_TEST_HOME="+home)
+	return cmd.Run()
+}
+
+func TestInitializeZshPreservesStartupFiles(t *testing.T) {
+	for _, kind := range []string{"regular", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			home := t.TempDir()
+			startup := filepath.Join(home, ".zshrc")
+			target := startup
+			if kind == "symlink" {
+				target = filepath.Join(t.TempDir(), "shared-zshrc")
+				if err := os.Symlink(target, startup); err != nil {
+					t.Fatal(err)
+				}
+			}
+			original := "# Existing user or system skeleton configuration\n"
+			if err := os.WriteFile(target, []byte(original), 0640); err != nil {
+				t.Fatal(err)
+			}
+			if err := runZshInitializer(t, home); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(startup)
+			if err != nil || string(got) != original {
+				t.Fatalf("startup configuration replaced: %v", err)
+			}
+			info, err := os.Stat(target)
+			if err != nil || info.Mode().Perm() != 0640 {
+				t.Fatal("existing permissions changed")
+			}
+			if kind == "symlink" {
+				info, err := os.Lstat(startup)
+				if err != nil || info.Mode()&os.ModeSymlink == 0 {
+					t.Fatal("existing symlink replaced")
+				}
+			}
+		})
+	}
+}
+
+func TestInitializeZshRejectsHomeSymlink(t *testing.T) {
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := runZshInitializer(t, link); err == nil {
+		t.Fatal("followed home symlink")
+	}
+	if _, err := os.Stat(filepath.Join(target, ".zshrc")); !os.IsNotExist(err) {
+		t.Fatal("wrote outside home")
+	}
+}
+
+func TestInitializeZshFirstLogin(t *testing.T) {
+	home := t.TempDir()
+	if err := runZshInitializer(t, home); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(home, ".zshrc"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("startup file not private: %v", err)
+	}
+	// Use only a disposable home, never the developer's shell configuration.
+	t.Run("interactive-shell", func(t *testing.T) {
+		zsh, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skip("zsh is not installed")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, zsh, "-d", "-i", "-c", `print -r -- "$HISTFILE"; print -r -- "$path[1]"`)
+		cmd.Env = []string{"HOME=" + home, "ZDOTDIR=" + home, "PATH=/usr/bin:/bin", "TERM=dumb"}
+		output, err := cmd.CombinedOutput()
+		want := home + "/.zsh_history\n" + home + "/.local/bin\n"
+		if err != nil || string(output) != want {
+			t.Fatalf("first login prompted or warned: %v\n%s", err, output)
+		}
+	})
 }

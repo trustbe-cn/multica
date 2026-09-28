@@ -34,11 +34,17 @@ The server needs OpenSSH client access. Target Computers need Debian/Ubuntu
 (with `apt-get`), Python 3, PAM (`pam_unix.so`), `sudo`, `runuser`, user
 management tools and systemd. The registered SSH operator requires passwordless
 sudo. The connection check rejects machines without `apt-get`. New accounts
-require successful installation of zsh, htop, curl, git and oh-my-zsh; a tool
-installation failure fails provisioning. System packages are installed before
-creating the account, and failures during password or shell setup delete the
-new account. Both installer process groups are terminated on timeout, including their children.
+require successful installation of zsh, htop, curl and git; a package installation
+failure fails provisioning. System packages are installed before creating the
+account, and failures during password or shell setup delete the new account.
+Installer process groups are terminated on timeout, including their children.
 Account creation allows eight minutes for installation and cleanup.
+
+New accounts receive a private `.zshrc` with basic history, completion and the
+managed runtime paths, so the first login does not open `zsh-newuser-install`.
+Existing startup files from `/etc/skel` are preserved. Shell initialization uses
+local configuration only; it does not download oh-my-zsh or other shell plugins.
+Reusing an existing account does not change its shell configuration.
 
 Administrators can install vendor CLIs from the Computer runtime panel after
 entering a target Linux username. npm-based runtimes require Node.js and npm in
@@ -54,9 +60,9 @@ arguments. Oh-My-Pi uses the official installer with `--binary` and a release ta
 so it does not depend on an independently installed Bun interpreter. Installers are downloaded
 completely over HTTPS before execution as the target user; any download or
 installer failure fails the operation. The installed command must also pass
-`--version` before success is recorded. These upstream installers (and the
-oh-my-zsh installer) remain trusted network dependencies; there is no pinned
-checksum or independent signature verification in this workflow.
+`--version` before success is recorded. These upstream installers remain trusted
+network dependencies; there is no pinned checksum or independent signature
+verification in this workflow.
 
 Before registering a target, its operator must install the fixed PAM service once
 (outside request handling), owned by root and not writable by other users:

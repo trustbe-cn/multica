@@ -116,3 +116,36 @@ write(multica,"config.json",json.dumps(merged).encode()+b"\n")
 const writeDaemonConfigScript = privateFileScript + `updates=json.loads(sys.stdin.buffer.read(65537))
 multica=directory(root,".multica")
 ` + managedProfileScript + mergeDaemonConfigScript
+
+// Initialize only new accounts; preserve any startup file supplied by /etc/skel.
+const initializeZshScript = `import os,pwd
+
+def initialize_zsh(u):
+    account=pwd.getpwnam(u)
+    home=os.open(account.pw_dir,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:
+        if os.fstat(home).st_uid!=account.pw_uid: raise RuntimeError("home ownership")
+        try:
+            fd=os.open(".zshrc",os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=home)
+        except FileExistsError:
+            return
+        with os.fdopen(fd,"wb") as stream:
+            os.fchown(stream.fileno(),account.pw_uid,account.pw_gid)
+            stream.write(b"""# Multica defaults for a new Linux account. Customize this file as needed.
+typeset -U path PATH
+path=("$HOME/.local/bin" "$HOME/.kimi-code/bin" "$HOME/.grok/bin" $path)
+export PATH
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=1000
+SAVEHIST=1000
+setopt HIST_IGNORE_DUPS
+bindkey -e
+autoload -Uz compinit
+compinit
+""")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fsync(home)
+    finally:
+        os.close(home)
+`
