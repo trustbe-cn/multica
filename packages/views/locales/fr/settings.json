@@ -1727,5 +1727,24 @@
       "install_help": "Conditions d’installation",
       "checked": "Dernière vérification de version"
     }
+  },
+  "runtime_cache": {
+    "title": "Cache des runtimes",
+    "help": "Les téléchargements sont conservés sur Multica Server et partagés entre utilisateurs Linux.",
+    "refresh": "Actualiser les versions",
+    "clear": "Vider le cache",
+    "clear_help": "Les CLI installées sont conservées. Les prochaines installations téléchargeront à nouveau ces fichiers.",
+    "size": "{{size}} Mio",
+    "summary": "{{used}} / {{limit}} · {{count}} fichiers · {{downloads}} téléchargements",
+    "coverage": "Téléchargements en cache",
+    "installer_only": "Script d’installation ; les autres téléchargements dépendent de l’installateur amont",
+    "full": "Paquets et fichiers de version pris en charge",
+    "files": "Fichiers en cache",
+    "empty": "Les fichiers sont mis en cache lors de la vérification des versions ou de l’installation des CLI.",
+    "source": "Source",
+    "bytes": "Taille",
+    "cached": "Mise en cache",
+    "previous": "Précédent",
+    "next": "Suivant"
   }
 }

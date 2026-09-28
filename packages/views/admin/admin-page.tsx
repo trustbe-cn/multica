@@ -1,5 +1,6 @@
 "use client";
 
+import { RuntimeCachePanel } from "./runtime-cache-panel";
 import { LinuxUserDetail } from "../computers/linux-user-detail";
 
 import { useEffect, useState } from "react";
@@ -42,7 +43,7 @@ export function AdminAreaLink() {
 }
 
 /** The Admin Area sections, in sidebar order. */
-const SECTIONS = ["computers", "bindings", "audit"] as const;
+const SECTIONS = ["computers", "bindings", "runtime-cache", "audit"] as const;
 type Section = (typeof SECTIONS)[number];
 
 export function AdminPage({ onBack }: { onBack?: () => void }) {
@@ -62,7 +63,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
       ? t(($) => $.computers.title)
       : s === "bindings"
         ? t(($) => $.admin.bindings)
-        : t(($) => $.admin.audit);
+        : s === "runtime-cache" ? t(($) => $.runtime_cache.title) : t(($) => $.admin.audit);
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <DragStrip />
@@ -87,7 +88,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
             aria-label={t(($) => $.admin.sections)}
             className="shrink-0 border-b p-3 sm:w-56 sm:border-b-0 sm:border-r"
           >
-            <ul className="flex gap-2 sm:flex-col">
+            <ul className="flex flex-wrap gap-2 sm:flex-col">
               {SECTIONS.map((s) => (
                 <li key={s}>
                   <Button
@@ -111,7 +112,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
           ) : !admin ? (
             <p role="alert">{t(($) => $.admin.denied)}</p>
           ) : (
-            <AdminSections key={user.id} userId={user.id} section={section} />
+            section === "runtime-cache" ? <RuntimeCachePanel userId={user.id} /> : <AdminSections key={user.id} userId={user.id} section={section} />
           )}
         </main>
       </div>

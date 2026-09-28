@@ -1446,6 +1446,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// The authenticated /api/attachments/{id}/download route below is
 	// unchanged — this one is purely additive.
 	r.Get("/api/attachments/{id}/signed-download", h.DownloadAttachmentWithCapability)
+	r.Get("/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*", h.RuntimeDownload)
+	r.Head("/api/runtime-downloads/{operation}/{expiry}/{signature}/{source}/*", h.RuntimeDownload)
 
 	// Avatar serving. Public for the same reason as the capability download
 	// above: the auth cookie is SameSite=Strict, so an auth-gated URL cannot
@@ -1630,6 +1632,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Get("/api/me/instance-access", h.InstanceAccess)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computer-ssh-pubkey", h.AdminSshPubKey)
 		r.With(handler.RequireHumanActor).Get("/api/admin/computers", h.AdminComputers)
+		r.With(handler.RequireHumanActor).Get("/api/admin/runtime-cache", h.AdminRuntimeCache)
+		r.With(handler.RequireHumanActor).Post("/api/admin/runtime-cache/refresh", h.AdminRuntimeCacheRefresh)
+		r.With(handler.RequireHumanActor).Delete("/api/admin/runtime-cache", h.AdminRuntimeCacheClear)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers", h.AdminComputers)
 		r.With(handler.RequireHumanActor).Post("/api/admin/computers/check", h.CheckAdminComputerDraft)
 		r.With(handler.RequireHumanActor).Patch("/api/admin/computers/{id}", h.UpdateAdminComputer)

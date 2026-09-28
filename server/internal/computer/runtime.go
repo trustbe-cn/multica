@@ -122,6 +122,8 @@ func ErrorSummary(code string) string {
 		return "CLI exists but its version command failed; repair its dependencies or reinstall."
 	case "credentials_required":
 		return "Write your own valid Multica PAT to this Linux user before starting the daemon."
+	case "runtime_cache_unavailable":
+		return "An administrator must configure the runtime cache server URL before installation."
 	case "installer_timeout":
 		return "Installation exceeded its time limit; check the Computer's access to the package source, then retry."
 	case "credential_transfer_failed":

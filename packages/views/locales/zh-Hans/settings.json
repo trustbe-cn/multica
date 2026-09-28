@@ -1720,5 +1720,24 @@
       "install_help": "安装要求",
       "checked": "最新版本检测时间"
     }
+  },
+  "runtime_cache": {
+    "title": "运行时缓存",
+    "help": "下载文件保存在 Multica Server，供所有 Linux 用户复用。",
+    "refresh": "刷新版本",
+    "clear": "清理缓存",
+    "clear_help": "不会移除已安装的 CLI。后续安装需要重新下载这些文件。",
+    "size": "{{size}} MiB",
+    "summary": "{{used}} / {{limit}} · {{count}} 个文件 · {{downloads}} 个下载",
+    "coverage": "下载缓存范围",
+    "installer_only": "安装脚本；其他下载取决于上游安装程序",
+    "full": "软件包及已接入的发布文件",
+    "files": "缓存文件",
+    "empty": "检测版本或安装 CLI 时自动缓存文件。",
+    "source": "来源",
+    "bytes": "大小",
+    "cached": "缓存时间",
+    "previous": "上一页",
+    "next": "下一页"
   }
 }

@@ -99,3 +99,5 @@ export {
   bindingWorkspaceLabel,
   bindingPrimaryAction,
 } from "./summary";
+
+export { useRuntimeCache } from "./runtime-cache";

@@ -23,9 +23,10 @@ type RuntimeVersion struct {
 }
 
 type runtimeVersionEntry struct {
-	value   RuntimeVersion
-	expires time.Time
-	loading bool
+	value      RuntimeVersion
+	expires    time.Time
+	loading    bool
+	generation uint64
 }
 
 // RuntimeVersionCache returns immediately and deduplicates background requests.
@@ -53,12 +54,12 @@ func (c *RuntimeVersionCache) Get(id, installer string) RuntimeVersion {
 		entry.loading = true
 		entry.value.LatestVersionState = "checking"
 		c.entries[endpoint] = entry
-		go c.refresh(endpoint, format)
+		go c.refresh(endpoint, format, entry.generation)
 	}
 	return entry.value
 }
 
-func (c *RuntimeVersionCache) refresh(endpoint, format string) {
+func (c *RuntimeVersionCache) refresh(endpoint, format string, generation uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	version, err := fetchRuntimeVersion(ctx, c.client, endpoint, format)
@@ -66,6 +67,9 @@ func (c *RuntimeVersionCache) refresh(endpoint, format string) {
 	defer c.mu.Unlock()
 	now := c.now()
 	entry := c.entries[endpoint]
+	if entry.generation != generation {
+		return
+	}
 	entry.loading = false
 	entry.value.LatestVersionCheckedAt = &now
 	entry.value.LatestVersionState = "unavailable"
@@ -142,4 +146,16 @@ func RuntimeUpdateAvailable(installed, latest string) *bool {
 	}
 	newer := semver.Compare("v"+latest, "v"+match[1]) > 0
 	return &newer
+}
+
+// Invalidate makes the next catalog read recheck public version metadata.
+func (c *RuntimeVersionCache) Invalidate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, entry := range c.entries {
+		entry.expires = time.Time{}
+		entry.generation++
+		entry.loading = false
+		c.entries[key] = entry
+	}
 }

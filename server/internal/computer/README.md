@@ -108,3 +108,15 @@ cannot be changed once any account binding exists; register another Computer.
 Bindings show the latest 500 entries and audit shows the latest 200 entries.
 
 Operation and asset metadata are persisted in PostgreSQL. Linux User details separate account observations, systemd service observations, CLI probes and runtime registrations. See [the operation contract](../../../docs/design/computer-remote-operations.md) for async receipts, serialization, recovery, archival and explicit Linux account deletion.
+
+## Runtime download cache
+
+Managed runtime installations require `MULTICA_COMPUTER_SERVER_URL` to be reachable
+from the target Computer. The backend supplies temporary, operation-scoped
+registry/installer URLs and caches supported public upstream downloads centrally.
+`MULTICA_RUNTIME_CACHE_DIR` overrides the default `runtime-cache` directory under
+`MULTICA_COMPUTER_STATE_DIR`. Keep that directory on persistent storage and do not
+share it between backend processes. Administrators manage versions and cached
+files in Admin Area → Runtime cache. See
+[the runtime cache guide](../../../docs/engineering/runtime-cache.md) for limits,
+provider coverage, endpoint behavior, and rollback notes.

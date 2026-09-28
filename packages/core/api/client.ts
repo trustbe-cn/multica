@@ -1,3 +1,4 @@
+import { RuntimeCacheSchema, type RuntimeCache } from "../computers/runtime-cache-schema";
 import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
 import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
 import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, parseCredentialWriteResult, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
@@ -965,6 +966,11 @@ export class ApiClient {
   async getComputerSettings() { return parseComputerSettings(await this.fetch<unknown>("/api/me/computer-settings")); }
   async saveComputerSettings(input: ComputerSettings) { await this.fetch("/api/me/computer-settings", { method: "PUT", body: JSON.stringify(input) }); }
   async getInstanceAccess() { return parseWithFallback(await this.fetch<unknown>("/api/me/instance-access"), InstanceAccessSchema, {admin:false}, {endpoint:"/api/me/instance-access"}); }
+  async getRuntimeCache(): Promise<RuntimeCache> {
+    return parseWithFallback(await this.fetch<unknown>("/api/admin/runtime-cache"), RuntimeCacheSchema, { bytes: 0, limit_bytes: 0, downloads: 0, entries: [], catalog: [] }, { endpoint: "/api/admin/runtime-cache" });
+  }
+  async refreshRuntimeCache() { await this.fetch("/api/admin/runtime-cache/refresh", { method: "POST" }); }
+  async clearRuntimeCache() { await this.fetch("/api/admin/runtime-cache", { method: "DELETE" }); }
   async listAdminComputers(): Promise<AdminComputer[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computers"), AdminComputerSchema.array(), [] as AdminComputer[], {endpoint:"/api/admin/computers"}); }
   async listAdminComputerBindings(): Promise<AdminBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-bindings"), AdminBindingSchema.array(), [] as AdminBinding[], {endpoint:"/api/admin/computer-bindings"}); }
   async checkAdminLinuxUser(id: string): Promise<{ present: boolean }> {

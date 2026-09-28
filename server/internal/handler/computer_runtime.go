@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -28,8 +27,6 @@ func runtimeTargets() []runtimeTarget {
 	}
 	return list
 }
-
-var runtimeVersions = computer.NewRuntimeVersionCache(&http.Client{Timeout: 10 * time.Second})
 
 type runtimeAsset struct {
 	computer.RuntimeVersion
@@ -65,6 +62,7 @@ func (h *Handler) ComputerBindingRuntimes(w http.ResponseWriter, r *http.Request
 		writeError(w, 500, "Cannot read runtime assets")
 		return
 	}
+	_, runtimeVersions := h.runtimeCache()
 	for i, target := range runtimeTargets() {
 		list[i].RuntimeVersion = runtimeVersions.Get(target.id, target.source)
 		if list[i].LatestVersionState == "ready" && list[i].ProbeState == "installed" {
@@ -202,7 +200,12 @@ func (h *Handler) DiscoverComputerBinding(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) installBindingRuntime(ctx context.Context, op, bindingID, user, version string, target runtimeTarget, remote computer.SSHRemote) (string, error) {
 	h.operationStep(op, "installing_runtime")
-	cmd := strings.ReplaceAll(strings.ReplaceAll(target.install, "{{user}}", user), "{{version}}", version)
+	serverURL, ok := runtimeCacheServerURL()
+	if !ok {
+		return "", operationFailure("runtime_cache_unavailable")
+	}
+	base := runtimeDownloadBase(serverURL, op, time.Now())
+	cmd := cachedRuntimeInstallCommand(target, base, user, version)
 	// The root-owned remote lock and process-group timeout survive lost HTTP/SSH
 	// clients. A retry cannot overlap an orphaned installer on the same account.
 	_, installErr := remote.RunCommandContext(ctx, "sudo -n timeout -k 15s 300s flock -n --close /run/lock/multica-runtime-"+user+" "+cmd)

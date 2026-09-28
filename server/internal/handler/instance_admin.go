@@ -621,6 +621,10 @@ func (h *Handler) ComputerBindingRuntimeInstall(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	if _, ok := runtimeCacheServerURL(); !ok {
+		writeError(w, 503, "Runtime cache server URL is not configured")
+		return
+	}
 	operationID, err := h.beginBindingOperation(r.Context(), uid, bindingID, "runtime_install", in.RuntimeID, in.Version)
 	if err != nil {
 		operationStartError(w, err)

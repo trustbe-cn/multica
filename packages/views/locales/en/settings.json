@@ -1727,5 +1727,24 @@
       "install_help": "Installation requirements",
       "checked": "Latest version checked"
     }
+  },
+  "runtime_cache": {
+    "title": "Runtime cache",
+    "help": "Downloads are cached on Multica Server and reused across Linux users.",
+    "refresh": "Refresh versions",
+    "clear": "Clear cache",
+    "clear_help": "Installed CLIs are kept. Future installations will download these files again.",
+    "size": "{{size}} MiB",
+    "summary": "{{used}} / {{limit}} · {{count}} files · {{downloads}} downloads",
+    "coverage": "Download caching",
+    "installer_only": "Installer script; other downloads depend on the upstream installer",
+    "full": "Packages and supported release files",
+    "files": "Cached files",
+    "empty": "Files are cached when versions are checked or CLIs are installed.",
+    "source": "Source",
+    "bytes": "Size",
+    "cached": "Cached at",
+    "previous": "Previous",
+    "next": "Next"
   }
 }

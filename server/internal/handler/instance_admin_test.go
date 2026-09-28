@@ -241,6 +241,7 @@ func TestDisabledComputerVisibleOnlyForOwnerCleanup(t *testing.T) {
 }
 
 func TestOwnedRuntimeUserVersionAndAudit(t *testing.T) {
+	t.Setenv("MULTICA_COMPUTER_SERVER_URL", "https://cache.test.invalid")
 	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", testUserID)
 	t.Setenv("MULTICA_COMPUTER_SSH_KEY", adminTestKey(t))
 	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "runtime-test", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})

@@ -1720,5 +1720,24 @@
       "install_help": "インストール要件",
       "checked": "最新バージョンの確認日時"
     }
+  },
+  "runtime_cache": {
+    "title": "ランタイムキャッシュ",
+    "help": "ダウンロードを Multica Server に保存し、Linux ユーザー間で再利用します。",
+    "refresh": "バージョンを更新",
+    "clear": "キャッシュを削除",
+    "clear_help": "インストール済み CLI は保持されます。次回のインストール時に再ダウンロードします。",
+    "size": "{{size}} MiB",
+    "summary": "{{used}} / {{limit}} · {{count}} ファイル · {{downloads}} ダウンロード",
+    "coverage": "キャッシュ対象",
+    "installer_only": "インストーラースクリプト。その他は配布元のインストーラーに依存します",
+    "full": "パッケージと対応するリリースファイル",
+    "files": "キャッシュファイル",
+    "empty": "バージョン確認または CLI インストール時にキャッシュされます。",
+    "source": "ソース",
+    "bytes": "サイズ",
+    "cached": "保存日時",
+    "previous": "前へ",
+    "next": "次へ"
   }
 }
