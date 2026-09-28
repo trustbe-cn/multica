@@ -55,6 +55,62 @@ func (s SSHRemote) ReadSettings(username string) (Settings, error) {
 	return settings, nil
 }
 
+// ReadDaemonToken reads only the managed profile, not Git or model credentials.
+func (s SSHRemote) ReadDaemonToken(username string) (string, error) {
+	if err := validateUsername(username); err != nil {
+		return "", err
+	}
+	if err := validateComputerID(s.DaemonID); err != nil {
+		return "", err
+	}
+	argv, err := s.argv("sudo -n runuser -u " + ShellQuote(username) + " -- python3 -c " + ShellQuote(readDaemonTokenScript) + " " + ShellQuote("computer-"+s.DaemonID))
+	if err != nil {
+		return "", err
+	}
+	out, err := s.execute(argv, "")
+	if err != nil {
+		return "", ClassifiedError(ErrorCode(err, "credential_transfer_failed"))
+	}
+	var token string
+	if len(out) > 65536 || json.Unmarshal([]byte(out), &token) != nil {
+		return "", ClassifiedError("credential_transfer_failed")
+	}
+	return token, nil
+}
+
+// WriteDaemonConfig updates the managed daemon profile without rewriting credentials.
+// The token travels through stdin, never command arguments or error messages.
+func (s SSHRemote) WriteDaemonConfig(username, serverURL, token string) error {
+	if err := validateUsername(username); err != nil {
+		return err
+	}
+	if err := validateComputerID(s.DaemonID); err != nil {
+		return err
+	}
+	files, err := RenderFiles(serverURL, "", "", "", "", "", token)
+	if err != nil {
+		return ClassifiedError("credential_transfer_failed")
+	}
+	var config map[string]any
+	if err := json.Unmarshal([]byte(files.MulticaConfig), &config); err != nil {
+		return ClassifiedError("credential_transfer_failed")
+	}
+	config["workspace_id"] = s.WorkspaceID
+	config["health_port"] = s.HealthPort
+	payload, err := json.Marshal(config)
+	if err != nil {
+		return ClassifiedError("credential_transfer_failed")
+	}
+	argv, err := s.argv("sudo -n runuser -u " + ShellQuote(username) + " -- python3 -c " + ShellQuote(writeDaemonConfigScript) + " " + ShellQuote("computer-"+s.DaemonID))
+	if err != nil {
+		return err
+	}
+	if _, err := s.execute(argv, string(payload)); err != nil {
+		return ClassifiedError(ErrorCode(err, "credential_transfer_failed"))
+	}
+	return nil
+}
+
 // MergeSettings updates supplied fields only; blank inputs preserve the remote
 // value. Clearing credentials is deliberately not part of this operation.
 func MergeSettings(existing, supplied Settings) Settings {
@@ -75,7 +131,7 @@ func MergeSettings(existing, supplied Settings) Settings {
 	return existing
 }
 
-const readSettingsScript = `import os,pwd,sys,json,stat,subprocess,re
+const readPrivateFileScript = `import os,pwd,sys,json,stat,subprocess,re
 home=pwd.getpwuid(os.getuid()).pw_dir
 profile=sys.argv[1]
 if not profile.startswith("computer-") or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in profile): raise RuntimeError("invalid profile")
@@ -94,7 +150,9 @@ def read(relative):
             return value
     except FileNotFoundError: return ""
     finally: os.close(fd)
-def git_value(text,key):
+`
+
+const readSettingsScript = readPrivateFileScript + `def git_value(text,key):
     if not text: return ""
     p=subprocess.run(["git","config","--no-includes","--file","-","--get",key],input=text,capture_output=True,text=True,timeout=5)
     if p.returncode not in (0,1): raise RuntimeError("invalid Git configuration")
@@ -123,4 +181,11 @@ result=dict(git_name=identity("user.name"),git_email=identity("user.email"),
 encoded=json.dumps(result)
 if len(encoded.encode())>65536: raise RuntimeError("credentials too large")
 print(encoded)
+`
+
+const readDaemonTokenScript = readPrivateFileScript + `config=json.loads(read(".multica/profiles/"+profile+"/config.json") or "{}")
+if not isinstance(config,dict): raise RuntimeError("invalid existing config")
+token=config.get("token", "")
+if not isinstance(token,str): raise RuntimeError("invalid token")
+print(json.dumps(token))
 `

@@ -1579,7 +1579,7 @@
       "cancelled": "操作已在执行前取消。",
       "account_delete_failed": "请检查运行中的进程和权限后重试删除。",
       "remote_step_failed": "请检查前置条件，再重试所显示的操作。",
-      "credentials_required": "此 Linux 用户未配置有效且属于你的 Multica API Token。请在设置 → API Token 创建，再到此 Linux 用户的「账号凭据」中写入，然后重试守护进程操作。",
+      "credentials_required": "此 Linux 用户未配置有效且属于你的 Multica API Token。可点击“启动或升级守护进程”自动配置，或在“账号凭据”中写入本人的有效 Token。",
       "credential_transfer_failed": "无法读取或写入此 Linux 用户的受管凭据，请检查配置文件及其权限后重试。"
     },
     "kinds": {
@@ -1615,6 +1615,7 @@
     "password_for": "{{username}} 的 Linux 密码"
   },
   "credential_page": {
+    "authenticate": "请输入 {{username}} 的 Linux 密码以授权本次操作。",
     "title": "个人凭据",
     "help": "所有字段均可选。可在这里保存个人模板，也可从自己的 Linux 用户读取配置。创建账号不需要凭据。",
     "transfer": "读取与写入账号配置",
@@ -1635,7 +1636,7 @@
       "git_ssh_key": "用于 Git 访问的专用 SSH 私钥，将对应 .pub 公钥添加到 GitLab。它与 Computer 的运维 SSH 密钥不同；暂不支持带口令的私钥。",
       "git_known_hosts": "Git 服务器的可信 SSH 主机密钥记录，可从已核验的 ~/.ssh/known_hosts 获取。使用 ssh-keyscan 获取时，须先核对主机指纹。",
       "model_env": "从对应模型服务商控制台创建 API Key。支持 OPENAI_API_KEY、ANTHROPIC_API_KEY、OPENROUTER_API_KEY、GEMINI_API_KEY、XAI_API_KEY，每行 KEY=value。",
-      "multica_pat": "使用本人 Multica 账号，在设置的 API Token 页面创建。启动受管守护进程需要它，创建 Linux 用户不需要。"
+      "multica_pat": "选填。启动或升级守护进程时会自动配置属于你 Multica 账号的 Token。如需手动指定，可在“设置 → API Token”中创建。"
     },
     "remote_source": "当前草稿来自 {{username}}。切换账号会丢弃此草稿，恢复个人凭据模板。",
     "confirm_import": "将这些远端凭据（包括密钥）保存为我的个人模板，可用于其他 Linux 用户。"

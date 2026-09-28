@@ -2,6 +2,7 @@ package computer
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -123,5 +124,95 @@ func TestUpgradeAuthenticatesBeforeReadingCredentials(t *testing.T) {
 				t.Fatalf("lost safe failure code: %v", err)
 			}
 		})
+	}
+}
+
+func TestDaemonConfigOnlyPreservesCredentialsAndTransport(t *testing.T) {
+	home := t.TempDir()
+	files, err := RenderFiles("https://old.invalid", "Alice", "alice@example.com", "", "", "OPENAI_API_KEY=keep-model", "old-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runWriter(t, home, files, "computer-test"); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(home, ".multica/profiles/computer-test/config.json")
+	if err := os.WriteFile(path, []byte(`{"token":"old-token","device_name":"keep"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := map[string]string{}
+	for _, relative := range []string{".gitconfig", ".config/multica-provision/gitconfig", ".config/multica-provision/model.env"} {
+		data, err := os.ReadFile(filepath.Join(home, relative))
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[relative] = string(data)
+	}
+	rec := &recordRunner{}
+	remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "fake", DaemonID: "test", WorkspaceID: "workspace", HealthPort: 12345, RunCmd: rec}
+	if err := remote.WriteDaemonConfig("alice", "https://new.invalid", "new-secret-token"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(rec.argv, " "), "new-secret-token") {
+		t.Fatal("token leaked into argv")
+	}
+	script := strings.Replace(writeDaemonConfigScript, "home=pwd.getpwuid(os.getuid()).pw_dir", `home=os.environ["COMPUTER_TEST_HOME"]`, 1)
+	run := func() error {
+		cmd := exec.Command("python3", "-c", script, "computer-test")
+		cmd.Env = append(os.Environ(), "COMPUTER_TEST_HOME="+home)
+		cmd.Stdin = strings.NewReader(rec.stdin)
+		return cmd.Run()
+	}
+	if err := run(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]any
+	if json.Unmarshal(data, &config) != nil || config["token"] != "new-secret-token" || config["device_name"] != "keep" || config["workspace_id"] != "workspace" || config["health_port"] != float64(12345) || config["server_url"] != "https://new.invalid" {
+		t.Fatal("managed configuration mismatch")
+	}
+	for relative, original := range before {
+		data, err := os.ReadFile(filepath.Join(home, relative))
+		if err != nil || string(data) != original {
+			t.Fatalf("rewrote %s", relative)
+		}
+	}
+	info, _ := os.Stat(path)
+	if info.Mode().Perm() != 0600 {
+		t.Fatal("token permissions")
+	}
+	// Reading the token must not parse or depend on unrelated Git credentials.
+	if err := os.WriteFile(filepath.Join(home, ".gitconfig"), []byte("invalid Git config"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	readScript := strings.Replace(readDaemonTokenScript, "home=pwd.getpwuid(os.getuid()).pw_dir", `home=os.environ["COMPUTER_TEST_HOME"]`, 1)
+	cmd := exec.Command("python3", "-c", readScript, "computer-test")
+	cmd.Env = append(os.Environ(), "COMPUTER_TEST_HOME="+home)
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != `"new-secret-token"` {
+		t.Fatal("token read failed")
+	}
+	// Symlinked profiles cannot redirect writes into another account.
+	if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Dir(path)); err != nil {
+		t.Fatal(err)
+	}
+	if run() == nil {
+		t.Fatal("followed symlinked profile")
+	}
+	entries, _ := os.ReadDir(outside)
+	if len(entries) != 0 {
+		t.Fatal("wrote outside profile")
+	}
+	rec.err = fmt.Errorf("remote output containing new-secret-token")
+	rec.out = "new-secret-token"
+	if err := remote.WriteDaemonConfig("alice", "https://new.invalid", "new-secret-token"); err == nil || strings.Contains(err.Error(), "new-secret-token") {
+		t.Fatal("remote error leaked secret")
 	}
 }

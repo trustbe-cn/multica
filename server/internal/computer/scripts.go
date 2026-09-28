@@ -55,7 +55,7 @@ sys.exit(0 if r==0 else (42 if r in (7,9,10,11,12,13) else 43))
 
 // Executed as the target uid, never root. Refuse symlink traversal, write
 // atomically, and merge only managed configuration into existing files.
-const writeFilesScript = `import os,sys,pwd,json,secrets,stat
+const privateFileScript = `import os,sys,pwd,json,secrets,stat
 home=pwd.getpwuid(os.getuid()).pw_dir
 os.umask(0o077)
 root=os.open(home,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
@@ -83,24 +83,36 @@ def write(fd,name,body):
     finally:
         try: os.unlink(tmp,dir_fd=fd)
         except FileNotFoundError: pass
-parts=sys.stdin.buffer.read(262145).split(b"\0")
+`
+
+const writeFilesScript = privateFileScript + `parts=sys.stdin.buffer.read(262145).split(b"\0")
 if len(parts)!=6: raise RuntimeError("invalid payload")
 config=directory(root,".config"); managed=directory(config,"multica-provision"); multica=directory(root,".multica")
-profile=sys.argv[1] if len(sys.argv)>1 else ""
+` + managedProfileScript + `write(managed,"gitconfig",parts[0]); write(managed,"gitlab.token",parts[1]); write(managed,"model.env",parts[2])
+write(managed,"git.key",parts[4]); write(managed,"known_hosts",parts[5])
+old=read(root,".gitconfig")
+include=b'\n[include]\n\tpath = ~/.config/multica-provision/gitconfig\n'
+if include not in old: write(root,".gitconfig",old+include)
+updates=json.loads(parts[3])
+` + mergeDaemonConfigScript
+
+const managedProfileScript = `profile=sys.argv[1] if len(sys.argv)>1 else ""
 if profile:
     if not profile.startswith("computer-") or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in profile): raise RuntimeError("invalid profile")
     profiles=directory(multica,"profiles"); multica=directory(profiles,profile)
     workspaces=directory(multica,"workspaces")
     os.fchmod(workspaces,0o700)
-write(managed,"gitconfig",parts[0]); write(managed,"gitlab.token",parts[1]); write(managed,"model.env",parts[2])
-write(managed,"git.key",parts[4]); write(managed,"known_hosts",parts[5])
-old=read(root,".gitconfig")
-include=b'\n[include]\n\tpath = ~/.config/multica-provision/gitconfig\n'
-if include not in old: write(root,".gitconfig",old+include)
-previous=read(multica,"config.json")
+`
+
+const mergeDaemonConfigScript = `previous=read(multica,"config.json")
 merged=json.loads(previous) if previous else {}
 if not isinstance(merged,dict): raise RuntimeError("invalid existing config")
-merged.update(json.loads(parts[3]))
+merged.update(updates)
 if profile: merged["workspaces_root"]=os.path.join(home,".multica","profiles",profile,"workspaces")
 write(multica,"config.json",json.dumps(merged).encode()+b"\n")
 `
+
+// Only the managed CLI profile is touched; Git/model credentials are independent.
+const writeDaemonConfigScript = privateFileScript + `updates=json.loads(sys.stdin.buffer.read(65537))
+multica=directory(root,".multica")
+` + managedProfileScript + mergeDaemonConfigScript

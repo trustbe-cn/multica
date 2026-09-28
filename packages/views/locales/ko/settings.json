@@ -1579,7 +1579,7 @@
       "cancelled": "실행 전에 취소되었습니다.",
       "account_delete_failed": "실행 중인 프로세스와 권한을 확인한 후 삭제를 다시 시도하세요.",
       "remote_step_failed": "필수 조건을 확인한 후 표시된 작업을 다시 시도하세요.",
-      "credentials_required": "이 Linux 사용자에 본인 소유의 유효한 Multica API 토큰이 없습니다. 설정 → API 토큰에서 생성하고 이 Linux 사용자의 자격 증명 페이지에서 기록한 후 데몬 작업을 다시 시도하세요.",
+      "credentials_required": "이 Linux 사용자에 본인 소유의 유효한 Multica API 토큰이 없습니다. 데몬을 시작하거나 업그레이드하여 자동 설정하거나, 계정 자격 증명에서 본인의 유효한 토큰을 기록하세요.",
       "credential_transfer_failed": "이 Linux 사용자의 관리되는 자격 증명을 읽거나 쓸 수 없습니다. 설정 파일과 권한을 확인한 후 다시 시도하세요."
     },
     "kinds": {
@@ -1615,6 +1615,7 @@
     "password_for": "{{username}}의 Linux 비밀번호"
   },
   "credential_page": {
+    "authenticate": "이 작업을 승인하려면 {{username}}의 Linux 비밀번호를 입력하세요.",
     "title": "개인 자격 증명",
     "help": "모든 필드는 선택 사항입니다. 개인 템플릿을 저장하거나 내 Linux 사용자에서 설정을 읽을 수 있습니다. 계정 생성에는 자격 증명이 필요하지 않습니다.",
     "transfer": "계정 설정 읽기 및 쓰기",
@@ -1635,7 +1636,7 @@
       "git_ssh_key": "Git 전용 SSH 개인 키입니다. 대응하는 .pub 공개 키를 GitLab에 등록하세요. Computer 운영자 키와 다르며 암호로 보호된 키는 지원하지 않습니다.",
       "git_known_hosts": "Git 서버에 대해 검증된 ~/.ssh/known_hosts 항목입니다. ssh-keyscan 결과는 호스트 지문을 먼저 확인하세요.",
       "model_env": "모델 공급자 콘솔에서 API 키를 생성하세요. OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY를 지원합니다. 한 줄에 KEY=value를 입력하세요.",
-      "multica_pat": "본인 Multica 계정의 설정 → API 토큰에서 생성하세요. 데몬 시작에 필요하며 Linux 사용자 생성에는 필요하지 않습니다."
+      "multica_pat": "선택 사항입니다. 데몬 시작 또는 업그레이드 시 본인의 Multica 계정 토큰이 자동으로 설정됩니다. 직접 지정하려면 설정 → API 토큰에서 생성하세요."
     },
     "remote_source": "{{username}}에서 읽은 자격 증명입니다. 계정을 변경하면 이 초안이 삭제되고 개인 템플릿으로 돌아갑니다.",
     "confirm_import": "비밀 키를 포함한 원격 자격 증명을 다른 Linux 사용자에게도 사용할 개인 템플릿으로 저장합니다."

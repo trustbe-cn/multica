@@ -10,6 +10,16 @@ import {
   type ComputerBinding,
 } from "@multica/core/computers";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@multica/ui/components/ui/dialog";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { LinuxPasswordInput } from "../../computers/linux-password-input";
@@ -113,7 +123,6 @@ function CredentialEditor({
   const transfer = useComputerCredentials(userId);
   const [draft, setDraft] = useState<ComputerSettings | null>(null);
   const [reveal, setReveal] = useState(false);
-  const [password, setPassword] = useState("");
   const [importConfirmed, setImportConfirmed] = useState(false);
   const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [notice, setNotice] = useState("");
@@ -170,11 +179,14 @@ function CredentialEditor({
     multica_pat: t(($) => $.computers.multica_pat),
   };
   const help = t(($) => $.credential_page.field_help, { returnObjects: true });
-  async function perform(kind: "save" | "read" | "write" | "load") {
-    if (busy) return;
-    if (binding && kind === "save" && !importConfirmed) return;
+  async function perform(
+    kind: "save" | "read" | "write" | "load",
+    password = "",
+  ) {
+    if (busy) return false;
+    if (binding && kind === "save" && !importConfirmed) return false;
     if ((kind === "read" || kind === "load") && dirty && !replaceConfirmed)
-      return;
+      return false;
     const current = () => alive.current;
     setError("");
     setNotice("");
@@ -184,7 +196,7 @@ function CredentialEditor({
           id: binding.id,
           password,
         });
-        if (!current()) return;
+        if (!current()) return false;
         setDraft(result.settings);
         setReveal(false);
         setImportConfirmed(false);
@@ -192,7 +204,7 @@ function CredentialEditor({
         setNotice(t(($) => $.credential_page.read_done));
       } else if (kind === "load") {
         const result = await transfer.loadTemplate.mutateAsync();
-        if (!current()) return;
+        if (!current()) return false;
         setDraft(result.settings);
         setReveal(false);
         setImportConfirmed(false);
@@ -203,34 +215,36 @@ function CredentialEditor({
           password,
           settings,
         });
-        if (!current()) return;
+        if (!current()) return false;
         setDraft(null);
         setImportConfirmed(false);
         setNotice(t(($) => $.credential_page.write_done));
       } else if (kind === "save" && settings) {
         await transfer.saveTemplate.mutateAsync(settings);
-        if (!current()) return;
+        if (!current()) return false;
         if (!binding) setDraft(null);
         setImportConfirmed(false);
         setNotice(t(($) => $.credential_page.saved));
       }
+      return true;
     } catch (err) {
-      if (!current()) return;
+      if (!current()) return false;
       const code = errorCode(err);
       const messages = t(($) => $.linux_user.errors, { returnObjects: true });
       const connectionErrors = t(($) => $.workspace_linux_users.errors, {
         returnObjects: true,
       });
-      setError(
+      const message =
         code && Object.hasOwn(messages, code)
           ? messages[code as keyof typeof messages]
           : code && Object.hasOwn(connectionErrors, code)
             ? connectionErrors[code as keyof typeof connectionErrors]
-            : (clientErrorMessage(err) ?? t(($) => $.computers.failed)),
-      );
+            : (clientErrorMessage(err) ?? t(($) => $.computers.failed));
+      if (kind === "read" || kind === "write") throw new Error(message);
+      setError(message);
+      return false;
     } finally {
       if (current()) {
-        setPassword("");
         transfer.read.reset();
         transfer.write.reset();
         transfer.loadTemplate.reset();
@@ -254,12 +268,6 @@ function CredentialEditor({
           <p className="text-caption text-muted-foreground">
             {t(($) => $.credential_page.transfer_help)}
           </p>
-          <LinuxPasswordInput
-            autoComplete="off"
-            value={password}
-            disabled={busy || blocked}
-            onChange={(event) => setPassword(event.target.value)}
-          />
           {dirty && (
             <label className="flex gap-2">
               <input
@@ -271,15 +279,13 @@ function CredentialEditor({
             </label>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button
+            <CredentialPasswordAction
+              title={t(($) => $.credential_page.read)}
+              username={binding.username}
+              disabled={busy || blocked || (dirty && !replaceConfirmed)}
               variant="outline"
-              disabled={
-                busy || blocked || !password || (dirty && !replaceConfirmed)
-              }
-              onClick={() => void perform("read")}
-            >
-              {t(($) => $.credential_page.read)}
-            </Button>
+              onConfirm={(password) => perform("read", password)}
+            />
             <Button
               variant="outline"
               disabled={busy || (dirty && !replaceConfirmed)}
@@ -296,7 +302,7 @@ function CredentialEditor({
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void perform(binding ? "write" : "save");
+            if (!binding) void perform("save");
           }}
         >
           {fields.map((field) => {
@@ -338,14 +344,18 @@ function CredentialEditor({
           })}
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="submit"
-              disabled={busy || blocked || (!!binding && (!password || !dirty))}
-            >
-              {binding
-                ? t(($) => $.credential_page.write)
-                : t(($) => $.linux_user_pages.save_template)}
-            </Button>
+            {binding ? (
+              <CredentialPasswordAction
+                title={t(($) => $.credential_page.write)}
+                username={binding.username}
+                disabled={busy || blocked || !dirty}
+                onConfirm={(password) => perform("write", password)}
+              />
+            ) : (
+              <Button type="submit" disabled={busy}>
+                {t(($) => $.linux_user_pages.save_template)}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -386,5 +396,129 @@ function CredentialEditor({
         </p>
       )}
     </div>
+  );
+}
+
+function CredentialPasswordAction({
+  title,
+  username,
+  disabled,
+  variant,
+  onConfirm,
+}: {
+  title: string;
+  username: string;
+  disabled: boolean;
+  variant?: "outline";
+  onConfirm: (password: string) => Promise<boolean>;
+}) {
+  const { t } = useT("settings");
+  const [open, setOpen] = useState(false);
+  const submitting = useRef(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!submitting.current) setOpen(next);
+      }}
+    >
+      <DialogTrigger
+        render={<Button type="button" variant={variant} disabled={disabled} />}
+      >
+        {title}
+      </DialogTrigger>
+      {open && (
+        <CredentialPasswordConfirmation
+          title={title}
+          description={t(($) => $.credential_page.authenticate, { username })}
+          onConfirm={async (password) => {
+            submitting.current = true;
+            try {
+              return await onConfirm(password);
+            } finally {
+              submitting.current = false;
+            }
+          }}
+          onDone={() => setOpen(false)}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+// Unmounting the dialog (including account/section navigation) drops the password.
+function CredentialPasswordConfirmation({
+  title,
+  description,
+  onConfirm,
+  onDone,
+}: {
+  title: string;
+  description: string;
+  onConfirm: (password: string) => Promise<boolean>;
+  onDone: () => void;
+}) {
+  const { t } = useT("settings");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  return (
+    <DialogContent showCloseButton={!submitting}>
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!password || submitting) return;
+          setSubmitting(true);
+          setError("");
+          try {
+            if ((await onConfirm(password)) && alive.current) onDone();
+          } catch (err) {
+            if (alive.current) setError((err as Error).message);
+          } finally {
+            if (alive.current) {
+              setPassword("");
+              setSubmitting(false);
+            }
+          }
+        }}
+        className="space-y-4"
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <LinuxPasswordInput
+          autoComplete="off"
+          value={password}
+          disabled={submitting}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        {error && (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        )}
+        <DialogFooter>
+          <DialogClose
+            render={
+              <Button type="button" variant="outline" disabled={submitting} />
+            }
+          >
+            {t(($) => $.linux_user.cancel)}
+          </DialogClose>
+          <Button type="submit" disabled={!password || submitting}>
+            {title}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

@@ -1579,7 +1579,7 @@
       "cancelled": "操作は実行前にキャンセルされました。",
       "account_delete_failed": "実行中のプロセスと権限を確認して削除を再試行してください。",
       "remote_step_failed": "前提条件を確認し、表示された操作を再試行してください。",
-      "credentials_required": "この Linux ユーザーには、あなたの有効な Multica API トークンが設定されていません。設定 → API トークンで作成し、この Linux ユーザーの認証情報画面から書き込んで、デーモン操作を再試行してください。",
+      "credentials_required": "この Linux ユーザーには、あなたの有効な Multica API トークンがありません。デーモンを起動・更新して自動設定するか、アカウントの認証情報から有効なトークンを書き込んでください。",
       "credential_transfer_failed": "この Linux ユーザーの管理対象の認証情報を読み書きできません。設定ファイルと権限を確認して再試行してください。"
     },
     "kinds": {
@@ -1615,6 +1615,7 @@
     "password_for": "{{username}} の Linux パスワード"
   },
   "credential_page": {
+    "authenticate": "この操作を許可するには、{{username}} の Linux パスワードを入力してください。",
     "title": "個人の認証情報",
     "help": "すべて任意です。個人用テンプレートを保存するか、自分の Linux ユーザーから設定を読み込めます。アカウント作成に認証情報は不要です。",
     "transfer": "アカウント設定の読み書き",
@@ -1635,7 +1636,7 @@
       "git_ssh_key": "Git 専用の SSH 秘密鍵。対応する .pub 公開鍵を GitLab に登録します。Computer の運用キーとは別です。パスフレーズ付きの鍵は未対応です。",
       "git_known_hosts": "Git サーバーの検証済み ~/.ssh/known_hosts エントリ。ssh-keyscan の結果はフィンガープリントを確認してください。",
       "model_env": "各プロバイダーの管理画面で API キーを作成します。OPENAI_API_KEY、ANTHROPIC_API_KEY、OPENROUTER_API_KEY、GEMINI_API_KEY、XAI_API_KEY に対応。1 行に KEY=value を記入します。",
-      "multica_pat": "本人の Multica アカウントで設定 → API トークンから作成します。デーモンの起動に必要ですが、Linux ユーザーの作成には不要です。"
+      "multica_pat": "任意。デーモンの起動・更新時に、あなたの Multica アカウントのトークンが自動設定されます。手動で指定する場合は「設定 → API トークン」で作成してください。"
     },
     "remote_source": "{{username}} から読み取った認証情報です。アカウントを切り替えるとこの下書きは破棄され、個人テンプレートに戻ります。",
     "confirm_import": "秘密鍵を含むこれらのリモート認証情報を、他の Linux ユーザーでも使用できる個人テンプレートとして保存します。"

@@ -1,5 +1,5 @@
 import { it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -121,15 +121,13 @@ it("does not read either secret source until explicitly requested, and writes on
   expect(api.getComputerSettings).not.toHaveBeenCalled();
   expect(api.readComputerCredentials).not.toHaveBeenCalled();
   expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-  await user.type(screen.getByLabelText("Linux password"), "secret");
-  await user.click(screen.getByRole("button", { name: "Read from server" }));
+  await authorize(user, "Read from server", "secret");
   await waitFor(() =>
     expect(screen.getByLabelText("Git author name")).toHaveValue("Remote"),
   );
-  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+  expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
   expect(api.saveComputerSettings).not.toHaveBeenCalled();
-  await user.type(screen.getByLabelText("Linux password"), "secret-again");
-  await user.click(screen.getByRole("button", { name: "Write to Linux user" }));
+  await authorize(user, "Write to Linux user", "secret-again");
   await waitFor(() =>
     expect(api.writeComputerCredentials).toHaveBeenCalledWith(
       "alice",
@@ -142,8 +140,7 @@ it("requires explicit confirmation before exporting the remote draft to a person
   api.readComputerCredentials.mockResolvedValue({ operator: false, settings });
   mount(true);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Linux password"), "secret");
-  await user.click(screen.getByRole("button", { name: "Read from server" }));
+  await authorize(user, "Read from server", "secret");
   await waitFor(() =>
     expect(screen.getByLabelText("Git author name")).toHaveValue("Alice"),
   );
@@ -173,8 +170,7 @@ it("discards account A's draft and ignores its late response after switching acc
   );
   const mounted = mount(true);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Linux password"), "alice-secret");
-  await user.click(screen.getByRole("button", { name: "Read from server" }));
+  await authorize(user, "Read from server", "alice-secret");
   mounted.switchAccount();
   const { act } = await import("@testing-library/react");
   await act(async () =>
@@ -183,7 +179,7 @@ it("discards account A's draft and ignores its late response after switching acc
       settings: { ...settings, multica_pat: "alice-private" },
     }),
   );
-  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+  expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Git author name")).toHaveValue("");
   expect(screen.getByLabelText(en.computers.multica_pat)).toHaveValue("");
   expect(
@@ -200,11 +196,12 @@ it("loads a template only by explicit action and localizes password errors", asy
   );
   mount(true);
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Linux password"), "wrong");
-  await user.click(screen.getByRole("button", { name: "Read from server" }));
+  await authorize(user, "Read from server", "wrong");
   expect(await screen.findByRole("alert")).toHaveTextContent(
     en.linux_user.errors.password_mismatch,
   );
+  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
   await user.click(
     screen.getByRole("button", { name: "Load personal template" }),
   );
@@ -222,4 +219,74 @@ it("does not turn a failed personal template response into an editable empty for
   expect(
     screen.queryByRole("button", { name: "Save personal template" }),
   ).not.toBeInTheDocument();
+});
+
+async function authorize(
+  user: ReturnType<typeof userEvent.setup>,
+  action: string,
+  password: string,
+) {
+  expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: action }));
+  const dialog = screen.getByRole("dialog", { name: action });
+  expect(dialog).toHaveAccessibleDescription(/alice/);
+  await user.type(within(dialog).getByLabelText("Linux password"), password);
+  await user.click(within(dialog).getByRole("button", { name: action }));
+}
+
+it("requests authorization after editing and clears cancelled passwords without losing the draft", async () => {
+  mount(true);
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Git author name"), "New identity");
+  expect(screen.queryByLabelText("Linux password")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Write to Linux user" }));
+  await user.type(screen.getByLabelText("Linux password"), "cancelled-secret");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(api.writeComputerCredentials).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Git author name")).toHaveValue("New identity");
+  await user.click(screen.getByRole("button", { name: "Write to Linux user" }));
+  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+});
+
+it("keeps a failed write open with the draft intact, blocks dismissal while submitting, and allows retry", async () => {
+  const { ApiError } = await import("@multica/core/api");
+  let reject!: (reason: unknown) => void;
+  api.writeComputerCredentials.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  mount(true);
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Git author name"), "Keep me");
+  await authorize(user, "Write to Linux user", "wrong");
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  const { act } = await import("@testing-library/react");
+  await act(async () =>
+    reject(
+      new ApiError("server", 403, "Forbidden", { code: "password_mismatch" }),
+    ),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByRole("alert"),
+  ).toHaveTextContent(en.linux_user.errors.password_mismatch);
+  expect(screen.getByLabelText("Linux password")).toHaveValue("");
+  expect(screen.getByLabelText("Git author name")).toHaveValue("Keep me");
+  api.writeComputerCredentials.mockResolvedValueOnce(undefined);
+  await user.type(screen.getByLabelText("Linux password"), "correct");
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Write to Linux user",
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(api.writeComputerCredentials).toHaveBeenLastCalledWith(
+    "alice",
+    "correct",
+    expect.objectContaining({ git_name: "Keep me" }),
+  );
 });

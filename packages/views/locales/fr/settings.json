@@ -1586,7 +1586,7 @@
       "cancelled": "Opération annulée avant exécution.",
       "account_delete_failed": "Vérifiez les processus actifs et les permissions avant de réessayer la suppression.",
       "remote_step_failed": "Vérifiez les prérequis, puis relancez l’opération affichée.",
-      "credentials_required": "Cet utilisateur Linux ne dispose pas d’un jeton API Multica valide vous appartenant. Créez-en un dans Paramètres → Jetons API, écrivez-le depuis la page des identifiants de cet utilisateur Linux, puis relancez l’opération du daemon.",
+      "credentials_required": "Cet utilisateur Linux ne dispose pas d’un jeton API Multica valide vous appartenant. Démarrez ou mettez à jour le démon pour le configurer automatiquement, ou écrivez votre jeton valide dans les identifiants du compte.",
       "credential_transfer_failed": "Impossible de lire ou d’écrire les identifiants gérés de cet utilisateur Linux. Vérifiez les fichiers de configuration et leurs permissions, puis réessayez."
     },
     "kinds": {
@@ -1622,6 +1622,7 @@
     "password_for": "Mot de passe Linux de {{username}}"
   },
   "credential_page": {
+    "authenticate": "Saisissez le mot de passe Linux de {{username}} pour autoriser cette opération.",
     "title": "Identifiants personnels",
     "help": "Tous les champs sont facultatifs. Enregistrez un modèle personnel ou lisez les paramètres de votre utilisateur Linux. La création du compte ne nécessite aucun identifiant.",
     "transfer": "Lire et écrire les paramètres du compte",
@@ -1642,7 +1643,7 @@
       "git_ssh_key": "Clé SSH privée dédiée à Git ; ajoutez la clé .pub à GitLab. Distincte de la clé opérateur du Computer. Les clés avec phrase secrète ne sont pas prises en charge.",
       "git_known_hosts": "Entrées vérifiées de ~/.ssh/known_hosts pour le serveur Git. Vérifiez les empreintes avant de faire confiance aux clés obtenues avec ssh-keyscan.",
       "model_env": "Créez les clés dans la console du fournisseur. Noms acceptés : OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY. Une ligne KEY=value par clé.",
-      "multica_pat": "Créez-le avec votre compte Multica dans Paramètres → Jetons API. Nécessaire pour démarrer le daemon, pas pour créer un utilisateur Linux."
+      "multica_pat": "Facultatif. Le démarrage ou la mise à jour du démon configure automatiquement un jeton de votre compte Multica. Pour en fournir un manuellement, créez-le dans Paramètres → Jetons API."
     },
     "remote_source": "Identifiants lus depuis {{username}}. Changer de compte abandonne ce brouillon et restaure votre modèle personnel.",
     "confirm_import": "Enregistrer ces identifiants distants, y compris les secrets, comme modèle personnel utilisable avec d’autres utilisateurs Linux."

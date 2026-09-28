@@ -309,15 +309,10 @@ func (h *Handler) runComputerOperation(ctx context.Context, operationID, uid str
 	}
 	if action == "upgrade" {
 		req.AfterAuthenticate = func() error {
-			settings, err := remote.ReadSettings(b.Username)
-			if err != nil {
-				return err
+			if req.Step != nil {
+				req.Step("writing_configuration")
 			}
-			pat, err := h.Queries.GetPersonalAccessTokenByHash(ctx, auth.HashToken(settings.MulticaPAT))
-			if err != nil || uuidToString(pat.UserID) != uid {
-				return computer.ClassifiedError("credentials_required")
-			}
-			return nil
+			return h.ensureComputerDaemonCredentials(ctx, uid, b, remote, req.ServerURL)
 		}
 	}
 	result, err := computer.Apply(remote, store, req)

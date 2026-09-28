@@ -1586,7 +1586,7 @@
       "cancelled": "Operation was cancelled before execution.",
       "account_delete_failed": "Check running processes and permissions, then retry deletion.",
       "remote_step_failed": "Check prerequisites, then retry the displayed operation.",
-      "credentials_required": "This Linux user has no valid Multica API token belonging to you. Create one under Settings → API tokens, write it from this Linux user’s Credentials page, then retry the daemon operation.",
+      "credentials_required": "This Linux user has no valid Multica API token belonging to you. Start or upgrade the daemon to configure one automatically, or write your own valid token in Account credentials.",
       "credential_transfer_failed": "Could not read or write this Linux user’s managed credentials. Check the configuration files and their permissions, then retry."
     },
     "kinds": {
@@ -1622,6 +1622,7 @@
     "password_for": "Linux password for {{username}}"
   },
   "credential_page": {
+    "authenticate": "Enter the Linux password for {{username}} to authorize this operation.",
     "title": "Personal credentials",
     "help": "All fields are optional. Save a personal template here, or read settings from one of your Linux users. Creating an account does not require credentials.",
     "transfer": "Read and write account settings",
@@ -1642,7 +1643,7 @@
       "git_ssh_key": "Use a dedicated private SSH key for Git access; register its .pub key with GitLab. This is separate from the Computer operator key. Passphrase-protected keys are not supported.",
       "git_known_hosts": "Trusted SSH host key entries for your Git server, from a verified ~/.ssh/known_hosts. Verify host fingerprints before trusting keys obtained with ssh-keyscan.",
       "model_env": "Create API keys in the relevant provider console. Supported names: OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, XAI_API_KEY. One KEY=value per line.",
-      "multica_pat": "Create under Settings → API tokens using your own Multica account. Required to start the managed daemon, not to create a Linux user."
+      "multica_pat": "Optional. Starting or upgrading the daemon automatically configures a token for your Multica account. To supply one manually, create it under Settings → API tokens."
     },
     "remote_source": "Credentials read from {{username}}. Switching accounts discards this draft and restores your personal template.",
     "confirm_import": "Save these remote credentials, including secrets, as my personal template for use with other Linux users."
