@@ -539,22 +539,29 @@ export function LinuxUserDetail({
           )}
         </Dialog>
       )}
-      {view !== "overview" && (
-        <LinuxUserOperationsTable
-          operations={data.operations.data ?? []}
-          operationId={operationId}
-          recovering={data.recover.isPending}
-          onRecover={
-            admin
-              ? undefined
-              : (op) =>
-                  data.recover.mutate({
-                    id: op.id,
-                    action: op.state === "queued" ? "cancel" : "acknowledge",
-                  })
-          }
-        />
-      )}
+      {view !== "overview" &&
+        data.operations.isPending &&
+        !data.detail.isPending && (
+          <p role="status">{t(($) => $.computers.loading)}</p>
+        )}
+      {view !== "overview" &&
+        !data.operations.isPending &&
+        !data.operations.error && (
+          <LinuxUserOperationsTable
+            operations={data.operations.data ?? []}
+            operationId={operationId}
+            recovering={data.recover.isPending}
+            onRecover={
+              admin
+                ? undefined
+                : (op) =>
+                    data.recover.mutate({
+                      id: op.id,
+                      action: op.state === "queued" ? "cancel" : "acknowledge",
+                    })
+            }
+          />
+        )}
       {children?.(busy)}
     </section>
   );

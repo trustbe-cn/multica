@@ -418,3 +418,11 @@ it("keeps installing unavailable while another remote operation is running and l
   expect(await screen.findByRole("button",{name:"Install"})).toBeDisabled();
   expect(screen.getByRole("link",{name:/In progress/})).toHaveAttribute("href",expect.stringContaining("linux_user_view=operations"));
 });
+
+
+it("does not present a failed history request as an empty operation history", async () => {
+  api.listComputerOperations.mockRejectedValue(new Error("History unavailable"));
+  mount("/team/settings?tab=computers&linux_user=binding-1&linux_user_view=operations");
+  expect(await screen.findByText("History unavailable")).toBeInTheDocument();
+  expect(screen.queryByText(en.linux_user.no_operations)).not.toBeInTheDocument();
+});
