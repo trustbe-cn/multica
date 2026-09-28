@@ -412,6 +412,5 @@ it("keeps installing unavailable while another remote operation is running and l
   api.listComputerBindingRuntimes.mockResolvedValue([{id:"codex",display_name:"Codex",can_install:true,installed_version:"",supports_version:true}]);
   mount("/team/settings?tab=computers&linux_user=binding-1&linux_user_view=runtimes");
   expect(await screen.findByRole("button",{name:"Install"})).toBeDisabled();
-  expect(screen.getByRole("status")).toHaveTextContent(/In progress/);
-  expect(screen.getByRole("link",{name:/Recent operations/})).toHaveAttribute("href",expect.stringContaining("linux_user_view=operations"));
+  expect(screen.getByRole("link",{name:/In progress/})).toHaveAttribute("href",expect.stringContaining("linux_user_view=operations"));
 });

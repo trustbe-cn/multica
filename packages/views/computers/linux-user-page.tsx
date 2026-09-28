@@ -22,7 +22,6 @@ import {
   AlertDialogAction,
 } from "@multica/ui/components/ui/alert-dialog";
 import { Button } from "@multica/ui/components/ui/button";
-import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import { AppLink, useNavigation } from "../navigation";
 import { useT } from "../i18n";
 import { SettingsTab } from "../settings/components/settings-layout";
@@ -85,30 +84,11 @@ export function LinuxUserPage({
   return (
     <SettingsTab
       title={
-        d
-          ? `${d.username} · ${d.computer_name}`
-          : t(($) => $.linux_user.details)
-      }
-    >
-      <AppLink
-        href={back}
-        onClick={(e) => guard(e, back)}
-        className="inline-flex items-center gap-1 text-body text-muted-foreground underline"
-      >
-        <ArrowLeft className="size-4" />
-        {location.fromWorkspace
-          ? t(($) => $.linux_user_pages.back_workspace)
-          : t(($) => $.linux_user_pages.back)}
-      </AppLink>
-      {/* Primary next-step row */}
-      {d && primary && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
-          <span className="text-body text-muted-foreground">
-            {(primary === "operations") && (
-              needsRecovery
-                ? t(($) => $.linux_user_pages.states.interrupted)
-                : t(($) => $.linux_user_pages.states.running)
-            )}
+        <span className="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {d
+              ? `${d.username} · ${d.computer_name}`
+              : t(($) => $.linux_user.details)}
           </span>
           {primary === "create_account" && (
             <Button
@@ -136,8 +116,18 @@ export function LinuxUserPage({
               {t(($) => $.linux_user_pages.primary_operations)}
             </AppLink>
           )}
-        </div>
-      )}
+        </span>
+      }
+    >
+      <AppLink
+        href={back}
+        onClick={(e) => guard(e, back)}
+        className="text-body underline"
+      >
+        {location.fromWorkspace
+          ? t(($) => $.linux_user_pages.back_workspace)
+          : t(($) => $.linux_user_pages.back)}
+      </AppLink>
       <nav
         aria-label={t(($) => $.linux_user.details)}
         className="flex flex-wrap gap-2"
@@ -165,29 +155,17 @@ export function LinuxUserPage({
       {(data.busy || needsRecovery) &&
         primary !== "operations" &&
         location.view !== "operations" && (
-          <div
-            role="status"
-            className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-body text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-300"
-          >
-            {needsRecovery ? (
-              <AlertCircle className="size-4 shrink-0" />
-            ) : (
-              <Loader2 className="size-4 shrink-0 animate-spin" />
-            )}
-            <span>
-              {needsRecovery
-                ? t(($) => $.linux_user_pages.states.interrupted)
-                : t(($) => $.linux_user_pages.states.running)}
-            </span>
-            <AppLink
-              className="ml-auto text-body underline"
-              href={href("operations")}
-              onClick={(event) => guard(event, href("operations"))}
-            >
-              {t(($) => $.linux_user.operations)}
-            </AppLink>
-          </div>
-        )}
+        <AppLink
+          className="text-body underline"
+          href={href("operations")}
+          onClick={(event) => guard(event, href("operations"))}
+        >
+          {needsRecovery
+            ? t(($) => $.linux_user_pages.states.interrupted)
+            : t(($) => $.linux_user_pages.states.running)}{" "}
+          · {t(($) => $.linux_user.operations)}
+        </AppLink>
+      )}
       {d && (
         <div key={location.view}>
           {(location.view === "overview" || location.view === "operations") && (
