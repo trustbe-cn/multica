@@ -1572,6 +1572,7 @@
       "bun_missing": "독립 실행 런타임을 설치하거나 관리 PATH에 Bun을 추가하세요.",
       "installer_timeout": "설치 시간이 초과되었습니다. 이 Computer에서 패키지 배포처로 연결할 수 있는지 확인한 후 다시 시도하세요.",
       "installer_failed": "설치 출처와 필수 조건을 확인한 후 다시 설치하세요.",
+      "runtime_download_failed": "Multica Server에서 런타임을 다운로드하지 못했습니다. 관리자에게 서버와 배포 원본 간 연결을 확인하도록 요청한 후 다시 시도하세요.",
       "cli_missing": "이 CLI 런타임을 설치하세요.",
       "version_check_failed": "CLI 버전 확인에 실패했습니다. 종속성을 복구하거나 다시 설치하세요.",
       "daemon_offline": "데몬 연결을 확인한 후 동기화하거나 업그레이드하세요.",

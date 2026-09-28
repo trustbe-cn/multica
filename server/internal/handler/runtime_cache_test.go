@@ -29,7 +29,10 @@ func TestRuntimeDownloadCapabilityAndSourceBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	dbfx.Exec(t, `UPDATE computer_operation SET state='running' WHERE id=$1`, op)
-	client := &http.Client{Transport: runtimeCacheTestTransport(func(*http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: runtimeCacheTestTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/tool/latest" && r.URL.Path != "/@openai/codex" && r.URL.Path != "/@openai/codex/-/codex-1.2.3.tgz" {
+			t.Errorf("unexpected upstream package path: %s", r.URL)
+		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"version":"1.2.3","dist":{"tarball":"https://registry.npmjs.org/tool/-/tool.tgz"}}`))}, nil
 	})}
 	h := &Handler{DB: testHandler.DB, runtimeDownloads: computer.NewRuntimeDownloadCache(t.TempDir(), client)}
@@ -49,8 +52,12 @@ func TestRuntimeDownloadCapabilityAndSourceBoundaries(t *testing.T) {
 	if !strings.Contains(result.Body.String(), base+"/registry.npmjs.org/tool/-/tool.tgz") {
 		t.Fatal("package tarball did not use server cache")
 	}
+	call(base+"/registry.npmjs.org/@openai%2fcodex", 200)
+	call(base+"/registry.npmjs.org/@openai/codex", 200)
+	call(base+"/registry.npmjs.org/@openai%2Fcodex/-/codex-1.2.3.tgz", 200)
 	call(base+"/github.com/can1357/oh-my-pi/releases/latest", 403)
 	call(base+"/registry.npmjs.org/../private", 403)
+	call(base+"/registry.npmjs.org/%2e%2e/private", 403)
 	call(strings.Replace(base, "/"+op+"/", "/10000000-0000-0000-0000-000000000099/", 1)+"/registry.npmjs.org/tool/latest", 401)
 	dbfx.Exec(t, `UPDATE computer_operation SET state='succeeded',finished_at=now() WHERE id=$1`, op)
 	call(base+"/registry.npmjs.org/tool/latest", 403)

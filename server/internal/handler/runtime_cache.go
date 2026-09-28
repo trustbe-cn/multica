@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -92,7 +93,10 @@ func (h *Handler) RuntimeDownload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 403, "Runtime installation is not active")
 		return
 	}
-	host, rest := chi.URLParam(r, "source"), chi.URLParam(r, "*")
+	host := chi.URLParam(r, "source")
+	// Chi matches RawPath when present, so its wildcard may still contain %2f
+	// from a scoped npm package. URL.Path is already decoded exactly once.
+	rest := strings.TrimPrefix(r.URL.Path, "/api/runtime-downloads/"+operation+"/"+expiry+"/"+signature+"/"+host+"/")
 	source := (&url.URL{Scheme: "https", Host: host, Path: "/" + rest}).String()
 	allowed := false
 	for _, target := range runtimeTargets() {
@@ -116,6 +120,7 @@ func (h *Handler) RuntimeDownload(w http.ResponseWriter, r *http.Request) {
 	cache, _ := h.runtimeCache()
 	file, entry, err := cache.Open(r.Context(), source)
 	if err != nil {
+		slog.WarnContext(r.Context(), "runtime download failed", "operation_id", operation, "source", source, "error", err)
 		writeError(w, 502, "Cannot download runtime from upstream; retry the installation")
 		return
 	}

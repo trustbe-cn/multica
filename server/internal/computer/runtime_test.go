@@ -61,6 +61,9 @@ func TestComputerErrorCodesDoNotExposeRawSecrets(t *testing.T) {
 		{errors.New("sudo: a password is required"), "sudo_failed"},
 		{errors.New("Install Node.js and npm in /usr/bin"), "node_npm_missing"},
 		{errors.New("secret-access-token failure"), "installer_failed"},
+		{errors.New("npm error code E502\nnpm error 502 Bad Gateway - GET http://server/api/runtime-downloads/secret-access-token"), "runtime_download_failed"},
+		{errors.New("npm ERR! code E502"), "runtime_download_failed"},
+		{errors.New("curl: (22) The requested URL returned error: 502"), "runtime_download_failed"},
 	} {
 		code := ErrorCode(tc.err, "installer_failed")
 		if code != tc.want {

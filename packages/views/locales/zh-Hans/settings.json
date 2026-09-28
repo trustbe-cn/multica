@@ -1572,6 +1572,7 @@
       "bun_missing": "请安装独立运行时，或让 Bun 在受管 PATH 中可用。",
       "installer_timeout": "安装超时。请检查此 Computer 到软件包来源的网络连接后重试。",
       "installer_failed": "安装器失败，请检查来源和前置条件后重新安装。",
+      "runtime_download_failed": "Multica Server 无法下载运行时，请管理员检查服务器到上游来源的网络连接后重试。",
       "cli_missing": "请安装此 CLI 运行时。",
       "version_check_failed": "CLI 存在但版本命令失败，请修复依赖或重装。",
       "daemon_offline": "请检查守护进程连接，再同步或升级。",

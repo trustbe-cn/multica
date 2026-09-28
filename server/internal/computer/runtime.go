@@ -82,6 +82,9 @@ func ErrorCode(err error, fallback string) string {
 		return "ssh_unreachable"
 	}
 	s := strings.ToLower(err.Error())
+	if fallback == "installer_failed" && (strings.Contains(s, "npm error code e502") || strings.Contains(s, "npm err! code e502") || strings.Contains(s, "curl: (22) the requested url returned error: 502")) {
+		return "runtime_download_failed"
+	}
 	for _, pair := range [][2]string{
 		{"context deadline exceeded", "ssh_timeout"}, {"context canceled", "cancelled"}, {"exit status 255", "ssh_unreachable"}, {"exit status 43", "account_unavailable"}, {"package_manager_failed", "package_manager_failed"}, {"sudo:", "sudo_failed"}, {"unknown user", "account_missing"}, {"does not exist", "account_missing"},
 		{"authentication failure", "account_unavailable"}, {"password mismatch", "password_mismatch"},
@@ -124,6 +127,8 @@ func ErrorSummary(code string) string {
 		return "Write your own valid Multica PAT to this Linux user before starting the daemon."
 	case "runtime_cache_unavailable":
 		return "An administrator must configure the runtime cache server URL before installation."
+	case "runtime_download_failed":
+		return "Multica Server could not download the runtime; ask an administrator to check its access to the upstream source, then retry."
 	case "installer_timeout":
 		return "Installation exceeded its time limit; check the Computer's access to the package source, then retry."
 	case "credential_transfer_failed":

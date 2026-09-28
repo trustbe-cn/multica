@@ -1579,6 +1579,7 @@
       "bun_missing": "Installez le runtime autonome ou ajoutez Bun au PATH géré.",
       "installer_timeout": "L’installation a dépassé le délai. Vérifiez l’accès de ce Computer à la source du paquet, puis réessayez.",
       "installer_failed": "Vérifiez la source et les prérequis, puis réinstallez.",
+      "runtime_download_failed": "Multica Server ne peut pas télécharger le runtime. Demandez à un administrateur de vérifier la connexion du serveur à la source, puis réessayez.",
       "cli_missing": "Installez ce runtime CLI.",
       "version_check_failed": "Le CLI existe mais sa version est illisible ; réparez ses dépendances ou réinstallez-le.",
       "daemon_offline": "Vérifiez la connexion du démon, puis synchronisez ou mettez à niveau.",

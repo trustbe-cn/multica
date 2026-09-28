@@ -1579,6 +1579,7 @@
       "bun_missing": "Install the standalone runtime or provide Bun in the managed PATH.",
       "installer_timeout": "Installation timed out. Check this Computer’s access to the package source, then retry.",
       "installer_failed": "Installer failed; check its source and prerequisites, then retry installation.",
+      "runtime_download_failed": "Multica Server could not download the runtime. Ask an administrator to check its access to the upstream source, then retry.",
       "cli_missing": "Install this CLI runtime.",
       "version_check_failed": "CLI exists but its version command failed; repair dependencies or reinstall.",
       "daemon_offline": "Check daemon connectivity, then sync or upgrade.",
