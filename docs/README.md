@@ -11,6 +11,7 @@
 | [Linux 用户页面分层：第一阶段实施记录](engineering/linux-user-page-hierarchy.md) | 已实现入口、凭据边界、自动化验证与部署后验收清单 |
 | [Linux User 与运行时管理归属](design/linux-user-runtime-management.md) | Admin Area、我的运行环境和工作区运行时页面的职责划分，以及用户侧 runtime API 的权限边界。 |
 | [Linux 用户运行时模型配置方案](design/runtime-model-configuration.md) | 已实现的 sub2api 统一查询凭证、用户 key 分配、运行时模板、完整配置编辑、安装后初始化及真实 CLI 连接测试；包含真实上游联调限制。 |
+| [运行时模型配置部署记录](engineering/runtime-model-configuration-deployment.md) | 2026-10-09 部署 `b7c9645c6` 的镜像、迁移、备份、验证证据、未覆盖范围及回滚步骤。 |
 | [sub2api API key 目录与模型探测契约](design/sub2api-key-directory-contract.md) | 当前实现采用的上游契约：平台 / 协议兼容筛选、模型探测、分页 / resolve 示例、错误语义及上游联调清单。 |
 | [Linux 用户与工作区协作方案](design/linux-user-workspace-collaboration-plan.md) | 多账号、多人共用任务与各自运行环境的边界；工作区创建后的可选接入流程和实施验收。 |
 | [Computer 与运行时 review 修复记录](engineering/computer-runtime-review-fixes.md) | 两轮 review 修复与历史验证，以及 `07f1e09c4`、`b528fd809`、`c3c761d45` 的部署记录；保留尚未验证的事项。 |

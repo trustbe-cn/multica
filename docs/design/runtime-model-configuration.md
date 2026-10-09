@@ -1,6 +1,6 @@
 # Linux 用户运行时模型配置方案
 
-状态：首版实现已完成，尚未部署；真实 sub2api resolve 和模型探测已验证，目录元数据扩展和目标 CLI 版本仍需联调验收。sub2api 所需扩展见[接口契约草案](sub2api-key-directory-contract.md)。
+状态：首版实现已于 2026-10-09 随 `b7c9645c6` 部署，镜像、迁移与上线验证见[部署记录](../engineering/runtime-model-configuration-deployment.md)。真实 sub2api resolve 和模型探测已在实现阶段验证，目录元数据扩展和目标 CLI 版本仍需联调验收；本次部署未执行真实 CLI 模型调用。sub2api 所需扩展见[接口契约](sub2api-key-directory-contract.md)。
 
 ## 1. 目标与确认结论
 
