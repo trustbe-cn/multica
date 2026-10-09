@@ -678,6 +678,24 @@ type ComputerRuntimeAsset struct {
 	ProbeEnvironment string             `json:"probe_environment"`
 }
 
+type ComputerRuntimeModelConfig struct {
+	BindingID           pgtype.UUID        `json:"binding_id"`
+	RuntimeKind         string             `json:"runtime_kind"`
+	SourceID            pgtype.Int2        `json:"source_id"`
+	UpstreamID          pgtype.Text        `json:"upstream_id"`
+	ModelID             string             `json:"model_id"`
+	TemplateRevision    pgtype.Int8        `json:"template_revision"`
+	FileRevision        string             `json:"file_revision"`
+	Status              string             `json:"status"`
+	LastTestStatus      string             `json:"last_test_status"`
+	LastTestErrorCode   string             `json:"last_test_error_code"`
+	LastTestedAt        pgtype.Timestamptz `json:"last_tested_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	FileManifest        []byte             `json:"file_manifest"`
+	LastTestResult      []byte             `json:"last_test_result"`
+	LastSaveOperationID pgtype.UUID        `json:"last_save_operation_id"`
+}
+
 type ContactSalesInquiry struct {
 	ID              pgtype.UUID        `json:"id"`
 	FirstName       string             `json:"first_name"`
@@ -1207,6 +1225,29 @@ type Member struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ModelKeyDirectoryEntry struct {
+	SourceID        int16              `json:"source_id"`
+	UpstreamID      string             `json:"upstream_id"`
+	ApiKeyName      string             `json:"api_key_name"`
+	Status          string             `json:"status"`
+	AllowedRuntimes []byte             `json:"allowed_runtimes"`
+	SourceRevision  int64              `json:"source_revision"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModelKeySource struct {
+	ID                       int16              `json:"id"`
+	BaseUrl                  string             `json:"base_url"`
+	DirectoryTokenCiphertext []byte             `json:"directory_token_ciphertext"`
+	Revision                 int64              `json:"revision"`
+	Status                   string             `json:"status"`
+	LastCheckedAt            pgtype.Timestamptz `json:"last_checked_at"`
+	LastErrorCode            string             `json:"last_error_code"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy                pgtype.UUID        `json:"updated_by"`
+	RetryAfter               pgtype.Timestamptz `json:"retry_after"`
+}
+
 type NotificationPreference struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
@@ -1382,6 +1423,17 @@ type QuickAction struct {
 	CreatedByID   pgtype.UUID        `json:"created_by_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RuntimeConfigTemplate struct {
+	RuntimeKind       string             `json:"runtime_kind"`
+	Revision          int64              `json:"revision"`
+	Files             []byte             `json:"files"`
+	SupportedApiTypes []byte             `json:"supported_api_types"`
+	DefaultModel      string             `json:"default_model"`
+	Status            string             `json:"status"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy         pgtype.UUID        `json:"updated_by"`
 }
 
 type RuntimeProfile struct {
@@ -1611,6 +1663,15 @@ type UserComposioConnection struct {
 	LastUsedAt         pgtype.Timestamptz `json:"last_used_at"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UserModelKeyGrant struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	SourceID   int16              `json:"source_id"`
+	UpstreamID string             `json:"upstream_id"`
+	Position   int32              `json:"position"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ApiKeyName string             `json:"api_key_name"`
 }
 
 type VcsCommitStatus struct {

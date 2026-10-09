@@ -1,5 +1,8 @@
 "use client";
 
+import { RuntimeModelDialog } from "./runtime-model-dialog";
+import { ModelStatus } from "./model-config-controls";
+import { modelRuntimeKinds } from "@multica/core/computers";
 import { Fragment, useState } from "react";
 import {
   ArrowUpCircle,
@@ -41,10 +44,12 @@ import { ProviderLogo } from "../runtimes/components/provider-logo";
 import { useT } from "../i18n";
 
 export function BindingRuntimes({
+  accountLabel,
   bindingId,
   userId,
   busy,
 }: {
+  accountLabel?: string;
   bindingId: string;
   userId: string;
   busy: boolean;
@@ -187,6 +192,7 @@ export function BindingRuntimes({
                   {t(($) => $.linux_user_pages.runtime_versions.latest)}
                 </TableHead>
                 <TableHead>{t(($) => $.linux_user.registration)}</TableHead>
+                <TableHead>{t(($) => $.model_configuration.configure)}</TableHead>
                 <TableHead className="pr-4 text-right">
                   {t(($) => $.linux_user_pages.runtime_versions.actions)}
                 </TableHead>
@@ -195,6 +201,7 @@ export function BindingRuntimes({
             <TableBody>
               {runtimes.data.map((runtime) => (
                 <RuntimeRow
+                  accountLabel={accountLabel}
                   key={runtime.id}
                   runtime={runtime}
                   bindingId={bindingId}
@@ -236,6 +243,7 @@ export function BindingRuntimes({
 }
 
 function RuntimeRow({
+  accountLabel,
   runtime,
   bindingId,
   userId,
@@ -246,6 +254,7 @@ function RuntimeRow({
   batchLabel,
 }: {
   runtime: AdminComputerRuntime;
+  accountLabel?: string;
   bindingId: string;
   userId: string;
   busy: boolean;
@@ -375,8 +384,16 @@ function RuntimeRow({
                 : t(($) => $.linux_user.states.not_discovered)}
           </span>
         </TableCell>
+        <TableCell className="text-caption">
+          {runtime.model_key_name && <p className="max-w-44 truncate font-medium" title={runtime.model_key_name}>{runtime.model_key_name}</p>}
+          {runtime.model_id && <p className="max-w-44 truncate font-mono" title={runtime.model_id}>{runtime.model_id}</p>}
+          <ModelStatus status={runtime.model_config_status ?? "unconfigured"} />
+          <p><ModelStatus status={runtime.model_test_status ?? "untested"} /></p>
+          {(runtime.model_test_status === "failed" || runtime.model_config_status === "needs_configuration") && runtime.model_config_error && <p className="max-w-48 whitespace-normal break-words text-destructive">{errors[runtime.model_config_error as keyof typeof errors] ?? runtime.model_config_error}</p>}
+        </TableCell>
         <TableCell className="pr-4">
           <div className="flex items-center justify-end gap-2">
+            {installed && modelRuntimeKinds.some((kind) => kind === runtime.id) && <RuntimeModelDialog accountLabel={accountLabel} userId={userId} bindingId={bindingId} kind={runtime.id} label={runtime.display_name} disabled={busy} />}
             {upToDate && (
               <span className="inline-flex items-center gap-1 text-caption text-success">
                 <Check className="size-3.5" aria-hidden="true" />
@@ -521,7 +538,7 @@ function RuntimeRow({
       </TableRow>
       {expanded && (
         <TableRow id={detailsId} className="bg-muted/20 hover:bg-muted/20">
-          <TableCell colSpan={6} className="whitespace-normal px-4 py-3">
+          <TableCell colSpan={7} className="whitespace-normal px-4 py-3">
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-caption [&_dt]:text-muted-foreground [&_dd]:break-all">
               <dt>{t(($) => $.linux_user.path)}</dt>
               <dd>{runtime.executable_path || "—"}</dd>

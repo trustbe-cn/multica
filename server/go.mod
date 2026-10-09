@@ -67,10 +67,10 @@ require (
 	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
-	github.com/tidwall/gjson v1.19.0 // indirect
+	github.com/tidwall/gjson v1.19.0
 	github.com/tidwall/match v1.2.0 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/tidwall/pretty v1.2.1
+	github.com/tidwall/sjson v1.2.5
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260910141331-15ceca2b0a1f // indirect

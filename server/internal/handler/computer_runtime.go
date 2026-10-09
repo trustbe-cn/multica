@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/computer"
+	"github.com/multica-ai/multica/server/internal/sub2api"
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
 
@@ -25,10 +26,17 @@ func runtimeTargets() []runtimeTarget {
 	for _, r := range agent.ProtocolFamilyInstalls {
 		list = append(list, runtimeTarget{r.ID, r.DisplayName, r.DefaultCommand, r.InstallCommand, r.InstallerSource, !r.LatestOnly})
 	}
+	list = append(list, runtimeTarget{id: "openclaw", name: "OpenClaw", command: "openclaw"})
 	return list
 }
 
 type runtimeAsset struct {
+	ModelKeyName      string `json:"model_key_name"`
+	ModelID           string `json:"model_id"`
+	ModelConfigStatus string `json:"model_config_status"`
+	ModelConfigError  string `json:"model_config_error"`
+	ModelTestStatus   string `json:"model_test_status"`
+
 	computer.RuntimeVersion
 	UpdateAvailable   *bool      `json:"update_available"`
 	ID                string     `json:"id"`
@@ -106,10 +114,45 @@ func (h *Handler) runtimeAssets(ctx context.Context, id string) ([]runtimeAsset,
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
+	configs := map[string][5]string{}
+	configRows, err := h.DB.Query(ctx, `SELECT c.runtime_kind,
+CASE WHEN c.upstream_id IS NOT NULL AND (g.upstream_id IS NULL OR d.status IS DISTINCT FROM 'enabled' OR NOT COALESCE(d.allowed_runtimes ? c.runtime_kind,false) OR s.revision IS DISTINCT FROM d.source_revision) THEN 'authorization_invalid' ELSE c.status END,
+CASE WHEN c.last_test_status='failed' OR c.status='needs_configuration' THEN c.last_test_error_code ELSE '' END,c.last_test_status,
+CASE WHEN g.upstream_id IS NOT NULL AND d.status='enabled' AND d.allowed_runtimes ? c.runtime_kind AND s.revision=d.source_revision THEN d.api_key_name ELSE '' END,c.model_id
+FROM computer_runtime_model_config c
+JOIN computer_binding b ON b.id=c.binding_id
+LEFT JOIN model_key_source s ON s.id=c.source_id
+LEFT JOIN model_key_directory_entry d ON d.source_id=c.source_id AND d.upstream_id=c.upstream_id
+LEFT JOIN user_model_key_grant g ON g.user_id=b.user_id AND g.source_id=c.source_id AND g.upstream_id=c.upstream_id
+WHERE c.binding_id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	for configRows.Next() {
+		var kind, status, code, test, name, model string
+		if err = configRows.Scan(&kind, &status, &code, &test, &name, &model); err != nil {
+			configRows.Close()
+			return nil, err
+		}
+		configs[kind] = [5]string{status, code, test, name, model}
+	}
+	err = configRows.Err()
+	configRows.Close()
+	if err != nil {
+		return nil, err
+	}
 	list := []runtimeAsset{}
 	for _, target := range runtimeTargets() {
 		a, found := assets[target.id]
 		a.ID = target.id
+		a.ModelKeyName, a.ModelID = configs[target.id][3], configs[target.id][4]
+		a.ModelConfigStatus, a.ModelConfigError, a.ModelTestStatus = configs[target.id][0], configs[target.id][1], configs[target.id][2]
+		if a.ModelConfigStatus == "" {
+			a.ModelConfigStatus = "unconfigured"
+		}
+		if a.ModelTestStatus == "" {
+			a.ModelTestStatus = "untested"
+		}
 		a.DisplayName = target.name
 		a.CanInstall = target.install != ""
 		a.VersionRequired = false
@@ -229,6 +272,16 @@ func (h *Handler) installBindingRuntime(ctx context.Context, op, bindingID, user
 	}
 	if p.Code != "" {
 		return p.Version, operationFailure(p.Code)
+	}
+	if sub2api.KnownRuntime(target.id) {
+		var owner string
+		if err := h.DB.QueryRow(ctx, `SELECT user_id::text FROM computer_binding WHERE id=$1`, bindingID).Scan(&owner); err == nil {
+			h.operationStep(op, "initializing_model_config")
+			if err := h.initializeRuntimeModelConfig(ctx, owner, bindingID, user, target.id, remote); err != nil {
+				code := computer.ErrorCode(err, "model_key_unavailable")
+				_, _ = h.DB.Exec(ctx, `INSERT INTO computer_runtime_model_config(binding_id,runtime_kind,status,last_test_error_code) VALUES($1,$2,'needs_configuration',$3) ON CONFLICT(binding_id,runtime_kind) DO UPDATE SET status=CASE WHEN computer_runtime_model_config.file_revision='' THEN 'needs_configuration' ELSE computer_runtime_model_config.status END,last_test_error_code=$3`, bindingID, target.id, code)
+			}
+		}
 	}
 	return p.Version, nil
 }

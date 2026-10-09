@@ -276,14 +276,14 @@ esac
 		ProbeError       string `json:"probe_error"`
 	}
 	testutil.Call(t, testHandler.ComputerBindingRuntimes, request("GET", "/", nil)).Want(200).JSON(&runtimes)
-	if len(runtimes) != 7 {
+	if len(runtimes) != 8 {
 		t.Fatalf("runtimes = %+v", runtimes)
 	}
 	for _, rt := range runtimes {
 		if rt.InstalledVersion != "" || rt.ProbeError != "" {
 			t.Fatalf("wrong target user: %+v", rt)
 		}
-		if rt.VersionRequired || !rt.SupportsVersion {
+		if rt.VersionRequired || (rt.SupportsVersion != (rt.ID != "openclaw")) {
 			t.Fatalf("wrong version capability: %+v", rt)
 		}
 	}
@@ -320,6 +320,7 @@ esac
 	t.Cleanup(func() {
 		testPool.Exec(context.Background(), `DELETE FROM computer_operation WHERE binding_id=$1`, binding)
 		testPool.Exec(context.Background(), `DELETE FROM computer_runtime_asset WHERE binding_id=$1`, binding)
+		testPool.Exec(context.Background(), `DELETE FROM computer_runtime_model_config WHERE binding_id=$1`, binding)
 	})
 	// Transport failures remain distinct from executables missing on PATH.
 	other := request("GET", "/", nil)

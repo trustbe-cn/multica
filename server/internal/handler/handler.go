@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"golang.org/x/sync/singleflight"
 	"log/slog"
 	"math"
 	"net/http"
@@ -191,6 +192,10 @@ type RuntimeRecoveryNotifier interface {
 }
 
 type Handler struct {
+	// modelKeyClient is injectable for directory contract tests; production uses
+	// a bounded HTTPS client created by modelKeyHTTPClient.
+	modelKeyClient         *http.Client
+	modelKeyRefreshGroup   singleflight.Group
 	runtimeCacheOnce       sync.Once
 	runtimeDownloads       *computer.RuntimeDownloadCache
 	runtimeVersions        *computer.RuntimeVersionCache

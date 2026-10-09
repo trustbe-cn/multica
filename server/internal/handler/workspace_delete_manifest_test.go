@@ -22,6 +22,13 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	// Computer records belong to the deployment/human, not the workspace.
 	// Keep bindings so their owner can uninstall an OS service even after workspace deletion.
 	"computer":                           workspaceDeleteKeep,
+	"computer_operation":                 workspaceDeleteKeep,
+	"computer_runtime_asset":             workspaceDeleteKeep,
+	"model_key_source":                   workspaceDeleteKeep,
+	"model_key_directory_entry":          workspaceDeleteKeep,
+	"user_model_key_grant":               workspaceDeleteKeep,
+	"runtime_config_template":            workspaceDeleteKeep,
+	"computer_runtime_model_config":      workspaceDeleteKeep,
 	"computer_credential":                workspaceDeleteKeep,
 	"computer_binding":                   workspaceDeleteDetach,
 	"computer_audit":                     workspaceDeleteKeep,

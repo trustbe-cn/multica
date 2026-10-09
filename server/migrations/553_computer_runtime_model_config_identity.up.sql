@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY idx_computer_runtime_model_config_identity ON computer_runtime_model_config (binding_id, runtime_kind);

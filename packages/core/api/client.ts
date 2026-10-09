@@ -1,3 +1,4 @@
+import { ModelKeysWireSchema, ModelSourceWireSchema, ModelUsersWireSchema, ModelTemplatesWireSchema, ModelSavedWireSchema, ModelRefreshedWireSchema, ModelConfigWireSchema, parseModelPayload, modelKeysFromWire, modelTemplateFromWire, modelConfigFromWire, type ModelTemplate, type ModelConfigAction, type ModelConfigInput } from "../computers/model-config-schema";
 import { AgentRuntimeListSchema, AgentRuntimeSchema } from "./schemas";
 import { RuntimeCacheSchema, type RuntimeCache } from "../computers/runtime-cache-schema";
 import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
@@ -967,6 +968,70 @@ export class ApiClient {
   async getComputerSettings() { return parseComputerSettings(await this.fetch<unknown>("/api/me/computer-settings")); }
   async saveComputerSettings(input: ComputerSettings) { await this.fetch("/api/me/computer-settings", { method: "PUT", body: JSON.stringify(input) }); }
   async getInstanceAccess() { return parseWithFallback(await this.fetch<unknown>("/api/me/instance-access"), InstanceAccessSchema, {admin:false}, {endpoint:"/api/me/instance-access"}); }
+  async getModelKeySource() {
+    const r = parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-source"), ModelSourceWireSchema);
+    return { configured: r.configured, baseURL: r.base_url, revision: r.revision, status: r.status, lastCheckedAt: r.last_checked_at, lastErrorCode: r.last_error_code, directoryCount: r.directory_count };
+  }
+  async saveModelKeySource(input: { baseURL: string; directoryToken: string; revision: number }) {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-source", { method: "PUT", body: JSON.stringify({ base_url: input.baseURL, directory_token: input.directoryToken, revision: input.revision }) }), ModelSavedWireSchema);
+  }
+  async refreshModelKeyDirectory() {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-directory/refresh", { method: "POST" }), ModelRefreshedWireSchema);
+  }
+  async getModelKeyDirectory(input: { search: string; runtime: string; page: number }) {
+    const q = new URLSearchParams({ q: input.search, runtime: input.runtime, page: String(input.page) });
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-directory?${q}`), ModelKeysWireSchema));
+  }
+  async getModelKeyUsers(search: string) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-users?q=${encodeURIComponent(search)}`), ModelUsersWireSchema).items;
+  }
+  async getUserModelKeys(userId: string) {
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`), ModelKeysWireSchema)).items;
+  }
+  async saveUserModelKeys(userId: string, ids: string[]) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`, { method: "PUT", body: JSON.stringify({ ids }) }), ModelSavedWireSchema);
+  }
+  async getModelTemplates() {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/runtime-config-templates"), ModelTemplatesWireSchema).items.map(modelTemplateFromWire);
+  }
+  async saveModelTemplate(t: ModelTemplate) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/runtime-config-templates/${encodeURIComponent(t.runtimeKind)}`, { method: "PUT", body: JSON.stringify({ runtime_kind: t.runtimeKind, revision: t.revision, files: t.files, supported_api_types: t.supportedAPITypes, default_model: t.defaultModel, status: t.status }) }), ModelSavedWireSchema);
+  }
+  async getRuntimeModelKeys(bindingId: string, kind: string) {
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(bindingId)}/runtimes/${encodeURIComponent(kind)}/model-keys`), ModelKeysWireSchema)).items;
+  }
+  async runtimeModelConfig(bindingId: string, kind: string, action: ModelConfigAction, input: ModelConfigInput) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(bindingId)}/runtimes/${encodeURIComponent(kind)}/model-config/`;
+    const asynchronous = action === "test" || action === "save";
+    let result = modelConfigFromWire(parseModelPayload(await this.fetch<unknown>(endpoint + action, {
+      method: "POST", headers: asynchronous ? { Prefer: "respond-async" } : undefined,
+      body: JSON.stringify(action === "check" ? { files: input.files } : { password: input.password, files: input.files, api_key_id: input.apiKeyId, model_id: input.modelId, api_type: input.apiType, expected_revision: input.expectedRevision, create_only: input.createOnly, operation_id: input.operationId }),
+    }), ModelConfigWireSchema));
+    const operationId = result.operationId;
+    const wasQueued = result.operationState === "queued" || result.operationState === "running";
+    // Polling is read-only. A lost result never replays a paid test or a save.
+    for (let attempt = 0; result.operationState === "queued" || result.operationState === "running"; attempt++) {
+      if (attempt >= 120) throw new ApiError("model_operation_pending", 504, "Operation pending", { code: "model_operation_pending", operation_id: operationId });
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      try {
+        result = modelConfigFromWire(parseModelPayload(await this.fetch<unknown>(endpoint + "result", { method: "POST", body: JSON.stringify({ operation_id: operationId }) }), ModelConfigWireSchema));
+      } catch (error) {
+        if (error instanceof ApiError) {
+          const body = error.body;
+          const code = typeof body === "object" && body !== null && "code" in body && typeof body.code === "string" ? body.code : "";
+          if (code) throw error;
+          if (error.status < 500) throw error;
+        }
+        throw new ApiError("model_operation_pending", 503, "Cannot read operation result", { code: "model_operation_pending", operation_id: operationId });
+      }
+    }
+    if (wasQueued && action === "save" && result.saved) {
+      // The server returns paths/revision only; retain the editor's own file bodies.
+      result.snapshot.files = { ...result.snapshot.files, ...input.files };
+      result.apiType = input.apiType ?? "";
+    }
+    return result;
+  }
   async getRuntimeCache(): Promise<RuntimeCache> {
     return parseWithFallback(await this.fetch<unknown>("/api/admin/runtime-cache"), RuntimeCacheSchema, { bytes: 0, limit_bytes: 0, downloads: 0, entries: [], catalog: [] }, { endpoint: "/api/admin/runtime-cache" });
   }

@@ -1,5 +1,7 @@
 "use client";
 
+import { ModelKeyPanel } from "./model-key-panel";
+import { ModelTemplatePanel } from "./model-template-panel";
 import { RuntimeCachePanel } from "./runtime-cache-panel";
 import { LinuxUserDetail } from "../computers/linux-user-detail";
 
@@ -43,7 +45,7 @@ export function AdminAreaLink() {
 }
 
 /** The Admin Area sections, in sidebar order. */
-const SECTIONS = ["computers", "bindings", "runtime-cache", "audit"] as const;
+const SECTIONS = ["computers", "bindings", "runtime-cache", "model-keys", "model-templates", "audit"] as const;
 type Section = (typeof SECTIONS)[number];
 
 export function AdminPage({ onBack }: { onBack?: () => void }) {
@@ -63,7 +65,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
       ? t(($) => $.computers.title)
       : s === "bindings"
         ? t(($) => $.admin.bindings)
-        : s === "runtime-cache" ? t(($) => $.runtime_cache.title) : t(($) => $.admin.audit);
+        : s === "model-keys" ? t(($) => $.model_configuration.keys_title) : s === "model-templates" ? t(($) => $.model_configuration.templates_title) : s === "runtime-cache" ? t(($) => $.runtime_cache.title) : t(($) => $.admin.audit);
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <DragStrip />
@@ -112,7 +114,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
           ) : !admin ? (
             <p role="alert">{t(($) => $.admin.denied)}</p>
           ) : (
-            section === "runtime-cache" ? <RuntimeCachePanel userId={user.id} /> : <AdminSections key={user.id} userId={user.id} section={section} />
+            section === "model-keys" ? <ModelKeyPanel key={user.id} userId={user.id} /> : section === "model-templates" ? <ModelTemplatePanel key={user.id} userId={user.id} /> : section === "runtime-cache" ? <RuntimeCachePanel userId={user.id} /> : <AdminSections key={user.id} userId={user.id} section={section} />
           )}
         </main>
       </div>

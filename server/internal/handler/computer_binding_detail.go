@@ -198,6 +198,9 @@ func (h *Handler) ComputerBindingLifecycle(w http.ResponseWriter, r *http.Reques
 				}
 				err = h.withRunningOperation(ctx, op, func(tx pgx.Tx) error {
 					_, err := tx.Exec(ctx, `UPDATE computer_binding SET account_state='missing',checked_at=now(),updated_at=now() WHERE id=$1`, id)
+					if err == nil {
+						_, err = tx.Exec(ctx, `DELETE FROM computer_runtime_model_config WHERE binding_id=$1`, id)
+					}
 					return err
 				})
 				return err

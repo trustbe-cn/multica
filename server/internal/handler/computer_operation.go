@@ -93,7 +93,11 @@ func (h *Handler) operationStep(id, step string) {
 // A queued operation contains metadata only. Credentials live exclusively in
 // the caller's goroutine and are never replayed after a process restart.
 func (h *Handler) runRemoteOperation(id string, work func(context.Context) (string, error)) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	h.runRemoteOperationContext(context.Background(), id, work)
+}
+
+func (h *Handler) runRemoteOperationContext(parent context.Context, id string, work func(context.Context) (string, error)) {
+	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
 	defer cancel()
 	tag, err := h.DB.Exec(ctx, `UPDATE computer_operation SET state='running',started_at=now(),deadline_at=now()+interval '20 minutes',step='checking_account' WHERE id=$1 AND state='queued' AND deadline_at>now()`, id)
 	if err != nil {

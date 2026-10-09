@@ -17,7 +17,7 @@ func operationBinding(t *testing.T) (string, string) {
 	machine := dbfx.Insert(t, "computer", testutil.Cols{"name": "operations", "host": "fake.invalid", "port": 22, "ssh_user": "operator", "created_by": testUserID})
 	binding := dbfx.Insert(t, "computer_binding", testutil.Cols{"computer_id": machine, "user_id": testUserID, "workspace_id": testWorkspaceID, "username": "alice", "verified": true, "state": "ready"})
 	t.Cleanup(func() {
-		for _, table := range []string{"computer_audit", "computer_runtime_asset", "computer_operation"} {
+		for _, table := range []string{"computer_audit", "computer_runtime_asset", "computer_runtime_model_config", "computer_operation"} {
 			_, _ = testPool.Exec(context.Background(), "DELETE FROM "+table+" WHERE binding_id=$1", binding)
 		}
 	})

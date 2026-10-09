@@ -101,6 +101,60 @@ func ErrorCode(err error, fallback string) string {
 
 func ErrorSummary(code string) string {
 	switch code {
+	case "model_config_conflict":
+		return "Configuration changed on disk; reload before saving or testing."
+	case "model_config_exists":
+		return "Configuration already exists; reload it before editing."
+	case "model_config_invalid":
+		return "Check the configuration syntax and file paths."
+	case "model_config_incomplete":
+		return "Complete all configuration files before saving or testing."
+	case "model_template_invalid":
+		return "Ask an administrator to repair this runtime template."
+	case "model_config_mapping_missing":
+		return "Managed fields are missing; edit the existing configuration manually."
+	case "model_selection_required":
+		return "Choose a model and protocol supported by this API key and runtime."
+	case "source_unauthorized":
+		return "The directory credential is invalid or expired; ask an administrator to replace it."
+	case "source_not_configured", "source_encryption_unavailable":
+		return "Ask an administrator to configure the model key source and its encryption key."
+	case "source_invalid_response":
+		return "The key source response does not match the required runtime and model contract."
+	case "source_changed":
+		return "The key source changed; refresh the key list before trying again."
+	case "model_key_unassigned", "model_key_runtime_forbidden", "model_key_metadata_missing":
+		return "This key is not currently assigned to you for this runtime; refresh the key list."
+	case "source_unavailable":
+		return "The model key source is unavailable; ask an administrator to check its connection."
+	case "model_key_changed":
+		return "The key or connection settings changed after preview; load the models and preview again before saving."
+	case "model_key_unavailable":
+		return "Ask an administrator to assign an enabled API key for this runtime and verify the key source."
+	case "model_environment_conflict":
+		return "The Linux user's model environment overrides native files; remove conflicting model variables in Credentials and sync the daemon before testing."
+	case "model_config_metadata_failed":
+		return "Files may have been saved; reload before retrying because configuration metadata could not be stored."
+	case "model_connection_failed":
+		return "The CLI did not return a valid model reply; check the saved endpoint, model and key."
+	case "model_discovery_failed":
+		return "Model discovery failed; check the model service connection and retry."
+	case "model_discovery_invalid":
+		return "The model service returned an invalid model list."
+	case "model_discovery_empty":
+		return "No models were returned for this API key."
+	case "model_auth_failed":
+		return "The model service rejected authentication; check the API key and endpoint."
+	case "model_rate_limited":
+		return "The model service rate limited the request; retry later."
+	case "model_test_timeout":
+		return "The CLI connection test timed out after 60 seconds."
+	case "model_test_output_limit":
+		return "The CLI produced too much output; check runtime startup configuration."
+	case "model_cli_protocol_failed":
+		return "The CLI test protocol failed; check the installed runtime version."
+	case "model_test_unsupported":
+		return "This runtime does not support a managed connection test."
 	case "account_missing":
 		return "Linux account does not exist; provision it again."
 	case "account_unavailable":

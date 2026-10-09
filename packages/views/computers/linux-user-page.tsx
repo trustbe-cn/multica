@@ -209,6 +209,7 @@ export function LinuxUserPage({
             d.verified &&
             d.account_state !== "missing" ? (
               <BindingRuntimes
+                accountLabel={`${d.username} · ${d.computer_name}`}
                 userId={userId}
                 bindingId={bindingId}
                 busy={

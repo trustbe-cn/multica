@@ -51,6 +51,11 @@ export type AdminBinding = z.infer<typeof AdminBindingSchema>;
 export type ComputerAudit = z.infer<typeof ComputerAuditSchema>;
 
 export const AdminComputerRuntimeSchema = z.object({
+  model_key_name: z.string().catch(""),
+  model_id: z.string().catch(""),
+  model_config_status: z.enum(["unconfigured", "needs_configuration", "saved", "authorization_invalid"]).catch("unconfigured"),
+  model_config_error: z.string().catch(""),
+  model_test_status: z.enum(["untested", "succeeded", "failed"]).catch("untested"),
   id: z.string(),
   display_name: z.string(),
   installed_version: z.string(),
