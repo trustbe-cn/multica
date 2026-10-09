@@ -124,6 +124,8 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 ## Change and Delivery Rules
 
 - Keep changes scoped; reuse existing patterns. Code comments are English.
+- Do not rewrite existing commit history: do not use `git filter-branch`, `git filter-repo`, `git rebase`, `git commit --amend`, or force-push rewritten history. Make corrections in new commits.
+- Integrate official upstream updates with `git fetch` followed by `git merge`. Preserve upstream commit identities and ancestry.
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.
 - New global pre-workspace routes use a single word or `/{noun}/{verb}`, not hyphenated root names. Update `server/internal/handler/reserved_slugs.json`, run `pnpm generate:reserved-slugs`, and commit `packages/core/paths/reserved-slugs.ts` when changing reserved slugs.
 - Use atomic conventional commits and the repository PR template. For releases, follow [.github/RELEASING.md](.github/RELEASING.md); default to a patch bump unless specified otherwise.
