@@ -41,11 +41,11 @@ func (s Settings) Validate() error {
 			return err
 		}
 	}
-	if !strings.HasPrefix(s.MulticaPAT, "mul_") {
+	if s.MulticaPAT != "" && !strings.HasPrefix(s.MulticaPAT, "mul_") {
 		return fmt.Errorf("a personal Multica token is required")
 	}
 	u, err := url.Parse(s.GitLabURL)
-	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
+	if (s.GitLabURL != "" || s.GitLabToken != "") && (err != nil || u.Host == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https")) {
 		return fmt.Errorf("a GitLab HTTP(S) origin is required")
 	}
 	return nil

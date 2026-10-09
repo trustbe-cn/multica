@@ -12,10 +12,7 @@ import {
 import { isRuntimeUsableForUser } from "@multica/core/runtimes";
 import type { AgentRuntime, MemberWithUser } from "@multica/core/types";
 import { ActorAvatar } from "../../../common/actor-avatar";
-import {
-  PickerItem,
-  PropertyPicker,
-} from "../../../issues/components/pickers";
+import { PickerItem, PropertyPicker } from "../../../issues/components/pickers";
 import { ProviderLogo } from "../../../runtimes/components/provider-logo";
 import {
   buildRuntimeMachines,
@@ -170,14 +167,16 @@ export function RuntimePicker({
   const triggerTitle = selected
     ? t(($) => $.pickers.runtime_tooltip, {
         name: combinedLabel,
-        status: isOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
+        status: isOnline
+          ? t(($) => $.pickers.runtime_online)
+          : t(($) => $.pickers.runtime_offline),
       })
     : t(($) => $.pickers.runtime_tooltip_none);
 
   const hasOtherRuntimes = runtimes.some((r) => r.owner_id !== currentUserId);
 
   const getOwner = (id: string | null) =>
-    id ? members.find((m) => m.user_id === id) ?? null : null;
+    id ? (members.find((m) => m.user_id === id) ?? null) : null;
 
   // The single owner shared by every runtime on a machine, or null when the
   // machine merges runtimes from several owners (possible for legacy rows
@@ -187,9 +186,7 @@ export function RuntimePicker({
       machine.runtimes.map((r) => r.owner_id).filter(Boolean),
     );
     if (ownerIds.size !== 1) return null;
-    return getOwner(
-      machine.runtimes.find((r) => r.owner_id)?.owner_id ?? null,
-    );
+    return getOwner(machine.runtimes.find((r) => r.owner_id)?.owner_id ?? null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -226,7 +223,7 @@ export function RuntimePicker({
   };
 
   const drilled = machineId
-    ? machines.find((m) => m.id === machineId) ?? null
+    ? (machines.find((m) => m.id === machineId) ?? null)
     : null;
 
   const onlineCountLabel = (machine: RuntimeMachine) =>
@@ -358,9 +355,15 @@ export function RuntimePicker({
           const label = runtimeRowLabel(rt, drilled.title);
           const tooltip = [
             label,
-            owner ? t(($) => $.pickers.runtime_owned_by, { name: owner.name }) : null,
-            rtOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
-            locked ? t(($) => $.create_dialog.runtime_private_locked_tooltip) : null,
+            owner
+              ? t(($) => $.pickers.runtime_owned_by, { name: owner.name })
+              : null,
+            rtOnline
+              ? t(($) => $.pickers.runtime_online)
+              : t(($) => $.pickers.runtime_offline),
+            locked
+              ? t(($) => $.create_dialog.runtime_private_locked_tooltip)
+              : null,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -397,7 +400,11 @@ export function RuntimePicker({
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                   rtOnline ? "bg-success" : "bg-muted-foreground/40"
                 }`}
-                aria-label={rtOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline)}
+                aria-label={
+                  rtOnline
+                    ? t(($) => $.pickers.runtime_online)
+                    : t(($) => $.pickers.runtime_offline)
+                }
               />
             </PickerItem>
           );
@@ -487,6 +494,9 @@ export function RuntimePicker({
       <div className="flex min-w-0 flex-col">
         <Label>{t(($) => $.inspector.prop_runtime)}</Label>
         {picker}
+        <p className="mt-2 text-caption text-muted-foreground">
+          {t(($) => $.create_dialog.runtime_credentials_help)}
+        </p>
       </div>
     );
   }

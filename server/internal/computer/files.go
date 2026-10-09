@@ -38,7 +38,7 @@ func RenderFiles(serverURL, gitName, gitEmail, gitlabURL, gitlabToken, modelEnv,
 	if err := rejectControls("server url", serverURL); err != nil {
 		return CredentialFiles{}, err
 	}
-	if strings.TrimSpace(pat) == "" || strings.ContainsAny(pat, " ") {
+	if strings.ContainsAny(pat, " ") {
 		return CredentialFiles{}, fmt.Errorf("multica pat is required")
 	}
 	if err := rejectControls("multica pat", pat); err != nil {
@@ -53,14 +53,27 @@ func RenderFiles(serverURL, gitName, gitEmail, gitlabURL, gitlabToken, modelEnv,
 			return CredentialFiles{}, err
 		}
 	}
-	cfg, err := json.Marshal(map[string]string{
-		"server_url": serverURL,
-		"token":      pat,
-	})
+	config := map[string]string{"server_url": serverURL}
+	if pat != "" {
+		config["token"] = pat
+	}
+	cfg, err := json.Marshal(config)
 	if err != nil {
 		return CredentialFiles{}, err
 	}
-	git := "[user]\n\tname = " + strconv.Quote(gitName) + "\n\temail = " + strconv.Quote(gitEmail) + "\n"
+	git := ""
+	if gitName != "" || gitEmail != "" {
+		git = "[user]\n"
+	}
+	if gitName != "" {
+		git += "\tname = " + strconv.Quote(gitName) + "\n"
+	}
+	if gitEmail != "" {
+		git += "\temail = " + strconv.Quote(gitEmail) + "\n"
+	}
+	if gitlabURL != "" {
+		git += "[multica]\n\tgitlabUrl = " + strconv.Quote(gitlabURL) + "\n"
+	}
 	if token != "" {
 		helper, err := gitlabCredentialHelper(gitlabURL)
 		if err != nil {
@@ -105,6 +118,7 @@ Group=%i
 WorkingDirectory=/home/%i
 Environment=HOME=/home/%i
 Environment=XDG_CONFIG_HOME=/home/%i/.config
+Environment=PATH=/home/%i/.local/bin:/home/%i/.kimi-code/bin:/home/%i/.grok/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=-/home/%i/.config/multica-provision/model.env
 ExecStart=/usr/local/bin/multica daemon start --foreground
 Restart=on-failure

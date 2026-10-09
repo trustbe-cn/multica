@@ -84,5 +84,8 @@ func SafeError(err error, secrets ...string) error {
 	if err == nil {
 		return nil
 	}
+	if classified, ok := err.(ClassifiedError); ok {
+		return classified
+	}
 	return fmt.Errorf("%s", redactText(err.Error(), secrets...))
 }

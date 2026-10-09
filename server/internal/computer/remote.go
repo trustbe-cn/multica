@@ -51,6 +51,11 @@ type Request struct {
 	ModelEnv      string
 	MulticaPAT    string
 	FailureLimit  int
+	AccountOnly   bool
+	PreserveFiles bool
+	Step          func(string)
+	// AfterAuthenticate runs under the account lock after a successful PAM check.
+	AfterAuthenticate func() error
 }
 
 // Apply runs rule A.
@@ -67,14 +72,18 @@ func Apply(r Remote, store AttemptStore, req Request) (Result, error) {
 	if err := validateUsername(req.Username); err != nil {
 		return Result{}, SafeError(err, secrets...)
 	}
-	files, err := RenderFiles(req.ServerURL, req.GitName, req.GitEmail, req.GitLabURL, req.GitLabToken, req.ModelEnv, req.MulticaPAT)
-	if err != nil {
-		return Result{}, SafeError(err, secrets...)
-	}
-	files.GitSSHKey = req.GitSSHKey
-	files.GitKnownHosts = req.GitKnownHosts
-	if req.GitSSHKey != "" {
-		files.Gitconfig += "[core]\n\tsshCommand = \"ssh -i ~/.config/multica-provision/git.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.config/multica-provision/known_hosts\"\n"
+	var files CredentialFiles
+	var err error
+	if !req.AccountOnly && !req.PreserveFiles {
+		files, err = RenderFiles(req.ServerURL, req.GitName, req.GitEmail, req.GitLabURL, req.GitLabToken, req.ModelEnv, req.MulticaPAT)
+		if err != nil {
+			return Result{}, SafeError(err, secrets...)
+		}
+		files.GitSSHKey = req.GitSSHKey
+		files.GitKnownHosts = req.GitKnownHosts
+		if req.GitSSHKey != "" {
+			files.Gitconfig += "[core]\n\tsshCommand = \"ssh -i ~/.config/multica-provision/git.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.config/multica-provision/known_hosts\"\n"
+		}
 	}
 	limit := req.FailureLimit
 	if limit <= 0 {
@@ -116,9 +125,18 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 		}
 	}()
 
+	step := func(name string) {
+		if req.Step != nil {
+			req.Step(name)
+		}
+	}
+	step("checking_account")
 	exists, err := r.UserExists(req.Username)
 	if err != nil {
 		return Result{}, SafeError(err, secrets...)
+	}
+	if !exists && req.PreserveFiles {
+		return Result{}, fmt.Errorf("Linux account does not exist")
 	}
 	ok := false
 	if !exists {
@@ -153,26 +171,46 @@ func applyLocked(r Remote, attempt Attempt, req Request, files CredentialFiles, 
 		return res, nil
 	}
 
-	if preparer, ok := r.(interface{ Prepare() error }); ok {
+	if exists && req.AfterAuthenticate != nil {
+		if err := req.AfterAuthenticate(); err != nil {
+			return Result{}, err
+		}
+	}
+
+	step("preparing_daemon")
+	if preparer, ok := r.(interface{ Prepare() error }); ok && !req.AccountOnly {
 		if err := preparer.Prepare(); err != nil {
 			return Result{}, err
 		}
 	}
 	created := false
 	if res.Action == ActionCreate {
+		step("installing_packages")
 		if err := r.CreateUser(req.Username, req.Password); err != nil {
 			return Result{}, SafeError(err, secrets...)
 		}
 		created = true
 	}
-	if err := r.WriteFiles(req.Username, files); err != nil {
-		if created {
-			if derr := r.DeleteUser(req.Username); derr != nil {
-				return Result{}, SafeError(fmt.Errorf("write credentials: %v; rollback delete failed, linux user may remain: %w", err, derr), secrets...)
-			}
+	if req.AccountOnly {
+		if err := attempt.Reset(); err != nil {
+			return Result{}, err
 		}
-		return Result{}, SafeError(fmt.Errorf("write credentials: %w", err), secrets...)
+		keep = true
+		res.Failures = 0
+		return res, nil
 	}
+	if !req.PreserveFiles {
+		step("writing_configuration")
+		if err := r.WriteFiles(req.Username, files); err != nil {
+			if created {
+				if derr := r.DeleteUser(req.Username); derr != nil {
+					return Result{}, SafeError(fmt.Errorf("write credentials: %v; rollback delete failed, linux user may remain: %w", err, derr), secrets...)
+				}
+			}
+			return Result{}, SafeError(fmt.Errorf("write credentials: %w", err), secrets...)
+		}
+	}
+	step("refreshing_daemon")
 	if err := r.InstallDaemon(req.Username); err != nil {
 		if created {
 			if derr := r.DeleteUser(req.Username); derr != nil {

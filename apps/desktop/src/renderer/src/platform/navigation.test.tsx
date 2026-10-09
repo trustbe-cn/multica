@@ -319,3 +319,23 @@ describe("routeContentLinkPath (links inside content — MUL-5208)", () => {
     ).toBe(false);
   });
 });
+
+it("preserves Linux user detail context across history and application tabs", () => {
+  const adapter = renderProvider();
+  const overview="/acme/settings?tab=computers&linux_user=binding&linux_user_view=overview&linux_user_from=workspace";
+  const operations="/acme/settings?tab=computers&linux_user=binding&linux_user_view=operations&operation=op&linux_user_from=workspace";
+  act(()=>adapter().push(overview));
+  const accountTab=acmeGroup().activeTabId;
+  act(()=>adapter().push(operations));
+  expect(adapter().searchParams.get("operation")).toBe("op");
+  act(()=>adapter().back());
+  expect(getActiveTab(useTabStore.getState())?.url).toBe(overview);
+  act(()=>adapter().forward?.());
+  expect(getActiveTab(useTabStore.getState())?.url).toBe(operations);
+  act(()=>adapter().openInNewTab!("/acme/projects","Projects",{activate:true}));
+  act(()=>useTabStore.getState().setActiveTab(accountTab));
+  expect(adapter().searchParams.get("linux_user_from")).toBe("workspace");
+  expect(adapter().searchParams.get("operation")).toBe("op");
+  act(()=>adapter().replace("/acme/settings?tab=computers&linux_user=binding&linux_user_view=credentials"));
+  expect(adapter().searchParams.get("operation")).toBeNull();
+});

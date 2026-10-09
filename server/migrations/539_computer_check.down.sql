@@ -1,0 +1,3 @@
+ALTER TABLE computer DROP COLUMN IF EXISTS checked_at;
+ALTER TABLE computer DROP COLUMN IF EXISTS check_ok;
+ALTER TABLE computer DROP COLUMN IF EXISTS check_detail;

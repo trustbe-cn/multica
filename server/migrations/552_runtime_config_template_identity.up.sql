@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY idx_runtime_config_template_identity ON runtime_config_template (runtime_kind);

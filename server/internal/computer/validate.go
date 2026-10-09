@@ -30,6 +30,10 @@ func validateUsername(name string) error {
 	return nil
 }
 
+// ValidateLinuxUsername is the exported form of validateUsername for callers
+// outside this package that need to pre-validate before building SSH commands.
+func ValidateLinuxUsername(name string) error { return validateUsername(name) }
+
 // rejectControls refuses NUL and every other ASCII control character.
 // These values are copied into NUL-separated payloads, shell stdin, and files.
 func rejectControls(label, v string) error {
@@ -42,7 +46,7 @@ func rejectControls(label, v string) error {
 }
 
 func validateGit(name, email string) error {
-	if name == "" || len(name) > 128 {
+	if len(name) > 128 {
 		return fmt.Errorf("git name is empty or too long")
 	}
 	if err := rejectControls("git name", name); err != nil {
@@ -51,7 +55,7 @@ func validateGit(name, email string) error {
 	if err := rejectControls("git email", email); err != nil {
 		return err
 	}
-	if !emailRE.MatchString(email) {
+	if email != "" && !emailRE.MatchString(email) {
 		return fmt.Errorf("git email is not a single address")
 	}
 	return nil

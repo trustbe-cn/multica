@@ -1,6 +1,7 @@
 package computer
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -99,7 +100,9 @@ func TestPasswordTransportDistinguishesMismatchFromInfrastructure(t *testing.T) 
 }
 func TestExecTimeout(t *testing.T) {
 	start := time.Now()
-	_, err := (execRunner{timeout: 30 * time.Millisecond}).Run([]string{"sleep", "2"}, "")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	_, err := (execRunner{}).Run(ctx, []string{"sleep", "2"}, "")
 	if err == nil || time.Since(start) > time.Second {
 		t.Fatal("command was not bounded")
 	}
@@ -115,6 +118,7 @@ func TestCreateUserCompensatesPasswordFailure(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "created")
 	for name, script := range map[string]string{
+		"apt-get":  "#!/bin/sh\nexit 0\n",
 		"useradd":  "#!/bin/sh\n: > \"$COMPUTER_TEST_MARKER\"\n",
 		"chpasswd": "#!/bin/sh\ncat >/dev/null\nexit 1\n",
 		"userdel":  "#!/bin/sh\nrm -- \"$COMPUTER_TEST_MARKER\"\n",
@@ -236,4 +240,175 @@ subprocess.run=run
 			}
 		})
 	}
+}
+
+func TestCreateUserInstallerFailures(t *testing.T) {
+	for _, stage := range []string{"apt", "apt-timeout"} {
+		t.Run(stage, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, script := range map[string]string{
+				"apt-get": `if [ "$FAIL_STAGE" = apt-timeout ]; then
+(sh -c 'sleep 0.4; touch "$TEST_DIR/child-survived"') &
+wait
+else test "$FAIL_STAGE" != apt; fi`,
+				"useradd":  `touch "$TEST_DIR/account"; touch "$TEST_DIR/created"`,
+				"userdel":  `rm "$TEST_DIR/account"`,
+				"chpasswd": `cat >/dev/null`,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script+"\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rec := &recordRunner{}
+			remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", RunCmd: rec}
+			if err := remote.CreateUser("alice", "test-password"); err != nil {
+				t.Fatal(err)
+			}
+			command := strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n ")
+			command = strings.ReplaceAll(command, "p.wait(timeout=120)", "p.wait(timeout=0.1)")
+			cmd := exec.Command("sh", "-c", command)
+			cmd.Env = append(os.Environ(), "PATH="+dir+":/usr/bin:/bin", "FAIL_STAGE="+stage, "TEST_DIR="+dir)
+			cmd.Stdin = strings.NewReader(rec.stdin)
+			if out, err := cmd.CombinedOutput(); err == nil {
+				t.Fatalf("failure accepted: %s", out)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "account")); !os.IsNotExist(err) {
+				t.Fatal("left a partially initialized account")
+			}
+			if stage == "apt-timeout" {
+				time.Sleep(500 * time.Millisecond)
+				if _, err := os.Stat(filepath.Join(dir, "child-survived")); !os.IsNotExist(err) {
+					t.Fatal("apt child survived installer timeout")
+				}
+			}
+			_, created := os.Stat(filepath.Join(dir, "created"))
+			if strings.HasPrefix(stage, "apt") && !os.IsNotExist(created) {
+				t.Fatal("created an account before system prerequisites succeeded")
+			}
+		})
+	}
+}
+
+// Shell initialization must not depend on customization downloads.
+func TestCreateUserDoesNotRequireShellCustomizationDownload(t *testing.T) {
+	dir := t.TempDir()
+	for name, script := range map[string]string{
+		"apt-get": "exit 0", "useradd": `touch "$TEST_DIR/account"`, "chpasswd": "cat >/dev/null",
+		"userdel": `touch "$TEST_DIR/deleted"`, "runuser": `touch "$TEST_DIR/network"; exit 99`,
+		"curl": `touch "$TEST_DIR/network"; exit 28`, "git": `touch "$TEST_DIR/network"; exit 99`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script+"\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := &recordRunner{}
+	remote := SSHRemote{Host: "fake", Port: 22, User: "operator", KeyPath: "/fake", RunCmd: rec}
+	if err := remote.CreateUser("alice", "test-password"); err != nil {
+		t.Fatal(err)
+	}
+	command := strings.TrimPrefix(rec.argv[len(rec.argv)-1], "sudo -n ")
+	command = strings.Replace(command, "account=pwd.getpwnam(u)", `account=type("Account",(),dict(pw_dir=os.environ["TEST_DIR"],pw_uid=os.getuid(),pw_gid=os.getgid()))()`, 1)
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Env = append(os.Environ(), "PATH="+dir+":/usr/bin:/bin", "TEST_DIR="+dir)
+	cmd.Stdin = strings.NewReader(rec.stdin)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("account depends on shell customization: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "account")); err != nil {
+		t.Fatal("account not created")
+	}
+	if body, err := os.ReadFile(filepath.Join(dir, ".zshrc")); err != nil || len(body) == 0 {
+		t.Fatalf("new account lacks zsh startup configuration: %v", err)
+	}
+	for _, name := range []string{"network", "deleted"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected step: %s", name)
+		}
+	}
+}
+
+func runZshInitializer(t *testing.T, home string) error {
+	t.Helper()
+	script := strings.Replace(initializeZshScript, "account=pwd.getpwnam(u)", `account=type("Account",(),dict(pw_dir=os.environ["COMPUTER_TEST_HOME"],pw_uid=os.getuid(),pw_gid=os.getgid()))()`, 1)
+	cmd := exec.Command("python3", "-c", script+"\ninitialize_zsh(\"test-user\")\n")
+	cmd.Env = append(os.Environ(), "COMPUTER_TEST_HOME="+home)
+	return cmd.Run()
+}
+
+func TestInitializeZshPreservesStartupFiles(t *testing.T) {
+	for _, kind := range []string{"regular", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			home := t.TempDir()
+			startup := filepath.Join(home, ".zshrc")
+			target := startup
+			if kind == "symlink" {
+				target = filepath.Join(t.TempDir(), "shared-zshrc")
+				if err := os.Symlink(target, startup); err != nil {
+					t.Fatal(err)
+				}
+			}
+			original := "# Existing user or system skeleton configuration\n"
+			if err := os.WriteFile(target, []byte(original), 0640); err != nil {
+				t.Fatal(err)
+			}
+			if err := runZshInitializer(t, home); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(startup)
+			if err != nil || string(got) != original {
+				t.Fatalf("startup configuration replaced: %v", err)
+			}
+			info, err := os.Stat(target)
+			if err != nil || info.Mode().Perm() != 0640 {
+				t.Fatal("existing permissions changed")
+			}
+			if kind == "symlink" {
+				info, err := os.Lstat(startup)
+				if err != nil || info.Mode()&os.ModeSymlink == 0 {
+					t.Fatal("existing symlink replaced")
+				}
+			}
+		})
+	}
+}
+
+func TestInitializeZshRejectsHomeSymlink(t *testing.T) {
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := runZshInitializer(t, link); err == nil {
+		t.Fatal("followed home symlink")
+	}
+	if _, err := os.Stat(filepath.Join(target, ".zshrc")); !os.IsNotExist(err) {
+		t.Fatal("wrote outside home")
+	}
+}
+
+func TestInitializeZshFirstLogin(t *testing.T) {
+	home := t.TempDir()
+	if err := runZshInitializer(t, home); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(home, ".zshrc"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatalf("startup file not private: %v", err)
+	}
+	// Use only a disposable home, never the developer's shell configuration.
+	t.Run("interactive-shell", func(t *testing.T) {
+		zsh, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skip("zsh is not installed")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, zsh, "-d", "-i", "-c", `print -r -- "$HISTFILE"; print -r -- "$path[1]"`)
+		cmd.Env = []string{"HOME=" + home, "ZDOTDIR=" + home, "PATH=/usr/bin:/bin", "TERM=dumb"}
+		output, err := cmd.CombinedOutput()
+		want := home + "/.zsh_history\n" + home + "/.local/bin\n"
+		if err != nil || string(output) != want {
+			t.Fatalf("first login prompted or warned: %v\n%s", err, output)
+		}
+	})
 }

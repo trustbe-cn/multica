@@ -64,10 +64,12 @@ func (h *Handler) ComputerSettings(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 400, err.Error())
 			return
 		}
-		pat, err := h.Queries.GetPersonalAccessTokenByHash(r.Context(), auth.HashToken(settings.MulticaPAT))
-		if err != nil || uuidToString(pat.UserID) != uid {
-			writeError(w, 400, "Multica token must be valid and belong to you")
-			return
+		if settings.MulticaPAT != "" {
+			pat, err := h.Queries.GetPersonalAccessTokenByHash(r.Context(), auth.HashToken(settings.MulticaPAT))
+			if err != nil || uuidToString(pat.UserID) != uid {
+				writeError(w, 400, "Multica token must be valid and belong to you")
+				return
+			}
 		}
 		plain, _ := json.Marshal(map[string]any{"owner": uid, "settings": settings})
 		encrypted, err := box.Seal(plain)

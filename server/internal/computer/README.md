@@ -30,10 +30,39 @@ Server configuration:
   service account, mode 0700. Contains per-machine/account locks and failed PAM
   attempt counters. Do not share it with employees or place it in their homes.
 
-The server needs OpenSSH client access. Target Computers need Linux, Python 3,
-PAM (`pam_unix.so`), `sudo`, `runuser`, user management tools and systemd. The
-registered SSH operator requires passwordless sudo. Model CLIs must already be
-available to each target user; this feature installs Multica, not vendor CLIs.
+The server needs OpenSSH client access. Target Computers need Debian/Ubuntu
+(with `apt-get`), Python 3, PAM (`pam_unix.so`), `sudo`, `runuser`, user
+management tools and systemd. The registered SSH operator requires passwordless
+sudo. The connection check rejects machines without `apt-get`. New accounts
+require successful installation of zsh, htop, curl and git; a package installation
+failure fails provisioning. System packages are installed before creating the
+account, and failures during password or shell setup delete the new account.
+Installer process groups are terminated on timeout, including their children.
+Account creation allows eight minutes for installation and cleanup.
+
+New accounts receive a private `.zshrc` with basic history, completion and the
+managed runtime paths, so the first login does not open `zsh-newuser-install`.
+Existing startup files from `/etc/skel` are preserved. Shell initialization uses
+local configuration only; it does not download oh-my-zsh or other shell plugins.
+Reusing an existing account does not change its shell configuration.
+
+Administrators can install vendor CLIs from the Computer runtime panel after
+entering a target Linux username. npm-based runtimes require Node.js and npm in
+`/usr/local/bin`, `/usr/bin` or `/bin`; installation checks these prerequisites
+and uses the target user's `~/.local` prefix. Installs and version checks use the
+same user and PATH, without reading login-shell or nvm configuration. Managed
+daemon units include `~/.local/bin`, `~/.kimi-code/bin` and `~/.grok/bin`; use Upgrade
+runtime for existing bindings to apply this unit change. A failed SSH or version
+check is reported separately from a missing executable.
+
+Grok and Kimi receive the requested version (or `latest`) through their installer
+arguments. Oh-My-Pi uses the official installer with `--binary` and a release tag,
+so it does not depend on an independently installed Bun interpreter. Installers are downloaded
+completely over HTTPS before execution as the target user; any download or
+installer failure fails the operation. The installed command must also pass
+`--version` before success is recorded. These upstream installers remain trusted
+network dependencies; there is no pinned checksum or independent signature
+verification in this workflow.
 
 Before registering a target, its operator must install the fixed PAM service once
 (outside request handling), owned by root and not writable by other users:
@@ -62,7 +91,7 @@ verified `known_hosts` entries. Environment keys are provider-allowlisted.
 
 Operations run asynchronously on one bastion. A unique Computer/username binding
 prevents concurrent jobs and ownership changes. A process interrupted by restart
-shows `interrupted` after 20 minutes and can be retried; passwords are deliberately
+shows `interrupted` after 20 minutes and requires explicit acknowledgment before a new retry; passwords are deliberately
 not persisted for automatic replay. A managed daemon is reported ready only after
 its registration matches owner, workspace, daemon ID and a recent heartbeat.
 Port binding failure leaves a failed operation, never a false success.
@@ -83,3 +112,17 @@ Disabling a Computer prevents new provision/sync/upgrade operations, but existin
 jobs/services keep running and owners may remove their own daemon. A connection
 cannot be changed once any account binding exists; register another Computer.
 Bindings show the latest 500 entries and audit shows the latest 200 entries.
+
+Operation and asset metadata are persisted in PostgreSQL. Linux User details separate account observations, systemd service observations, CLI probes and runtime registrations. See [the operation contract](../../../docs/design/computer-remote-operations.md) for async receipts, serialization, recovery, archival and explicit Linux account deletion.
+
+## Runtime download cache
+
+Managed runtime installations require `MULTICA_COMPUTER_SERVER_URL` to be reachable
+from the target Computer. The backend supplies temporary, operation-scoped
+registry/installer URLs and caches supported public upstream downloads centrally.
+`MULTICA_RUNTIME_CACHE_DIR` overrides the default `runtime-cache` directory under
+`MULTICA_COMPUTER_STATE_DIR`. Keep that directory on persistent storage and do not
+share it between backend processes. Administrators manage versions and cached
+files in Admin Area → Runtime cache. See
+[the runtime cache guide](../../../docs/engineering/runtime-cache.md) for limits,
+provider coverage, endpoint behavior, and rollback notes.

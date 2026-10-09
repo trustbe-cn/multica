@@ -219,7 +219,53 @@ describe("ApiClient pull-request response schema", () => {
 
     await expect(
       new ApiClient("https://api.example.test").listIssuePullRequests("issue-1"),
-    ).resolves.toEqual({ pull_requests: [] });
+    ).resolves.toEqual({ pull_requests: [], auto_complete: null });
+  });
+
+  function stubPullRequests(body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+  }
+
+  it("parses the auto-complete decision and link source", async () => {
+    stubPullRequests({
+      pull_requests: [{ ...validPR, link_source: "title" }],
+      auto_complete: { state: "waiting", pull_request_ids: ["pr-1"], issue_disabled: false, workspace_enabled: true, target_status: "in_review" },
+    });
+    const result = await new ApiClient("https://api.example.test").listIssuePullRequests("issue-1");
+    expect(result.pull_requests[0]?.link_source).toBe("title");
+    expect(result.auto_complete).toEqual({
+      state: "waiting",
+      pull_request_ids: ["pr-1"],
+      issue_disabled: false,
+      workspace_enabled: true,
+      target_status: "in_review",
+    });
+  });
+
+  it("treats a missing auto-complete block (older backend) as null", async () => {
+    stubPullRequests({ pull_requests: [validPR] });
+    const result = await new ApiClient("https://api.example.test").listIssuePullRequests("issue-1");
+    expect(result.auto_complete).toBeNull();
+    expect(result.pull_requests).toHaveLength(1);
+  });
+
+  it("keeps the PR list when only the auto-complete block or link source is malformed", async () => {
+    stubPullRequests({
+      pull_requests: [{ ...validPR, link_source: "psychic" }],
+      auto_complete: { state: 42 },
+    });
+    const result = await new ApiClient("https://api.example.test").listIssuePullRequests("issue-1");
+    expect(result.auto_complete).toBeNull();
+    expect(result.pull_requests).toHaveLength(1);
+    expect(result.pull_requests[0]?.link_source).toBeUndefined();
   });
 });
 
@@ -1102,13 +1148,41 @@ describe("ApiClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new ApiClient("https://api.example.test");
-    const tasks = await client.listAgentTasks("agent-1");
+    const { tasks, nextCursor } = await client.listAgentTasksPage("agent-1");
 
     expect(tasks.map((task) => task.id)).toEqual(["task-1", "task-2"]);
+    expect(nextCursor).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://api.example.test/api/agents/agent-1/tasks",
+      "https://api.example.test/api/agents/agent-1/tasks?limit=200",
     );
+  });
+
+  it("reads a lossless task cursor and passes it to the next bounded request", async () => {
+    const cursor = "2026-09-24T01:02:03.123456Z|00000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(
+      JSON.stringify([{ id: "task-1", status: "completed" }]),
+      { headers: { "X-Agent-Tasks-Next-Cursor": cursor } },
+    )));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+    const page = await client.listAgentTasksPage("agent-1", { limit: 7 });
+    expect(page.nextCursor).toBe(cursor);
+    const controller = new AbortController();
+    await client.listAgentTasksPage("agent-1", { limit: 7, before: page.nextCursor!, signal: controller.signal });
+    const request = new URL(fetchMock.mock.calls[1]![0]);
+    expect(request.searchParams.get("limit")).toBe("7");
+    expect(request.searchParams.get("before")).toBe(cursor);
+    expect(fetchMock.mock.calls[1]![1].signal).toBe(controller.signal);
+  });
+
+  it("drops the continuation when the task page is malformed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ tasks: "not-an-array" }),
+      { headers: { "X-Agent-Tasks-Next-Cursor": "cursor" } },
+    )));
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.listAgentTasksPage("agent-1")).resolves.toEqual({ tasks: [], nextCursor: null });
   });
 
   it("falls back to an empty agent task history for a malformed response", async () => {
@@ -1121,7 +1195,7 @@ describe("ApiClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new ApiClient("https://api.example.test");
-    await expect(client.listAgentTasks("agent-1")).resolves.toEqual([]);
+    await expect(client.listAgentTasksPage("agent-1")).resolves.toEqual({ tasks: [], nextCursor: null });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -2505,6 +2579,19 @@ describe("ApiClient workspace MCP servers", () => {
     expect(result[0]?.transport).toBe("websocket");
   });
 
+  it("keeps the agent count and degrades a malformed one to unknown", async () => {
+    stubJSON([
+      { ...server, id: "srv-1", agent_count: 3 },
+      { ...server, id: "srv-2", agent_count: "many" },
+      { ...server, id: "srv-3" },
+    ]);
+
+    const result = await new ApiClient("https://api.example.test")
+      .listWorkspaceMcpServers("ws-1");
+
+    expect(result.map((item) => item.agent_count)).toEqual([3, undefined, undefined]);
+  });
+
   it("POSTs a name and entry when creating a library server", async () => {
     const fetchMock = stubJSON(server);
 
@@ -3052,5 +3139,85 @@ describe("ApiClient shared credential across windows", () => {
     await expect(client.markOnboardingComplete()).rejects.toBeInstanceOf(ApiError);
 
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("admin Computer API compatibility", () => {
+  it("rejects malformed public keys before they reach the clipboard", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ pubkey: 42 }))));
+    await expect(new ApiClient("https://api.example.test").getAdminSshPubKey()).rejects.toThrow("SSH public key response is invalid");
+  });
+
+  it("fails closed for malformed connection checks", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ok: "true", checks: null })))));
+    const client = new ApiClient("https://api.example.test");
+    expect(await client.checkAdminComputer("machine")).toEqual({ ok: false, facts: {}, checks: [] });
+    expect(await client.checkAdminComputerDraft({ name: "Host", host: "host", port: 22, ssh_user: "operator" })).toEqual({ ok: false, facts: {}, checks: [] });
+  });
+
+  it("defaults older runtime responses and addresses the owned binding", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { id: "omp", display_name: "Oh-My-Pi", installed_version: "", can_install: true },
+    ])));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new ApiClient("https://api.example.test").listComputerBindingRuntimes("binding");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/me/computer-bindings/binding/runtimes");
+    expect(result[0]).toMatchObject({ version_required: true, probe_error: "" });
+  });
+
+  it("reports malformed runtime responses as errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ runtimes: null }))));
+    await expect(new ApiClient("https://api.example.test").listComputerBindingRuntimes("binding")).rejects.toThrow("Runtime list response is invalid");
+  });
+
+  it("does not report a malformed Linux User check as a missing account", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ present: "false" }))));
+    await expect(new ApiClient("https://api.example.test").checkAdminLinuxUser("binding")).rejects.toThrow("Linux User check response is invalid");
+  });
+});
+
+it("rejects malformed Linux User detail, operation, lifecycle and discovery responses", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({unexpected:true}, {status:200})));
+  const client = new ApiClient("https://api.example.test");
+  await expect(client.getComputerBindingDetail("binding")).rejects.toThrow("Could not read Linux User details");
+  await expect(client.listComputerOperations("binding")).rejects.toThrow("Could not read remote operations");
+  await expect(client.discoverComputerBinding("binding")).rejects.toThrow("Could not read discovery operation");
+  await expect(client.installComputerBindingRuntime("binding", "codex", "latest")).rejects.toThrow("Could not read the installation operation");
+  await expect(client.checkLinuxUser("binding")).rejects.toThrow("Linux User check response is invalid");
+  await expect(client.computerBindingLifecycle("binding", {action:"archive",confirm_username:"alice"})).rejects.toThrow("Could not read lifecycle operation");
+});
+
+it("requests an asynchronous runtime receipt and retains its durable operation ID", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(Response.json({operation_id:"operation-1",state:"queued"}, {status:202}));
+  vi.stubGlobal("fetch", fetchMock);
+  const result = await new ApiClient("https://api.example.test").installComputerBindingRuntime("binding", "codex", "latest");
+  expect(result).toEqual({operation_id:"operation-1",state:"queued"});
+  expect(new Headers(fetchMock.mock.calls[0]?.[1].headers).get("Prefer")).toBe("respond-async");
+});
+
+
+describe("runtime execution source response compatibility", () => {
+  const runtime = { id: "rt", workspace_id: "ws", name: "Claude (host)", provider: "claude", status: "online" };
+  async function read(value: unknown) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(value))));
+    return new ApiClient("https://api.example.test").listRuntimes();
+  }
+  it("accepts old servers and defaults unknown access and availability conservatively", async () => {
+    const result = (await read([{ ...runtime, status: "future", visibility: "future" }]))[0]!;
+    expect(result.execution_source).toBeNull();
+    expect(result.status).toBe("offline");
+    expect(result.visibility).toBe("private");
+  });
+  it("validates source metadata without discarding a valid runtime", async () => {
+    expect((await read([{ ...runtime, execution_source: { linux_user: 42 } }]))[0]!.execution_source).toBeNull();
+    const source = { binding_id: "binding", linux_user: "mas_glite", host: "host", preferred: true };
+    expect((await read([{ ...runtime, execution_source: source }]))[0]!.execution_source).toEqual(source);
+    expect((await read([{ ...runtime, execution_source: { ...source, preferred: "true" } }]))[0]!.execution_source?.preferred).toBe(false);
+    expect(await read({ runtimes: null })).toEqual([]);
+  });
+  it("rejects malformed runtime mutation receipts", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "rt" }))));
+    await expect(new ApiClient("https://api.example.test").updateRuntime("rt", { custom_name: "CLI" })).rejects.toThrow("Could not read the updated runtime");
   });
 });

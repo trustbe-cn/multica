@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY computer_runtime_asset_key ON computer_runtime_asset(binding_id,runtime_id);

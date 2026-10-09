@@ -30,6 +30,8 @@ Multica is a task management platform where people and agents collaborate on iss
 
 Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for current commands and versions. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and worktree operations.
 
+- The deployment checkout is `/home/tiger/bench/multica-deploy`. It is a separate directory, not part of this Git repository; do not move it into the repository or commit its files here. Use its `manage` wrapper and `runtime.env`/`compose.yml` for self-host deployment operations.
+
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
 - Regenerate sqlc with `make sqlc` after SQL changes.
@@ -122,6 +124,8 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 ## Change and Delivery Rules
 
 - Keep changes scoped; reuse existing patterns. Code comments are English.
+- Do not rewrite existing commit history: do not use `git filter-branch`, `git filter-repo`, `git rebase`, `git commit --amend`, or force-push rewritten history. Make corrections in new commits.
+- Integrate official upstream updates with `git fetch` followed by `git merge`. Preserve upstream commit identities and ancestry.
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.
 - New global pre-workspace routes use a single word or `/{noun}/{verb}`, not hyphenated root names. Update `server/internal/handler/reserved_slugs.json`, run `pnpm generate:reserved-slugs`, and commit `packages/core/paths/reserved-slugs.ts` when changing reserved slugs.
 - Use atomic conventional commits and the repository PR template. For releases, follow [.github/RELEASING.md](.github/RELEASING.md); default to a patch bump unless specified otherwise.

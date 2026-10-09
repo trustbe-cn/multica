@@ -1,8 +1,13 @@
-import { InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, type AdminComputer, type AdminBinding, type ComputerAudit } from "../computers/admin-schema";
-import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
-import type { IssueWakeup, IssueWakeupSummaryRow } from "../types/issue-wakeup";
+import type { ZodType } from "zod";
+import type { IssueWakeup, IssueWakeupInput, IssueWakeupSummaryRow, PausedWakeup, SystemWakeup, WakeupRun, WorkspaceSystemWakeup } from "../types/issue-wakeup";
+import { ModelKeysWireSchema, ModelSourceWireSchema, ModelUsersWireSchema, ModelTemplatesWireSchema, ModelSavedWireSchema, ModelRefreshedWireSchema, ModelConfigWireSchema, parseModelPayload, modelKeysFromWire, modelTemplateFromWire, modelConfigFromWire, type ModelTemplate, type ModelConfigAction, type ModelConfigInput } from "../computers/model-config-schema";
+import { AgentRuntimeListSchema, AgentRuntimeSchema } from "./schemas";
+import { RuntimeCacheSchema, type RuntimeCache } from "../computers/runtime-cache-schema";
+import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
+import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
+import { ComputerSchema, ComputerBindingSchema, parseComputerSettings, parseCredentialWriteResult, type Computer, type ComputerBinding, type ComputerOperation, type ComputerSettings } from "../computers/schema";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
-import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema } from "./schemas";
+import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema, PausedWakeupSchema, SystemWakeupSchema, WakeupRunSchema, WorkspaceSystemWakeupSchema } from "./schemas";
 import type { InboxFilters } from "../inbox/filter-store";
 import type { ArchivedInboxPage, ArchivedInboxFacets } from "../types/inbox";
 import { configStore } from "../config";
@@ -12,10 +17,14 @@ import type {
   CreateIssueRequest,
   MoveIssueRequest,
   UpdateIssueRequest,
+  IssueDuplicates,
   GroupedIssuesResponse,
   ListIssuesResponse,
   SearchIssuesResponse,
   SearchProjectsResponse,
+  SearchIndexManifest,
+  SearchIndexSnapshotPage,
+  SearchIndexChanges,
   UpdateMeRequest,
   CreateMemberRequest,
   UpdateMemberRequest,
@@ -169,7 +178,7 @@ import type {
   PluginPreviewRequest,
   PluginInstallRequest,
   PluginConfigRequest,
-  GitHubPullRequest,
+  IssuePullRequestsResponse,
   ListGitHubInstallationsResponse,
   ListGitHubRepositoriesResponse,
   GitHubConnectResponse,
@@ -248,6 +257,7 @@ import {
   RuntimeProfileSchema,
   RuntimeProfileListSchema,
   AgentTaskListSchema,
+  AgentTaskPageSchema,
   AgentActivityBucketListSchema,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
@@ -261,6 +271,7 @@ import {
   SendChatMessageResponseSchema,
   StartMikaOnboardingResponseSchema,
   ChildIssuesResponseSchema,
+  IssueDuplicatesResponseSchema,
   ChildIssueProgressResponseSchema,
   CommentsListSchema,
   CommentTriggerPreviewSchema,
@@ -331,6 +342,9 @@ import {
   RuntimeUsageListSchema,
   SearchIssuesResponseSchema,
   SearchProjectsResponseSchema,
+  SearchIndexManifestSchema,
+  SearchIndexSnapshotPageSchema,
+  SearchIndexChangesSchema,
   SquadSchema,
   SquadListSchema,
   SquadMemberStatusListResponseSchema,
@@ -517,6 +531,12 @@ export interface ClientUsageRequest {
 export interface LoginResponse {
   token: string;
   user: User;
+}
+
+function parseSearchIndexResponse<T>(raw: unknown, schema: ZodType, endpoint: string): T {
+  const parsed = parseWithFallback<T | null>(raw, schema, null, { endpoint });
+  if (parsed === null) throw new Error(`Malformed response from ${endpoint}`);
+  return parsed;
 }
 
 export class ApiError extends Error {
@@ -955,17 +975,159 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
+  async readComputerCredentials(id: string, password: string) {
+    return parseComputerSettings(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/credentials/read`, { method: "POST", body: JSON.stringify({ password }) }));
+  }
+  async writeComputerCredentials(id: string, password: string, settings: ComputerSettings) {
+    return parseCredentialWriteResult(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/credentials/write`, { method: "POST", body: JSON.stringify({ password, settings }) }));
+  }
   async getComputerSettings() { return parseComputerSettings(await this.fetch<unknown>("/api/me/computer-settings")); }
   async saveComputerSettings(input: ComputerSettings) { await this.fetch("/api/me/computer-settings", { method: "PUT", body: JSON.stringify(input) }); }
   async getInstanceAccess() { return parseWithFallback(await this.fetch<unknown>("/api/me/instance-access"), InstanceAccessSchema, {admin:false}, {endpoint:"/api/me/instance-access"}); }
+  async getModelKeySource() {
+    const r = parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-source"), ModelSourceWireSchema);
+    return { configured: r.configured, baseURL: r.base_url, revision: r.revision, status: r.status, lastCheckedAt: r.last_checked_at, lastErrorCode: r.last_error_code, directoryCount: r.directory_count };
+  }
+  async saveModelKeySource(input: { baseURL: string; directoryToken: string; revision: number }) {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-source", { method: "PUT", body: JSON.stringify({ base_url: input.baseURL, directory_token: input.directoryToken, revision: input.revision }) }), ModelSavedWireSchema);
+  }
+  async refreshModelKeyDirectory() {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-directory/refresh", { method: "POST" }), ModelRefreshedWireSchema);
+  }
+  async getModelKeyDirectory(input: { search: string; runtime: string; page: number }) {
+    const q = new URLSearchParams({ q: input.search, runtime: input.runtime, page: String(input.page) });
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-directory?${q}`), ModelKeysWireSchema));
+  }
+  async getModelKeyUsers(search: string) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-users?q=${encodeURIComponent(search)}`), ModelUsersWireSchema).items;
+  }
+  async getUserModelKeys(userId: string) {
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`), ModelKeysWireSchema)).items;
+  }
+  async saveUserModelKeys(userId: string, ids: string[]) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`, { method: "PUT", body: JSON.stringify({ ids }) }), ModelSavedWireSchema);
+  }
+  async getModelTemplates() {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/runtime-config-templates"), ModelTemplatesWireSchema).items.map(modelTemplateFromWire);
+  }
+  async saveModelTemplate(t: ModelTemplate) {
+    return parseModelPayload(await this.fetch<unknown>(`/api/admin/runtime-config-templates/${encodeURIComponent(t.runtimeKind)}`, { method: "PUT", body: JSON.stringify({ runtime_kind: t.runtimeKind, revision: t.revision, files: t.files, supported_api_types: t.supportedAPITypes, default_model: t.defaultModel, status: t.status }) }), ModelSavedWireSchema);
+  }
+  async getRuntimeModelKeys(bindingId: string, kind: string) {
+    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(bindingId)}/runtimes/${encodeURIComponent(kind)}/model-keys`), ModelKeysWireSchema)).items;
+  }
+  async runtimeModelConfig(bindingId: string, kind: string, action: ModelConfigAction, input: ModelConfigInput) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(bindingId)}/runtimes/${encodeURIComponent(kind)}/model-config/`;
+    const asynchronous = action === "test" || action === "save";
+    let result = modelConfigFromWire(parseModelPayload(await this.fetch<unknown>(endpoint + action, {
+      method: "POST", headers: asynchronous ? { Prefer: "respond-async" } : undefined,
+      body: JSON.stringify(action === "check" ? { files: input.files } : { password: input.password, files: input.files, api_key_id: input.apiKeyId, model_id: input.modelId, api_type: input.apiType, expected_revision: input.expectedRevision, create_only: input.createOnly, operation_id: input.operationId }),
+    }), ModelConfigWireSchema));
+    const operationId = result.operationId;
+    const wasQueued = result.operationState === "queued" || result.operationState === "running";
+    // Polling is read-only. A lost result never replays a paid test or a save.
+    for (let attempt = 0; result.operationState === "queued" || result.operationState === "running"; attempt++) {
+      if (attempt >= 120) throw new ApiError("model_operation_pending", 504, "Operation pending", { code: "model_operation_pending", operation_id: operationId });
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      try {
+        result = modelConfigFromWire(parseModelPayload(await this.fetch<unknown>(endpoint + "result", { method: "POST", body: JSON.stringify({ operation_id: operationId }) }), ModelConfigWireSchema));
+      } catch (error) {
+        if (error instanceof ApiError) {
+          const body = error.body;
+          const code = typeof body === "object" && body !== null && "code" in body && typeof body.code === "string" ? body.code : "";
+          if (code) throw error;
+          if (error.status < 500) throw error;
+        }
+        throw new ApiError("model_operation_pending", 503, "Cannot read operation result", { code: "model_operation_pending", operation_id: operationId });
+      }
+    }
+    if (wasQueued && action === "save" && result.saved) {
+      // The server returns paths/revision only; retain the editor's own file bodies.
+      result.snapshot.files = { ...result.snapshot.files, ...input.files };
+      result.apiType = input.apiType ?? "";
+    }
+    return result;
+  }
+  async getRuntimeCache(): Promise<RuntimeCache> {
+    return parseWithFallback(await this.fetch<unknown>("/api/admin/runtime-cache"), RuntimeCacheSchema, { bytes: 0, limit_bytes: 0, downloads: 0, entries: [], catalog: [] }, { endpoint: "/api/admin/runtime-cache" });
+  }
+  async refreshRuntimeCache() { await this.fetch("/api/admin/runtime-cache/refresh", { method: "POST" }); }
+  async clearRuntimeCache() { await this.fetch("/api/admin/runtime-cache", { method: "DELETE" }); }
   async listAdminComputers(): Promise<AdminComputer[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computers"), AdminComputerSchema.array(), [] as AdminComputer[], {endpoint:"/api/admin/computers"}); }
   async listAdminComputerBindings(): Promise<AdminBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-bindings"), AdminBindingSchema.array(), [] as AdminBinding[], {endpoint:"/api/admin/computer-bindings"}); }
+  async checkAdminLinuxUser(id: string): Promise<{ present: boolean }> {
+    const result = parseWithFallback<{ present: boolean } | null>(await this.fetch<unknown>(`/api/admin/computer-bindings/${encodeURIComponent(id)}/check`, {method:"POST"}), LinuxUserCheckSchema, null, {endpoint:"/api/admin/computer-bindings/{id}/check"});
+    if (!result) throw new Error("Linux User check response is invalid");
+    return result;
+  }
+  async checkLinuxUser(id: string) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/check`;
+    const result = parseWithFallback<{present:boolean} | null>(await this.fetch<unknown>(endpoint, {method:"POST"}), LinuxUserCheckSchema, null, {endpoint});
+    if (!result) throw new Error("Linux User check response is invalid");
+    return result;
+  }
   async listComputerAudit(): Promise<ComputerAudit[]> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computer-audit"), ComputerAuditSchema.array(), [] as ComputerAudit[], {endpoint:"/api/admin/computer-audit"}); }
   async updateAdminComputer(id:string,input:Partial<Omit<AdminComputer,"id">>) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"PATCH",body:JSON.stringify(input)}); }
+  async deleteAdminComputer(id:string) { await this.fetch(`/api/admin/computers/${encodeURIComponent(id)}`, {method:"DELETE"}); }
+  async checkAdminComputerDraft(input: Omit<Computer, "id" | "enabled">): Promise<ProbeResult> { return parseWithFallback(await this.fetch<unknown>("/api/admin/computers/check", {method:"POST",body:JSON.stringify(input)}), ProbeResultSchema, { ok: false, facts: {}, checks: [] }, { endpoint: "/api/admin/computers/check" }); }
+  async checkAdminComputer(id:string): Promise<ProbeResult> { return parseWithFallback(await this.fetch<unknown>(`/api/admin/computers/${encodeURIComponent(id)}/check`, {method:"POST"}), ProbeResultSchema, { ok: false, facts: {}, checks: [] }, { endpoint: "/api/admin/computers/{id}/check" }); }
+  async listComputerBindingRuntimes(id: string, signal?: AbortSignal): Promise<AdminComputerRuntime[]> {
+    const result = parseWithFallback<AdminComputerRuntime[] | null>(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/runtimes`, { signal }), AdminComputerRuntimeSchema.array(), null, {endpoint:"/api/me/computer-bindings/{id}/runtimes"});
+    if (!result) throw new Error("Runtime list response is invalid; retry the version check");
+    return result;
+  }
+  async installComputerBindingRuntime(id: string, runtimeId: string, version: string) {
+    const result = parseWithFallback<AcceptedComputerOperation | null>(await this.fetch<unknown>(`/api/me/computer-bindings/${encodeURIComponent(id)}/runtime-install`, {method:"POST",headers:{Prefer:"respond-async"},body:JSON.stringify({runtime_id:runtimeId,version})}), AcceptedComputerOperationSchema, null, {endpoint:"runtime-install"});
+    if (!result) throw new Error("Could not read the installation operation");
+    return result;
+  }
+  async getComputerBindingDetail(id: string, admin = false) {
+    const endpoint = `/api/${admin ? "admin" : "me"}/computer-bindings/${encodeURIComponent(id)}`;
+    const result = parseWithFallback<ComputerBindingDetail | null>(await this.fetch<unknown>(endpoint), ComputerBindingDetailSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read Linux User details");
+    return result;
+  }
+  async listComputerOperations(id: string, admin = false) {
+    const endpoint = `/api/${admin ? "admin" : "me"}/computer-bindings/${encodeURIComponent(id)}/operations`;
+    const result = parseWithFallback<RemoteOperation[] | null>(await this.fetch<unknown>(endpoint), RemoteOperationSchema.array(), null, {endpoint});
+    if (!result) throw new Error("Could not read remote operations");
+    return result;
+  }
+  async discoverComputerBinding(id: string) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/discover`;
+    const result = parseWithFallback<AcceptedComputerOperation | null>(await this.fetch<unknown>(endpoint, {method:"POST"}), AcceptedComputerOperationSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read discovery operation");
+    return result;
+  }
+  async recoverComputerOperation(id: string, operationId: string, action: "cancel" | "acknowledge") {
+    await this.fetch(`/api/me/computer-bindings/${encodeURIComponent(id)}/recover`, {method:"POST", body:JSON.stringify({operation_id:operationId, action})});
+  }
+  async computerBindingLifecycle(id: string, input: ComputerLifecycleInput) {
+    const endpoint = `/api/me/computer-bindings/${encodeURIComponent(id)}/lifecycle`;
+    const data = await this.fetch<unknown>(endpoint, {method:"POST",body:JSON.stringify(input)});
+    const result = parseWithFallback<ComputerLifecycleResult | null>(data, ComputerLifecycleResultSchema, null, {endpoint});
+    if (!result) throw new Error("Could not read lifecycle operation");
+    return result;
+  }
+  async getAdminSshPubKey(): Promise<string> {
+    const res = parseWithFallback<{ pubkey: string } | null>(
+      await this.fetch<unknown>("/api/admin/computer-ssh-pubkey"),
+      AdminSshPubKeySchema,
+      null,
+      { endpoint: "/api/admin/computer-ssh-pubkey" },
+    );
+    if (!res) throw new Error("SSH public key response is invalid");
+    return res.pubkey;
+  }
   async listComputers(): Promise<Computer[]> { return parseWithFallback(await this.fetch<unknown>("/api/computers"), ComputerSchema.array(), [] as Computer[], { endpoint: "/api/computers" }); }
   async registerComputer(input: Omit<Computer, "id" | "enabled">) { await this.fetch("/api/admin/computers", { method: "POST", body: JSON.stringify(input) }); }
   async listComputerBindings(): Promise<ComputerBinding[]> { return parseWithFallback(await this.fetch<unknown>("/api/me/computer-bindings"), ComputerBindingSchema.array(), [] as ComputerBinding[], { endpoint: "/api/me/computer-bindings" }); }
-  async operateComputer(input: ComputerOperation) { await this.fetch("/api/me/computer-bindings", { method: "POST", body: JSON.stringify(input) }); }
+  async operateComputer(input: ComputerOperation) {
+    const data = await this.fetch("/api/me/computer-bindings", { method: "POST", body: JSON.stringify(input) });
+    const binding = parseWithFallback(data, ComputerBindingSchema, null, { endpoint: "/api/me/computer-bindings" });
+    if (!binding) throw new Error("Could not confirm the Linux User operation");
+    return binding;
+  }
 
   // Auth
   async sendCode(email: string): Promise<void> {
@@ -1247,6 +1409,48 @@ export class ApiClient {
     });
   }
 
+  // Local search index sync (MUL-7754). Each call names its workspace so a
+  // request issued for one workspace cannot be answered for whichever one the
+  // tab has switched to since. A body that fails its schema rejects rather
+  // than degrading: an empty page would be applied to the local copy as truth.
+  async getSearchIndexManifest(params: { workspaceSlug: string; signal?: AbortSignal }): Promise<SearchIndexManifest> {
+    const raw = await this.fetch<unknown>("/api/search-index/manifest", {
+      headers: { "X-Workspace-Slug": params.workspaceSlug },
+      signal: params.signal,
+    });
+    return parseSearchIndexResponse<SearchIndexManifest>(raw, SearchIndexManifestSchema, "GET /api/search-index/manifest");
+  }
+
+  async getSearchIndexSnapshot(params: {
+    workspaceSlug: string;
+    afterNumber: number;
+    limit?: number;
+    signal?: AbortSignal;
+  }): Promise<SearchIndexSnapshotPage> {
+    const search = new URLSearchParams({ after_number: String(params.afterNumber) });
+    if (params.limit !== undefined) search.set("limit", String(params.limit));
+    const raw = await this.fetch<unknown>(`/api/search-index/snapshot?${search}`, {
+      headers: { "X-Workspace-Slug": params.workspaceSlug },
+      signal: params.signal,
+    });
+    return parseSearchIndexResponse<SearchIndexSnapshotPage>(raw, SearchIndexSnapshotPageSchema, "GET /api/search-index/snapshot");
+  }
+
+  async getSearchIndexChanges(params: {
+    workspaceSlug: string;
+    cursor: string;
+    limit?: number;
+    signal?: AbortSignal;
+  }): Promise<SearchIndexChanges> {
+    const raw = await this.fetch<unknown>("/api/search-index/changes", {
+      method: "POST",
+      headers: { "X-Workspace-Slug": params.workspaceSlug },
+      body: JSON.stringify({ cursor: params.cursor, limit: params.limit }),
+      signal: params.signal,
+    });
+    return parseSearchIndexResponse<SearchIndexChanges>(raw, SearchIndexChangesSchema, "POST /api/search-index/changes");
+  }
+
   /**
    * Fetch one issue by UUID **or** by bare identifier ("MUL-123"): the server
    * resolves `PREFIX-NUMBER` against the workspace's own prefix through the
@@ -1292,6 +1496,52 @@ export class ApiClient {
 
   async editIssueWakeupInstruction(issueId: string, wakeupId: string, input: { instruction: string; expected_instruction: string; revision: number }): Promise<void> {
     await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/wakeups/${encodeURIComponent(wakeupId)}/instruction`, { method: "PATCH", body: JSON.stringify(input) });
+  }
+
+  async createIssueWakeup(issueId: string, input: IssueWakeupInput): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/wakeups`, { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async listIssueSystemWakeups(issueId: string): Promise<SystemWakeup[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/system-wakeups`);
+    const parsed = parseWithFallback<SystemWakeup[] | null>(raw, SystemWakeupSchema.array(), null, { endpoint: "GET /api/issues/:id/system-wakeups" });
+    if (!parsed) throw new Error("Could not load system wakeups");
+    return parsed;
+  }
+
+  async listIssueWakeupRuns(issueId: string, wakeupId: string): Promise<WakeupRun[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/wakeups/${encodeURIComponent(wakeupId)}/runs`);
+    const parsed = parseWithFallback<WakeupRun[] | null>(raw, WakeupRunSchema.array(), null, { endpoint: "GET /api/issues/:id/wakeups/:wakeupId/runs" });
+    if (!parsed) throw new Error("Could not load wakeup runs");
+    return parsed;
+  }
+
+  async listPausedWakeups(): Promise<PausedWakeup[]> {
+    const raw = await this.fetch<unknown>("/api/issue-wakeup-paused");
+    return parseWithFallback<PausedWakeup[]>(raw, PausedWakeupSchema.array(), [], { endpoint: "GET /api/issue-wakeup-paused" });
+  }
+
+  async triggerIssueWakeup(issueId: string, wakeupId: string): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/wakeups/${encodeURIComponent(wakeupId)}/trigger`, { method: "POST" });
+  }
+
+  async deleteIssueWakeup(issueId: string, wakeupId: string): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/wakeups/${encodeURIComponent(wakeupId)}`, { method: "DELETE" });
+  }
+
+  async updateIssueSystemWakeup(issueId: string, rule: SystemWakeup["rule"], input: { enabled?: boolean; instruction?: string }): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/system-wakeups/${encodeURIComponent(rule)}`, { method: "PUT", body: JSON.stringify(input) });
+  }
+
+  async listWorkspaceSystemWakeups(): Promise<WorkspaceSystemWakeup[]> {
+    const raw = await this.fetch<unknown>("/api/system-wakeups");
+    const parsed = parseWithFallback<WorkspaceSystemWakeup[] | null>(raw, WorkspaceSystemWakeupSchema.array(), null, { endpoint: "GET /api/system-wakeups" });
+    if (!parsed) throw new Error("Could not load system wakeups");
+    return parsed;
+  }
+
+  async updateWorkspaceSystemWakeup(rule: WorkspaceSystemWakeup["rule"], input: { enabled?: boolean; instruction?: string }): Promise<void> {
+    await this.fetch(`/api/system-wakeups/${encodeURIComponent(rule)}`, { method: "PUT", body: JSON.stringify(input) });
   }
 
   async disableIssueWakeup(issueId: string, wakeupId: string): Promise<void> {
@@ -1467,6 +1717,16 @@ export class ApiClient {
     });
   }
 
+  async listIssueDuplicates(id: string): Promise<IssueDuplicates> {
+    const raw = await this.fetch<unknown>(`/api/issues/${id}/duplicates`);
+    return parseWithFallback(
+      raw,
+      IssueDuplicatesResponseSchema,
+      { duplicate_of: null, duplicates: [] },
+      { endpoint: "GET /api/issues/:id/duplicates" },
+    );
+  }
+
   async listChildIssues(id: string): Promise<{ issues: Issue[] }> {
     const raw = await this.fetch<unknown>(`/api/issues/${id}/children`);
     return parseWithFallback(raw, ChildIssuesResponseSchema, { issues: [] }, {
@@ -1543,6 +1803,7 @@ export class ApiClient {
     parentId?: string,
     attachmentIds?: string[],
     suppressAgentIds?: string[],
+    steerTaskIds?: string[],
   ): Promise<Comment> {
     return this.fetch(`/api/issues/${issueId}/comments`, {
       method: "POST",
@@ -1552,6 +1813,7 @@ export class ApiClient {
         ...(parentId ? { parent_id: parentId } : {}),
         ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
         ...(suppressAgentIds?.length ? { suppress_agent_ids: suppressAgentIds } : {}),
+        ...(steerTaskIds?.length ? { steer_task_ids: steerTaskIds } : {}),
       }),
     });
   }
@@ -1904,9 +2166,8 @@ export class ApiClient {
     // workspace_id alone is not enough: the server resolves the workspace from
     // the slug header first, so a caller listing another workspace's runtimes
     // must override the header too.
-    return this.fetch(`/api/runtimes?${search}`, {
-      headers: workspaceHeader(workspaceSlug),
-    });
+    const raw = await this.fetch<unknown>(`/api/runtimes?${search}`, { headers: workspaceHeader(workspaceSlug) });
+    return parseWithFallback<AgentRuntime[]>(raw, AgentRuntimeListSchema, [], { endpoint: "/api/runtimes" });
   }
 
   async listCloudRuntimeNodes(
@@ -2267,10 +2528,10 @@ export class ApiClient {
       apply_to_machine?: boolean;
     },
   ): Promise<AgentRuntime> {
-    return this.fetch(`/api/runtimes/${runtimeId}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    });
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}`, { method: "PATCH", body: JSON.stringify(patch) });
+    const result = parseWithFallback<AgentRuntime | null>(raw, AgentRuntimeSchema, null, { endpoint: "/api/runtimes/:id" });
+    if (!result) throw new Error("Could not read the updated runtime");
+    return result;
   }
 
   // ---------------------------------------------------------------------
@@ -2619,11 +2880,22 @@ export class ApiClient {
     return this.fetch(`/api/runtimes/${runtimeId}/local-skills/import/${requestId}`);
   }
 
-  async listAgentTasks(agentId: string): Promise<AgentTask[]> {
-    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/tasks`);
-    return parseWithFallback<AgentTask[]>(raw, AgentTaskListSchema, [], {
-      endpoint: "GET /api/agents/:id/tasks",
+  async listAgentTasksPage(
+    agentId: string,
+    options: { limit?: number; before?: string; signal?: AbortSignal } = {},
+  ): Promise<{ tasks: AgentTask[]; nextCursor: string | null }> {
+    const search = new URLSearchParams({ limit: String(options.limit ?? 200) });
+    if (options.before) search.set("before", options.before);
+    const response = await this.fetchRaw(`/api/agents/${agentId}/tasks?${search}`, {
+      signal: options.signal,
     });
+    const tasks: unknown = await response.json();
+    return parseWithFallback(
+      { tasks, nextCursor: response.headers.get("X-Agent-Tasks-Next-Cursor") },
+      AgentTaskPageSchema,
+      { tasks: [], nextCursor: null },
+      { endpoint: "GET /api/agents/:id/tasks" },
+    );
   }
 
   // Workspace-scoped agent task snapshot: every active task
@@ -2691,6 +2963,12 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/task-runs`);
     return parseWithFallback<AgentTask[]>(raw, AgentTaskListSchema, [], {
       endpoint: "GET /api/issues/:id/task-runs",
+    });
+  }
+
+  async retryTaskSupplement(issueId: string, taskId: string, commentId: string): Promise<void> {
+    await this.fetch(`/api/issues/${issueId}/tasks/${taskId}/supplements/${commentId}/retry`, {
+      method: "POST",
     });
   }
 
@@ -4686,13 +4964,58 @@ export class ApiClient {
     });
   }
 
-  async listIssuePullRequests(issueId: string): Promise<{ pull_requests: GitHubPullRequest[] }> {
+  async listIssuePullRequests(issueId: string): Promise<IssuePullRequestsResponse> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/pull-requests`);
     return parseWithFallback(
       raw,
       IssuePullRequestsResponseSchema,
       EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
       { endpoint: "GET /api/issues/:id/pull-requests" },
+    );
+  }
+
+  /** Link a PR the workspace already mirrors, by pasted URL or by id (undo). */
+  async linkIssuePullRequest(
+    issueId: string,
+    body: { url: string } | { pull_request_id: string },
+  ): Promise<IssuePullRequestsResponse> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/pull-requests`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return parseWithFallback(
+      raw,
+      IssuePullRequestsResponseSchema,
+      EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
+      { endpoint: "POST /api/issues/:id/pull-requests" },
+    );
+  }
+
+  /** Remove a PR from an issue; later webhooks will not link it again. */
+  async unlinkIssuePullRequest(issueId: string, pullRequestId: string): Promise<IssuePullRequestsResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${issueId}/pull-requests/${pullRequestId}`,
+      { method: "DELETE" },
+    );
+    return parseWithFallback(
+      raw,
+      IssuePullRequestsResponseSchema,
+      EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
+      { endpoint: "DELETE /api/issues/:id/pull-requests/:prId" },
+    );
+  }
+
+  /** Turn PR auto-complete off (or back on) for one issue. */
+  async setIssuePRAutoComplete(issueId: string, disabled: boolean): Promise<IssuePullRequestsResponse> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/pr-auto-complete`, {
+      method: "PUT",
+      body: JSON.stringify({ disabled }),
+    });
+    return parseWithFallback(
+      raw,
+      IssuePullRequestsResponseSchema,
+      EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
+      { endpoint: "PUT /api/issues/:id/pr-auto-complete" },
     );
   }
 

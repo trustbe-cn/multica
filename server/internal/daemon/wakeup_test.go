@@ -124,6 +124,48 @@ func TestRunTaskWakeupConnectionSignalsDisconnect(t *testing.T) {
 	}
 }
 
+func TestRunTaskWakeupConnectionRoutesTaskSupplementHint(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	sendHint := make(chan struct{})
+	serverDone := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		<-sendHint
+		payload, _ := json.Marshal(protocol.TaskAvailablePayload{RuntimeID: "runtime-1", TaskID: "task-1"})
+		_ = conn.WriteJSON(protocol.Message{Type: protocol.EventDaemonTaskSupplementAvailable, Payload: payload})
+		<-serverDone
+	}))
+	defer srv.Close()
+
+	d := New(Config{ServerBaseURL: srv.URL, HeartbeatInterval: time.Hour}, slog.Default())
+	supplementWakeup, unsubscribe := d.taskSupplementSignals.subscribe("task-1")
+	defer unsubscribe()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := d.runTaskWakeupConnection(ctx, []string{"runtime-1"}, make(chan taskWakeup, 2), make(chan struct{}))
+		errCh <- err
+	}()
+	close(sendHint)
+	select {
+	case <-supplementWakeup:
+	case <-time.After(time.Second):
+		t.Fatal("task supplement hint did not wake its exact task")
+	}
+	close(serverDone)
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(time.Second):
+		t.Fatal("websocket reader did not release after cancellation")
+	}
+}
+
 // TestWSHeartbeatFreshnessSuppressesHTTP pins the WS-vs-HTTP coordination:
 // once a runtime acked over WS within the freshness window the HTTP
 // heartbeat loop must skip it to avoid duplicate DB writes.
@@ -633,5 +675,44 @@ func readTaskWakeupMessagesExtendsDeadlineOnPong(t *testing.T) {
 		t.Fatalf("readTaskWakeupMessages returned before task frame: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for task wakeup")
+	}
+}
+
+func TestWorkspaceRefreshHintAlsoRequestsCLIRediscovery(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		if err = conn.WriteJSON(protocol.Message{Type: protocol.EventDaemonWorkspacesChanged}); err != nil {
+			return
+		}
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+	conn, _, err := websocket.DefaultDialer.Dial(taskWakeupTestWSURL(srv.URL), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	d := New(Config{}, slog.Default())
+	done := make(chan error, 1)
+	go func() { done <- d.readTaskWakeupMessages(conn, make(chan taskWakeup, 1)) }()
+	select {
+	case <-d.agentDiscoveryKick:
+	case err := <-done:
+		t.Fatalf("reader failed before discovery: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("workspace refresh did not request CLI discovery")
+	}
+	_ = conn.Close()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("reader did not exit")
 	}
 }
