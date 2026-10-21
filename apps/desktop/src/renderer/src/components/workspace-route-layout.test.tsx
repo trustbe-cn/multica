@@ -89,10 +89,6 @@ vi.mock("@multica/views/workspace/use-workspace-seen", () => ({
   useWorkspaceSeen: () => state.workspaceSeen,
 }));
 
-vi.mock("@multica/views/workspace/welcome-after-onboarding", () => ({
-  WelcomeAfterOnboarding: () => null,
-}));
-
 vi.mock("@multica/views/layout", () => ({
   WorkspacePresencePrefetch: () => null,
 }));
@@ -102,6 +98,7 @@ vi.mock("@multica/views/layout", () => ({
 // renders only when the layout actually rendered it (and not e.g.
 // suppressed by overlayActive).
 vi.mock("@multica/views/onboarding", () => ({
+  LinuxUserConnectionPrompt: () => null,
   SourceBackfillModal: () => {
     state.modalRenders += 1;
     return <div data-testid={state.modalAriaLabel} />;

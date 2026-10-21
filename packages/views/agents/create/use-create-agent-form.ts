@@ -56,8 +56,10 @@ interface RuntimeSeed {
    * never win a race against the authoritative answer.
    */
   ready: boolean;
-  /** The runtime to adopt; empty falls back to the first usable one. */
+  /** The runtime to adopt; empty may fall back to the first usable one. */
   runtimeId: string;
+  /** Live builder sessions must be explicitly rebound before adopting one. */
+  fallbackToFirstUsable?: boolean;
 }
 
 const IMMEDIATE_RUNTIME_SEED: RuntimeSeed = { ready: true, runtimeId: "" };
@@ -118,13 +120,25 @@ export function useCreateAgentForm(options?: {
   const seed = options?.runtimeSeed ?? IMMEDIATE_RUNTIME_SEED;
   const seedReady = seed.ready;
   const seedRuntimeId = seed.runtimeId;
+  const fallbackToFirstUsable = seed.fallbackToFirstUsable !== false;
   useEffect(() => {
     if (draft.runtimeId || !seedReady) return;
     const next =
-      seedRuntimeId || defaultAgentRuntime(runtimes, currentUserId)?.id || "";
+      seedRuntimeId ||
+      (fallbackToFirstUsable
+        ? defaultAgentRuntime(runtimes, currentUserId)?.id
+        : "") ||
+      "";
     if (!next) return;
     setDraft((current) => ({ ...current, runtimeId: next }));
-  }, [draft.runtimeId, seedReady, seedRuntimeId, runtimes, currentUserId]);
+  }, [
+    draft.runtimeId,
+    seedReady,
+    seedRuntimeId,
+    fallbackToFirstUsable,
+    runtimes,
+    currentUserId,
+  ]);
 
   const accessInvalid =
     draft.permissionScope === "members" &&

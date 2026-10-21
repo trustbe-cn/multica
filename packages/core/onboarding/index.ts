@@ -26,12 +26,12 @@ export {
   type MikaOnboardingLanguage,
 } from "./use-bootstrap-mika";
 export {
-  useWelcomeStore,
-  type WelcomeSignal,
-} from "./welcome-store";
-export {
   MIKA_SYSTEM_KEY,
   isMikaAgent,
   memberNeedsMikaSetup,
   workspaceNeedsMika,
 } from "./mika";
+export {
+  useLinuxUserConnectionStore,
+  type LinuxUserConnectionOffer,
+} from "./linux-user-connection-store";
