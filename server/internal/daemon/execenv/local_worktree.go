@@ -1861,9 +1861,7 @@ func runGitEnv(dir string, extraEnv []string, args ...string) (string, error) {
 
 	full := append([]string{"-C", dir}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
-	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
+	cmd.Env = append(gitCommandEnv(), extraEnv...)
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -1899,6 +1897,7 @@ func runGitStdout(dir string, args ...string) (string, error) {
 
 	full := append([]string{"-C", dir}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd.Env = gitCommandEnv()
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if err != nil {

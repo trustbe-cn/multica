@@ -73,6 +73,13 @@ func getRemoteDefaultBranch(gitRoot string) string {
 	return "HEAD"
 }
 
+// gitCommandEnv is the daemon environment with git's messages pinned to
+// English. Callers match git's own error text ("already exists", "nothing to
+// commit"), which a localized git (e.g. zh_CN) translates.
+func gitCommandEnv() []string {
+	return append(os.Environ(), "LC_ALL=C")
+}
+
 // setupGitWorktree creates a git worktree at worktreePath with a new branch.
 func setupGitWorktree(gitRoot, worktreePath, branchName, baseRef string) error {
 	// Remove the workdir created by caller — git worktree add needs to create it.
@@ -91,6 +98,7 @@ func setupGitWorktree(gitRoot, worktreePath, branchName, baseRef string) error {
 
 func runGitWorktreeAdd(gitRoot, worktreePath, branchName, baseRef string) error {
 	cmd := exec.Command("git", "-C", gitRoot, "worktree", "add", "-b", branchName, worktreePath, baseRef)
+	cmd.Env = gitCommandEnv()
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git worktree add: %s: %w", strings.TrimSpace(string(out)), err)

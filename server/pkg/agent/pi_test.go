@@ -275,7 +275,7 @@ func TestPiExecuteAttachesStdinPipe(t *testing.T) {
 
 	fakePath := filepath.Join(t.TempDir(), "pi")
 	script := "#!/bin/sh\n" +
-		"kind=$(stat -c '%F' -L /proc/self/fd/0 2>/dev/null || echo unknown)\n" +
+		"kind=$(LC_ALL=C stat -c '%F' -L /proc/self/fd/0 2>/dev/null || echo unknown)\n" +
 		"payload=$(cat)\n" +
 		"case \"$kind\" in\n" +
 		"  fifo|*pipe*)\n" +

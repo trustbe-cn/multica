@@ -31,6 +31,9 @@ import (
 // caches and worktrees, so the ownership check adds no security value
 // and breaks CI environments where the runner UID differs from the
 // directory owner.
+//
+// LC_ALL=C keeps git's messages in English: isBranchCollisionError matches
+// git's own error text, which a localized git (e.g. zh_CN) translates.
 func gitEnv() []string {
 	base := os.Environ()
 
@@ -48,6 +51,7 @@ func gitEnv() []string {
 
 	idx := strconv.Itoa(existing)
 	return append(base,
+		"LC_ALL=C",
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_CONFIG_COUNT="+strconv.Itoa(existing+1),
 		"GIT_CONFIG_KEY_"+idx+"=safe.directory",
