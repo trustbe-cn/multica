@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/computer"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
@@ -377,7 +378,15 @@ esac
 	if detail.DaemonState != "running" || detail.ConnectionState != "offline" {
 		t.Fatalf("stale runtimes must read offline while the service runs: %+v", detail)
 	}
-	dbfx.Runtime(t, "linux-user-check-online", testutil.Cols{"provider": "linux_user_check_online", "daemon_id": binding, "owner_id": testUserID, "status": "online", "last_seen_at": time.Now()})
+	// status is flipped by the sweeper asynchronously; a heartbeat older than
+	// the freshness window must read offline even before that happens.
+	dbfx.Runtime(t, "linux-user-check-stale-online", testutil.Cols{"provider": "linux_user_check_stale_online", "daemon_id": binding, "owner_id": testUserID, "status": "online", "last_seen_at": time.Now().Add(-time.Duration(service.RuntimeClaimFreshnessSeconds+30) * time.Second)})
+	testutil.Call(t, testHandler.AdminBindingDetail, request(binding)).Want(200).JSON(&detail)
+	if detail.ConnectionState != "offline" {
+		t.Fatalf("an online runtime with a stale heartbeat must read offline: %+v", detail)
+	}
+	// Normal DB flush lag (up to ~105s) must not read as disconnected.
+	dbfx.Runtime(t, "linux-user-check-online", testutil.Cols{"provider": "linux_user_check_online", "daemon_id": binding, "owner_id": testUserID, "status": "online", "last_seen_at": time.Now().Add(-110 * time.Second)})
 	testutil.Call(t, testHandler.AdminBindingDetail, request(binding)).Want(200).JSON(&detail)
 	if detail.ConnectionState != "online" {
 		t.Fatalf("an online runtime must read online: %+v", detail)
