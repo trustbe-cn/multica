@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { AgentRuntimeSchema } from "../api/schemas";
+import { AgentRuntimeSchema } from "./schema";
 import { defaultAgentRuntime } from "./default-selection";
 const runtime = (id: string) =>
   AgentRuntimeSchema.parse({

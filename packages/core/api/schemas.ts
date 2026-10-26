@@ -569,6 +569,7 @@ export const IssueWorkflowSchema = z.object({
   name: z.string(),
   description: z.string().default(""),
   is_default: z.boolean().default(false),
+  owner_id: z.string().nullable().default(null),
   steps: z.array(IssueWorkflowStepSchema).default([]),
   project_ids: z.array(z.string()).default([]),
   created_at: z.string(),
@@ -591,6 +592,7 @@ export const EMPTY_ISSUE_WORKFLOW: IssueWorkflow = {
   name: "",
   description: "",
   is_default: false,
+  owner_id: null,
   steps: [],
   project_ids: [],
   created_at: "",
@@ -2322,6 +2324,7 @@ export const StoredAgentDraftSchema = z.object({
     .catch("private"),
   member_ids: z.array(z.string()).catch([]),
   team_ids: z.array(z.string()).catch([]),
+  qoder_agent_id: z.string().catch(""),
   applied_message_id: z.string().nullable().catch(null),
   dismissed_message_id: z.string().nullish().catch(null),
 }).loose();
@@ -3717,7 +3720,7 @@ export const WakeupConditionSchema = z.union([
   z.object({ type: z.literal("issue_field"), field: z.literal("label"), label_id: z.string() }),
   z.object({ type: z.literal("issue_field"), field: z.literal("property"), property_id: z.string(), value: z.unknown() }),
   z.object({ type: z.literal("children_done"), stage: z.number().int().nullish() }),
-  z.object({ type: z.literal("pull_request"), event: z.enum(["checks_finished", "merged"]) }),
+  z.object({ type: z.literal("pull_request"), event: z.enum(["checks_finished", "merged", "conflicts"]) }),
   z.object({ type: z.literal("other_issue"), issue_id: z.string(), state: z.enum(["done", "ended", "in_review"]), identifier: z.string().optional() }),
 ]);
 
@@ -3827,30 +3830,3 @@ export const RuntimeProfileSchema = z
   }));
 export const RuntimeProfileListSchema = z.array(RuntimeProfileSchema);
 
-
-export const AgentRuntimeSchema = z.object({
-  id: z.string().min(1),
-  workspace_id: z.string(),
-  daemon_id: z.string().nullable().catch(null),
-  name: z.string(),
-  custom_name: z.string().nullable().catch(null),
-  runtime_mode: z.enum(["local", "cloud"]).catch("local"),
-  provider: z.string(),
-  launch_header: z.string().catch(""),
-  status: z.enum(["online", "offline"]).catch("offline"),
-  device_info: z.string().catch(""),
-  metadata: z.record(z.string(), z.unknown()).catch({}),
-  owner_id: z.string().nullable().catch(null),
-  visibility: z.enum(["private", "public"]).catch("private"),
-  profile_id: z.string().nullable().catch(null),
-  last_seen_at: z.string().nullable().catch(null),
-  created_at: z.string().catch(""),
-  updated_at: z.string().catch(""),
-  execution_source: z.object({
-    binding_id: z.string().min(1),
-    linux_user: z.string().min(1),
-    host: z.string().min(1),
-    preferred: z.boolean().catch(false),
-  }).nullable().catch(null),
-});
-export const AgentRuntimeListSchema = z.array(AgentRuntimeSchema);

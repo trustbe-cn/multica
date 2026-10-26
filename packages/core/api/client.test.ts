@@ -4,6 +4,7 @@ import { configStore } from "../config";
 import type { StorageAdapter, User } from "../types";
 import { ApiClient, ApiError, CHAT_DRAFT_RESTORE_CAPABILITY, clientErrorMessage } from "./client";
 import { EMPTY_PLUGIN_PACKAGE_LIST, EMPTY_PLUGIN_PREVIEW, EMPTY_PLUGIN_SURFACE_LAUNCH } from "./schemas";
+import { EMPTY_RUNTIME } from "../runtimes/schema";
 
 afterEach(() => {
   configStore.getState().setAgentConversationStartersSupported(false);
@@ -3246,8 +3247,9 @@ describe("runtime execution source response compatibility", () => {
     expect((await read([{ ...runtime, execution_source: { ...source, preferred: "true" } }]))[0]!.execution_source?.preferred).toBe(false);
     expect(await read({ runtimes: null })).toEqual([]);
   });
-  it("rejects malformed runtime mutation receipts", async () => {
+  it("falls back to an empty runtime for malformed mutation receipts", async () => {
+    // The PATCH already succeeded; callers only invalidate the runtime list.
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "rt" }))));
-    await expect(new ApiClient("https://api.example.test").updateRuntime("rt", { custom_name: "CLI" })).rejects.toThrow("Could not read the updated runtime");
+    await expect(new ApiClient("https://api.example.test").updateRuntime("rt", { custom_name: "CLI" })).resolves.toEqual(EMPTY_RUNTIME);
   });
 });
