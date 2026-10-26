@@ -1,4 +1,4 @@
-import { githubUrl, discordUrl } from "../components/shared";
+import { githubUrl } from "../components/shared";
 import type { LandingDict } from "./types";
 
 export function createZhDict(
@@ -253,7 +253,6 @@ export function createZhDict(
           { label: "\u6587\u6863", href: docsHref },
           { label: "API", href: githubUrl },
           { label: "X (Twitter)", href: "https://x.com/MulticaAI" },
-          { label: "Discord", href: discordUrl },
         ],
       },
       company: {
@@ -300,7 +299,6 @@ export function createZhDict(
       contacts: [
         { label: "商业授权与合作", linkLabel: "联系商务", href: "/contact-sales" },
         { label: "授权规则", linkLabel: "授权说明", href: "/licensing" },
-        { label: "社区与支持", linkLabel: "Discord", href: discordUrl },
         { label: "源代码与问题反馈", linkLabel: "GitHub", href: githubUrl },
       ],
     },
@@ -378,7 +376,7 @@ export function createZhDict(
       {
         heading: "获取商业授权",
         paragraphs: [
-          "通过[联系商务](/contact-sales)告诉我们你的使用场景，我们会在三个工作日内回复。不确定自己的情况是否需要授权？可以在 [Discord](" + discordUrl + ") 上问我们，也可以通过同一个表单咨询。",
+          "通过[联系商务](/contact-sales)告诉我们你的使用场景，我们会在三个工作日内回复。不确定自己的情况是否需要授权？可以通过同一个表单咨询。",
         ],
       },
     ],

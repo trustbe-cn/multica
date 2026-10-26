@@ -21,7 +21,6 @@ import { TooltipHint } from "@multica/ui/components/common/tooltip-hint";
 import { useModalStore } from "@multica/core/modals";
 import { useConfigStore } from "@multica/core/config";
 import { isDesktopShell } from "../platform/local-directory";
-import { DISCORD_URL, DiscordIcon } from "./discord";
 import { useT } from "../i18n";
 import { docsLocalePrefix } from "../common/docs-locale";
 
@@ -104,15 +103,6 @@ export function HelpLauncher() {
         >
           <History className="h-3.5 w-3.5" />
           {t(($) => $.help.changelog)}
-          <ArrowUpRight className="size-3 translate-y-px text-faint-foreground" />
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          render={
-            <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" />
-          }
-        >
-          <DiscordIcon className="h-3.5 w-3.5" />
-          {t(($) => $.help.discord)}
           <ArrowUpRight className="size-3 translate-y-px text-faint-foreground" />
         </DropdownMenuItem>
         <DropdownMenuItem

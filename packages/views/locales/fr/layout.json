@@ -32,7 +32,6 @@
     "download_desktop": "Application de bureau",
     "docs": "Documentation",
     "changelog": "Journal des modifications",
-    "discord": "Discord",
     "feedback": "Faire un retour",
     "server_version": "Version du serveur {{version}}"
   },

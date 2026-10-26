@@ -1,4 +1,4 @@
-import { githubUrl, discordUrl } from "../components/shared";
+import { githubUrl } from "../components/shared";
 import { createEnDict } from "./en";
 import type { LandingDict } from "./types";
 
@@ -252,7 +252,6 @@ export function createKoDict(
             { label: "문서", href: docsHref },
             { label: "API", href: githubUrl },
             { label: "X (Twitter)", href: "https://x.com/MulticaAI" },
-            { label: "Discord", href: discordUrl },
           ],
         },
         company: {
@@ -3384,7 +3383,6 @@ export function createKoDict(
         contacts: [
           { label: "상용 라이선스 및 영업", linkLabel: "영업팀 문의", href: "/contact-sales" },
           { label: "라이선스 안내", linkLabel: "라이선스 FAQ", href: "/licensing" },
-          { label: "커뮤니티 및 지원", linkLabel: "Discord", href: discordUrl },
           { label: "소스 코드 및 이슈", linkLabel: "GitHub", href: githubUrl },
         ],
       },
@@ -3461,7 +3459,7 @@ export function createKoDict(
         {
           heading: "상용 라이선스 받기",
           paragraphs: [
-            "[영업팀 문의](/contact-sales)로 사용 사례를 알려 주시면 영업일 기준 3일 이내에 답변드립니다. 라이선스가 필요한지 잘 모르겠다면 [Discord](" + discordUrl + ")나 같은 양식으로 편하게 물어보세요.",
+            "[영업팀 문의](/contact-sales)로 사용 사례를 알려 주시면 영업일 기준 3일 이내에 답변드립니다. 라이선스가 필요한지 잘 모르겠다면 같은 양식으로 편하게 물어보세요.",
           ],
         },
       ],

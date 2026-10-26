@@ -1,4 +1,4 @@
-import { githubUrl, discordUrl } from "../components/shared";
+import { githubUrl } from "../components/shared";
 import type { LandingDict } from "./types";
 
 export function createEnDict(
@@ -253,7 +253,6 @@ export function createEnDict(
           { label: "Documentation", href: docsHref },
           { label: "API", href: githubUrl },
           { label: "X (Twitter)", href: "https://x.com/MulticaAI" },
-          { label: "Discord", href: discordUrl },
         ],
       },
       company: {
@@ -308,7 +307,6 @@ export function createEnDict(
           linkLabel: "Licensing FAQ",
           href: "/licensing",
         },
-        { label: "Community & support", linkLabel: "Discord", href: discordUrl },
         { label: "Source code & issues", linkLabel: "GitHub", href: githubUrl },
       ],
     },
@@ -394,7 +392,7 @@ export function createEnDict(
       {
         heading: "Getting a commercial license",
         paragraphs: [
-          "Tell us about your use case through [Contact Sales](/contact-sales) and we\u2019ll get back to you within three business days. Not sure whether your setup needs a license? Ask us on [Discord](" + discordUrl + ") or through the same form.",
+          "Tell us about your use case through [Contact Sales](/contact-sales) and we\u2019ll get back to you within three business days. Not sure whether your setup needs a license? Ask us through the same form.",
         ],
       },
     ],
