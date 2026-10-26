@@ -212,6 +212,21 @@ export function LinuxUserDetail({
                 </TableRow>
                 <TableRow>
                   <TableCell className="py-3 pl-4 font-medium">
+                    {t(($) => $.linux_user.connection)}
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserStatus
+                      state={d.connection_state}
+                      label={stateLabel(d.connection_state)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <LinuxUserTime value={d.last_seen_at} />
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">—</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-3 pl-4 font-medium">
                     {t(($) => $.linux_user_pages.latest_operation)}
                   </TableCell>
                   <TableCell className="whitespace-normal">
@@ -341,6 +356,8 @@ export function LinuxUserDetail({
             <dd>
               {stateLabel(d.daemon_state)} · {d.daemon_id}
             </dd>
+            <dt>{t(($) => $.linux_user.connection)}</dt>
+            <dd>{stateLabel(d.connection_state)}</dd>
             <dt>{t(($) => $.linux_user.daemon_checked)}</dt>
             <dd>
               {d.daemon_checked_at

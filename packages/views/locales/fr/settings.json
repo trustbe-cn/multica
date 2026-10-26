@@ -1615,6 +1615,7 @@
     "binding": "Association",
     "account": "Compte Linux",
     "daemon": "Service du démon",
+    "connection": "Connexion au serveur",
     "last_check": "Compte vérifié",
     "last_seen": "Dernier enregistrement",
     "recovery_help": "Vérifiez le compte et l’historique avant de réessayer. Une association retirée ou détachée peut être recréée dans l’espace actuel.",

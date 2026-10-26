@@ -1615,6 +1615,7 @@
     "binding": "Binding",
     "account": "Linux account",
     "daemon": "Daemon service",
+    "connection": "Server connection",
     "last_check": "Account checked",
     "last_seen": "Last registration",
     "recovery_help": "Check the account and operation history before retrying. Removed or detached bindings can be provisioned into your current workspace.",

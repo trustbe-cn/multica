@@ -1604,6 +1604,7 @@
     "binding": "绑定",
     "account": "Linux 账号",
     "daemon": "守护进程服务",
+    "connection": "服务器连接",
     "last_check": "账号检查时间",
     "last_seen": "最近注册时间",
     "recovery_help": "重试前先检查账号和操作记录。已移除或已脱离工作区的绑定可以重新开通到当前工作区。",

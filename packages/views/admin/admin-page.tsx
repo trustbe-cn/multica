@@ -67,7 +67,7 @@ export function AdminPage({ onBack }: { onBack?: () => void }) {
         ? t(($) => $.admin.bindings)
         : s === "model-keys" ? t(($) => $.model_configuration.keys_title) : s === "model-templates" ? t(($) => $.model_configuration.templates_title) : s === "runtime-cache" ? t(($) => $.runtime_cache.title) : t(($) => $.admin.audit);
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <DragStrip />
       <header className="flex items-center justify-between border-b px-6 py-4">
         <div>
@@ -145,7 +145,8 @@ function AdminSections({
   const [notice, setNotice] = useState("");
   const [bindingSearch, setBindingSearch] = useState("");
   const [bindingChecks, setBindingChecks] = useState<Record<string, { present?: boolean; error?: string }>>({});
-  const [checkingBinding, setCheckingBinding] = useState("");
+  // Per-row: a check on one Linux User must not block checking another.
+  const [checkingBindings, setCheckingBindings] = useState<ReadonlySet<string>>(new Set());
   // data.check is the per-row dialog check; it must not freeze the rest of
   // the list while that dialog is open.
   const busy =
@@ -195,7 +196,7 @@ function AdminSections({
       .some((value) => value.toLowerCase().includes(bindingSearch.trim().toLowerCase())),
   );
   const checkBinding = async (id: string) => {
-    setCheckingBinding(id);
+    setCheckingBindings((current) => new Set(current).add(id));
     setBindingChecks((current) => ({ ...current, [id]: {} }));
     try {
       const result = await data.checkLinuxUser.mutateAsync(id);
@@ -203,7 +204,11 @@ function AdminSections({
     } catch (e) {
       setBindingChecks((current) => ({ ...current, [id]: { error: e instanceof Error ? e.message : t(($) => $.computers.failed) } }));
     } finally {
-      setCheckingBinding("");
+      setCheckingBindings((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
     }
   };
   return (
@@ -312,12 +317,12 @@ function AdminSections({
                 <dl className="grid gap-1 text-sm sm:grid-cols-2">
                   <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_computer)}</dt><dd className="break-all">{name(b.computer_id)}</dd></div>
                   <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_owner)}</dt><dd className="break-all">{b.user_name}</dd></div>
-                  <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_workspace)}</dt><dd className="break-all">{b.workspace_id}</dd></div>
+                  <div className="flex gap-2"><dt className="text-muted-foreground">{t(($) => $.admin.linux_user_workspace)}</dt><dd className="break-all">{b.workspace_name || b.workspace_id || "—"}</dd></div>
                 </dl>
                 {b.last_error && <p className="break-words text-sm text-destructive">{b.last_error}</p>}
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button type="button" variant="outline" size="sm" disabled={checkingBinding !== ""} onClick={() => void checkBinding(b.id)}>
-                    {checkingBinding === b.id ? t(($) => $.computers.loading) : t(($) => $.admin.linux_user_check)}
+                  <Button type="button" variant="outline" size="sm" disabled={checkingBindings.has(b.id)} onClick={() => void checkBinding(b.id)}>
+                    {checkingBindings.has(b.id) ? t(($) => $.computers.loading) : t(($) => $.admin.linux_user_check)}
                   </Button>
                   {bindingChecks[b.id]?.present === true && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_present)}</p>}
                   {bindingChecks[b.id]?.present === false && <p role="status" className="text-sm">{t(($) => $.admin.linux_user_missing)}</p>}

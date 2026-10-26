@@ -1604,6 +1604,7 @@
     "binding": "연결",
     "account": "Linux 계정",
     "daemon": "데몬 서비스",
+    "connection": "서버 연결",
     "last_check": "계정 확인 시각",
     "last_seen": "마지막 등록",
     "recovery_help": "다시 시도하기 전에 계정과 작업 기록을 확인하세요. 제거되거나 분리된 연결은 현재 워크스페이스에 다시 설정할 수 있습니다.",

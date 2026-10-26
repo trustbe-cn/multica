@@ -290,3 +290,27 @@ it("searches Linux Users and checks the selected remote account", async () => {
   await waitFor(() => expect(api.checkAdminLinuxUser).toHaveBeenCalledWith("binding-1"));
   expect(await screen.findByText("Account exists")).toBeInTheDocument();
 });
+
+it("shows workspace names and checks Linux Users independently", async () => {
+  adminWithMachine();
+  api.listAdminComputerBindings.mockResolvedValue([
+    { id: "binding-1", computer_id: "machine", workspace_id: "workspace-1", workspace_name: "GAIA", username: "alice", user_id: "owner-1", user_name: "Alice", state: "ready", last_error: "" },
+    { id: "binding-2", computer_id: "machine", workspace_id: "workspace-2", workspace_name: "", username: "bob", user_id: "owner-2", user_name: "Bob", state: "ready", last_error: "" },
+  ]);
+  let finishFirst: (value: { present: boolean }) => void = () => {};
+  api.checkAdminLinuxUser.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+  mount();
+  const user = userEvent.setup();
+  await user.click(within(await screen.findByRole("navigation", { name: "Admin sections" })).getByRole("button", { name: "Linux Users" }));
+  expect(await screen.findByText("GAIA")).toBeInTheDocument();
+  // No name to show: fall back to the ID rather than an empty cell.
+  expect(screen.getByText("workspace-2")).toBeInTheDocument();
+  const [first, second] = screen.getAllByRole("button", { name: "Check account" });
+  await user.click(first!);
+  expect(first).toBeDisabled();
+  expect(second).toBeEnabled();
+  await user.click(second!);
+  await waitFor(() => expect(api.checkAdminLinuxUser).toHaveBeenCalledWith("binding-2"));
+  finishFirst({ present: true });
+  await waitFor(() => expect(screen.getAllByRole("button", { name: "Check account" })[0]).toBeEnabled());
+});

@@ -94,6 +94,7 @@ export const ComputerBindingDetailSchema = ComputerBindingSchema.extend({
   computer_name: z.string(), workspace_name: z.string().catch(""), daemon_id: z.string(),
   account_state: z.enum(["unknown", "present", "missing", "unavailable"]).catch("unknown"),
   daemon_state: z.enum(["running", "stopped", "failed", "unknown"]).catch("unknown"),
+  connection_state: z.enum(["online", "offline", "not_discovered"]).catch("not_discovered"),
   daemon_checked_at: z.string().nullable().default(null),
   checked_at: z.string().nullable().default(null), archived_at: z.string().nullable().default(null), last_seen_at: z.string().nullable().default(null),
 });

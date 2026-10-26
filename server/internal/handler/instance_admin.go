@@ -431,7 +431,7 @@ func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) 
 	if _, ok := requireInstanceAdmin(w, r); !ok {
 		return
 	}
-	rows, err := h.DB.Query(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),b.username,b.state,b.last_error,b.user_id::text,COALESCE(u.name,b.user_id::text) FROM computer_binding b LEFT JOIN "user" u ON u.id=b.user_id ORDER BY b.updated_at DESC,b.id LIMIT 500`)
+	rows, err := h.DB.Query(r.Context(), `SELECT b.id::text,b.computer_id::text,COALESCE(b.workspace_id::text,''),COALESCE(w.name,''),b.username,b.state,b.last_error,b.user_id::text,COALESCE(u.name,b.user_id::text) FROM computer_binding b LEFT JOIN "user" u ON u.id=b.user_id LEFT JOIN workspace w ON w.id=b.workspace_id ORDER BY b.updated_at DESC,b.id LIMIT 500`)
 	if err != nil {
 		writeError(w, 500, "Cannot list bindings")
 		return
@@ -445,7 +445,7 @@ func (h *Handler) AdminComputerBindings(w http.ResponseWriter, r *http.Request) 
 	list := []binding{}
 	for rows.Next() {
 		var b binding
-		if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.Username, &b.State, &b.LastError, &b.UserID, &b.UserName) != nil {
+		if rows.Scan(&b.ID, &b.ComputerID, &b.WorkspaceID, &b.WorkspaceName, &b.Username, &b.State, &b.LastError, &b.UserID, &b.UserName) != nil {
 			writeError(w, 500, "Cannot read binding")
 			return
 		}

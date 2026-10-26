@@ -367,6 +367,38 @@ esac
 	if detail.DaemonState != "running" || detail.LastSeenAt != nil {
 		t.Fatalf("service state must not depend on runtime registration: %+v", detail)
 	}
+	if detail.ConnectionState != "not_discovered" {
+		t.Fatalf("no registered runtime must read not_discovered: %+v", detail)
+	}
+	// A running service whose runtimes stopped heartbeating (e.g. pointed at
+	// the wrong server address) must not read as connected.
+	dbfx.Runtime(t, "linux-user-check-offline", testutil.Cols{"provider": "linux_user_check_offline", "daemon_id": binding, "owner_id": testUserID, "status": "offline", "last_seen_at": time.Now().Add(-time.Hour)})
+	testutil.Call(t, testHandler.AdminBindingDetail, request(binding)).Want(200).JSON(&detail)
+	if detail.DaemonState != "running" || detail.ConnectionState != "offline" {
+		t.Fatalf("stale runtimes must read offline while the service runs: %+v", detail)
+	}
+	dbfx.Runtime(t, "linux-user-check-online", testutil.Cols{"provider": "linux_user_check_online", "daemon_id": binding, "owner_id": testUserID, "status": "online", "last_seen_at": time.Now()})
+	testutil.Call(t, testHandler.AdminBindingDetail, request(binding)).Want(200).JSON(&detail)
+	if detail.ConnectionState != "online" {
+		t.Fatalf("an online runtime must read online: %+v", detail)
+	}
+	var list []struct {
+		ID            string `json:"id"`
+		WorkspaceName string `json:"workspace_name"`
+	}
+	testutil.Call(t, testHandler.AdminComputerBindings, computerTestRequest("GET", "/", nil)).Want(200).JSON(&list)
+	var listed bool
+	for _, b := range list {
+		if b.ID == binding {
+			listed = true
+			if b.WorkspaceName == "" {
+				t.Fatal("admin binding list must carry the workspace name")
+			}
+		}
+	}
+	if !listed {
+		t.Fatal("binding missing from admin list")
+	}
 	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", "")
 	testutil.Call(t, testHandler.AdminCheckLinuxUser, request(binding)).Want(403)
 }
