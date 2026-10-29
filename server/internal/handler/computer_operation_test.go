@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/computer"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
@@ -206,3 +207,107 @@ esac
 		t.Fatalf("failed deletion lost recovery state: %+v", d)
 	}
 }
+
+func TestComputerRuntimeOnlineFreshnessWindow(t *testing.T) {
+	_, binding := operationBinding(t)
+	target := runtimeTargets()[0]
+
+	findTarget := func(assets []runtimeAsset) runtimeAsset {
+		for _, a := range assets {
+			if a.ID == target.id {
+				return a
+			}
+		}
+		t.Fatalf("target %s not found in assets", target.id)
+		return runtimeAsset{}
+	}
+
+	// 1. Normal DB flush lag (110s ago) within RuntimeClaimFreshnessSeconds (150s) must read online.
+	dbfx.Runtime(t, "online-fresh", testutil.Cols{
+		"daemon_id":    binding,
+		"owner_id":     testUserID,
+		"provider":     target.id,
+		"status":       "online",
+		"last_seen_at": time.Now().Add(-110 * time.Second),
+	})
+	assets, err := testHandler.runtimeAssets(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := findTarget(assets); a.RegistrationState != "online" {
+		t.Fatalf("runtime with 110s heartbeat should be online, got: %s", a.RegistrationState)
+	}
+
+	// 2. Heartbeat older than RuntimeClaimFreshnessSeconds (180s ago) must read offline even if status='online'.
+	dbfx.Exec(t, "DELETE FROM agent_runtime WHERE daemon_id=$1", binding)
+	dbfx.Runtime(t, "online-stale", testutil.Cols{
+		"daemon_id":    binding,
+		"owner_id":     testUserID,
+		"provider":     target.id,
+		"status":       "online",
+		"last_seen_at": time.Now().Add(-time.Duration(service.RuntimeClaimFreshnessSeconds+30) * time.Second),
+	})
+	assets, err = testHandler.runtimeAssets(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := findTarget(assets); a.RegistrationState != "offline" {
+		t.Fatalf("runtime with 180s heartbeat should be offline, got: %s", a.RegistrationState)
+	}
+
+	// 3. Fallback to updated_at when last_seen_at is NULL: fresh updated_at within 150s must read online.
+	dbfx.Exec(t, "DELETE FROM agent_runtime WHERE daemon_id=$1", binding)
+	dbfx.Runtime(t, "online-updated-at", testutil.Cols{
+		"daemon_id":    binding,
+		"owner_id":     testUserID,
+		"provider":     target.id,
+		"status":       "online",
+		"last_seen_at": nil,
+		"updated_at":   time.Now().Add(-110 * time.Second),
+	})
+	assets, err = testHandler.runtimeAssets(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := findTarget(assets); a.RegistrationState != "online" {
+		t.Fatalf("runtime with fresh updated_at should be online, got: %s", a.RegistrationState)
+	}
+
+	// 4. Multiple targets under same daemon: target[0] online, target[1] offline.
+	dbfx.Exec(t, "DELETE FROM agent_runtime WHERE daemon_id=$1", binding)
+	target1 := runtimeTargets()[1]
+	dbfx.Runtime(t, "online-fresh-target0", testutil.Cols{
+		"daemon_id":    binding,
+		"owner_id":     testUserID,
+		"provider":     target.id,
+		"status":       "online",
+		"last_seen_at": time.Now().Add(-110 * time.Second),
+	})
+	dbfx.Runtime(t, "online-stale-target1", testutil.Cols{
+		"daemon_id":    binding,
+		"owner_id":     testUserID,
+		"provider":     target1.id,
+		"status":       "online",
+		"last_seen_at": time.Now().Add(-time.Duration(service.RuntimeClaimFreshnessSeconds+30) * time.Second),
+	})
+	assets, err = testHandler.runtimeAssets(context.Background(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := findTarget(assets); a.RegistrationState != "online" {
+		t.Fatalf("target %s should be online, got: %s", target.id, a.RegistrationState)
+	}
+	findTarget1 := func(assets []runtimeAsset) runtimeAsset {
+		for _, a := range assets {
+			if a.ID == target1.id {
+				return a
+			}
+		}
+		t.Fatalf("target %s not found in assets", target1.id)
+		return runtimeAsset{}
+	}
+	if a := findTarget1(assets); a.RegistrationState != "offline" {
+		t.Fatalf("target %s should be offline, got: %s", target1.id, a.RegistrationState)
+	}
+}
+

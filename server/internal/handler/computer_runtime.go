@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/computer"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/sub2api"
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
@@ -99,7 +100,7 @@ func (h *Handler) runtimeAssets(ctx context.Context, id string) ([]runtimeAsset,
 		return nil, err
 	}
 	registrations := map[string]string{}
-	rows, err = h.DB.Query(ctx, `SELECT r.provider,CASE WHEN r.status='online' AND r.last_seen_at>now()-interval '30 seconds' THEN 'online' ELSE 'offline' END FROM agent_runtime r JOIN computer_binding b ON b.id=$1 WHERE r.daemon_id=b.id::text AND r.owner_id=b.user_id AND r.workspace_id=b.workspace_id`, id)
+	rows, err = h.DB.Query(ctx, `SELECT r.provider,CASE WHEN bool_or(r.status='online' AND COALESCE(r.last_seen_at, r.updated_at)>=now()-make_interval(secs=>$2::double precision)) THEN 'online' ELSE 'offline' END FROM agent_runtime r JOIN computer_binding b ON b.id=$1 WHERE r.daemon_id=b.id::text AND r.owner_id=b.user_id AND r.workspace_id=b.workspace_id GROUP BY r.provider`, id, service.RuntimeClaimFreshnessSeconds)
 	if err != nil {
 		return nil, err
 	}
