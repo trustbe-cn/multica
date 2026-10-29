@@ -2,6 +2,10 @@
 
 此目录保存面向开发、review 和运维的设计说明及变更记录。面向产品使用者的文档站点源码位于 [apps/docs/content/docs](../apps/docs/content/docs)。中文术语遵循[开发规范](../apps/docs/content/docs/developers/conventions.zh.mdx)。
 
+## 产品方案
+
+- [AI 团队协作平台：产品方案与进展](product/ai-team-collaboration-platform.md)：面向管理者的产品定位、核心能力、证据与边界（2026-10-29 基线 `bc1ac307c`）。
+
 ## Computer 与运行时
 
 | 文档 | 内容 |
