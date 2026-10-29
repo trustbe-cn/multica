@@ -310,4 +310,3 @@ func TestComputerRuntimeOnlineFreshnessWindow(t *testing.T) {
 		t.Fatalf("target %s should be offline, got: %s", target1.id, a.RegistrationState)
 	}
 }
-
