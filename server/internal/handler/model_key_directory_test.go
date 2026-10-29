@@ -248,6 +248,53 @@ func TestModelKeyLegacyPerUserGrantsRespectSingleOwner(t *testing.T) {
 	put(testUserID, []string{"3"}).Want(422)
 }
 
+// A legacy PUT that drops a key must not revoke it from a user it was moved
+// to while the PUT waited for the assignment lock.
+func TestModelKeyLegacyPutDoesNotRevokeKeyMovedMeanwhile(t *testing.T) {
+	modelSourceFixture(t)
+	var other string
+	if err := testPool.QueryRow(t.Context(), `INSERT INTO "user"(name,email) VALUES('Moved Owner','model-key-moved@multica.test') RETURNING id::text`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM user_model_key_grant WHERE user_id=$1`, other)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id=$1`, other)
+	})
+	assignModelKeys(t, []string{"2", "9007199254740993"}, ptr(testUserID), false).Want(200)
+	second := parseUUID(other)
+	// Hold the assignment lock while the legacy client submits a list for the
+	// first user that drops key 2.
+	tx, err := testHandler.TxStarter.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	if _, err = tx.Exec(t.Context(), `SELECT id FROM model_key_source WHERE id=1 FOR UPDATE`); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		testHandler.AdminUserModelKeyGrants(rec, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": []string{"9007199254740993"}}), "id", testUserID))
+		done <- rec.Code
+	}()
+	time.Sleep(300 * time.Millisecond)
+	// Meanwhile another admin moves key 2 to the second user.
+	if err = testHandler.setModelKeyOwners(t.Context(), tx, []string{"2"}, &second, true); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if code := <-done; code != 200 {
+		t.Fatalf("legacy PUT = %d", code)
+	}
+	var owner string
+	if err := testPool.QueryRow(t.Context(), `SELECT user_id::text FROM user_model_key_grant WHERE source_id=1 AND upstream_id='2'`).Scan(&owner); err != nil || owner != other {
+		t.Fatalf("key moved meanwhile was revoked or reassigned: owner=%q err=%v", owner, err)
+	}
+}
+
 func TestModelSourceEncryptionCacheAndFailureBoundary(t *testing.T) {
 	upstream, mode, calls := modelSourceFixture(t)
 	var source modelKeySourceResponse

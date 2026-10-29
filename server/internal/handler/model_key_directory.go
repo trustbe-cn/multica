@@ -655,6 +655,12 @@ func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer tx.Rollback(r.Context())
+	// Lock before reading the user's current keys: otherwise a key moved to
+	// another user after this read would be revoked from its new owner.
+	if _, err = tx.Exec(r.Context(), `SELECT id FROM model_key_source WHERE id=1 FOR UPDATE`); err != nil {
+		writeError(w, 500, "Cannot lock source")
+		return
+	}
 	// Revoke what the list drops, then assign the rest in the client's order.
 	var dropped []string
 	rows, err := tx.Query(r.Context(), `SELECT upstream_id FROM user_model_key_grant WHERE user_id=$1 AND source_id=1 AND NOT (upstream_id = ANY($2)) ORDER BY upstream_id`, uid, in.IDs)
