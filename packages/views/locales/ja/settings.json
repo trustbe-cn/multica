@@ -1989,6 +1989,7 @@
     },
     "errors": {
       "source_invalid_response": "sub2api 応答にプラットフォーム、プロトコルまたはページ情報が不足しています。管理者に確認してください。",
+      "source_base_url_has_api_path": "sub2api のルートアドレスを入力してください。/api/v1/… のパスは含めないでください（例: https://sub2api.example.com）。",
       "source_unauthorized": "ディレクトリ認証情報が無効です。管理者に更新を依頼してください。",
       "source_not_configured": "管理者に sub2api 接続先の設定を依頼してください。",
       "model_key_unavailable": "管理者に対応する有効なキーの割り当てと接続先の確認を依頼してください。",

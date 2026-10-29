@@ -1989,6 +1989,7 @@
     },
     "errors": {
       "source_invalid_response": "sub2api 응답에 플랫폼, 프로토콜 또는 페이지 정보가 없습니다. 관리자에게 확인하세요.",
+      "source_base_url_has_api_path": "/api/v1/… 경로 없이 sub2api 루트 주소를 입력하세요(예: https://sub2api.example.com).",
       "source_unauthorized": "디렉터리 자격 증명이 만료되었거나 취소되었습니다. 관리자에게 교체를 요청하세요.",
       "source_not_configured": "관리자에게 sub2api 소스 구성을 요청하세요.",
       "model_key_unavailable": "관리자에게 호환 키 할당 및 소스 확인을 요청하세요.",

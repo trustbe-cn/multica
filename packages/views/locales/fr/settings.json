@@ -2000,6 +2000,7 @@
     },
     "errors": {
       "source_invalid_response": "La réponse sub2api ne contient pas les métadonnées de plateforme, de protocole ou de pagination requises. Contactez un administrateur.",
+      "source_base_url_has_api_path": "Saisissez l’adresse racine de sub2api, sans le chemin /api/v1/… (par exemple https://sub2api.example.com).",
       "source_unauthorized": "L’identifiant du répertoire est expiré ou révoqué. Demandez son remplacement.",
       "source_not_configured": "Demandez à un administrateur de configurer la source sub2api.",
       "model_key_unavailable": "Demandez une clé compatible active et la vérification de la source.",

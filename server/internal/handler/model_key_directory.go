@@ -107,6 +107,12 @@ func (h *Handler) AdminModelKeySource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "A valid HTTPS address and directory credential are required")
 		return
 	}
+	// The client appends the API paths itself; a pasted endpoint URL would
+	// otherwise 404 upstream and surface as a misleading missing-key error.
+	if strings.Contains(strings.TrimRight(in.BaseURL, "/")+"/", "/api/v1/") {
+		writeErrorCode(w, 400, "source_base_url_has_api_path", "Enter the sub2api root address without the /api/v1 path")
+		return
+	}
 	box, err := modelKeyBox()
 	if err != nil {
 		modelKeyFailure(w, err)

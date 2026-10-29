@@ -1989,6 +1989,7 @@
     },
     "errors": {
       "source_invalid_response": "sub2api 响应缺少平台、协议或分页等必填信息，请管理员检查接口契约。",
+      "source_base_url_has_api_path": "请填写 sub2api 服务根地址，不要带 /api/v1/… 路径，例如 https://sub2api.example.com。",
       "source_unauthorized": "目录查询凭证已过期或失效，请管理员更换。",
       "source_not_configured": "请管理员配置 sub2api 来源和查询凭证。",
       "model_key_unavailable": "请管理员分配已启用且适用的密钥，并检查目录来源。",

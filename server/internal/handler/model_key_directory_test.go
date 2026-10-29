@@ -79,6 +79,21 @@ func modelSourceFixture(t *testing.T) (*httptest.Server, *atomic.Int32, *atomic.
 	testutil.Call(t, testHandler.AdminModelKeySource, computerTestRequest("PUT", "/", map[string]any{"base_url": upstream.URL, "directory_token": "fixture-directory-secret", "revision": 0})).Want(200)
 	return upstream, mode, calls
 }
+func TestModelSourceRejectsEndpointPathAsBaseURL(t *testing.T) {
+	upstream, _, _ := modelSourceFixture(t)
+	for _, base := range []string{upstream.URL + "/api/v1/key-directory/resolve", upstream.URL + "/api/v1"} {
+		var body map[string]string
+		testutil.Call(t, testHandler.AdminModelKeySource, computerTestRequest("PUT", "/", map[string]any{"base_url": base, "directory_token": "replacement", "revision": 1})).Want(400).JSON(&body)
+		if body["code"] != "source_base_url_has_api_path" {
+			t.Fatalf("%s: code = %q", base, body["code"])
+		}
+	}
+	var source modelKeySourceResponse
+	testutil.Call(t, testHandler.AdminModelKeySource, computerTestRequest("GET", "/", nil)).Want(200).JSON(&source)
+	if source.BaseURL != upstream.URL || source.Revision != 1 {
+		t.Fatalf("rejected address replaced the source: %+v", source)
+	}
+}
 func TestModelSourceEncryptionCacheAndFailureBoundary(t *testing.T) {
 	upstream, mode, calls := modelSourceFixture(t)
 	var source modelKeySourceResponse

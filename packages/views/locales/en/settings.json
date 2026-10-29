@@ -2000,6 +2000,7 @@
     },
     "errors": {
       "source_invalid_response": "The sub2api response is missing required platform, protocol or pagination metadata. Ask an administrator to check the contract.",
+      "source_base_url_has_api_path": "Enter the sub2api root address, without /api/v1/… — for example https://sub2api.example.com.",
       "source_unauthorized": "The directory credential expired or was revoked. Ask an administrator to replace it.",
       "source_not_configured": "Ask an administrator to configure the sub2api source.",
       "model_key_unavailable": "Ask an administrator to assign an enabled compatible key and verify the source.",
