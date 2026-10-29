@@ -160,6 +160,94 @@ func TestModelKeyAssignmentHasSingleOwner(t *testing.T) {
 	testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/?owner=not-a-uuid", nil)).Want(400)
 }
 
+// Two admins assigning the same unassigned key must not both win: the later
+// request has to see the first owner and fail without allow_transfer.
+func TestModelKeyConcurrentAssignmentDoesNotStealKey(t *testing.T) {
+	modelSourceFixture(t)
+	var other string
+	if err := testPool.QueryRow(t.Context(), `INSERT INTO "user"(name,email) VALUES('Key Racer','model-key-racer@multica.test') RETURNING id::text`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM user_model_key_grant WHERE user_id=$1`, other)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id=$1`, other)
+	})
+	// Load the directory snapshot before either transaction starts.
+	testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/", nil)).Want(200)
+	first, second := parseUUID(testUserID), parseUUID(other)
+	tx1, err := testHandler.TxStarter.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx1.Rollback(context.Background())
+	if err = testHandler.setModelKeyOwners(t.Context(), tx1, []string{"2"}, &first, false); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		tx2, err := testHandler.TxStarter.Begin(context.Background())
+		if err != nil {
+			done <- err
+			return
+		}
+		defer tx2.Rollback(context.Background())
+		if err = testHandler.setModelKeyOwners(context.Background(), tx2, []string{"2"}, &second, false); err != nil {
+			done <- err
+			return
+		}
+		done <- tx2.Commit(context.Background())
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("second assignment did not wait for the first: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err = tx1.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var assignErr *modelKeyAssignError
+	if err := <-done; !errors.As(err, &assignErr) || assignErr.code != "model_key_assigned_elsewhere" {
+		t.Fatalf("second assignment = %v, want model_key_assigned_elsewhere", err)
+	}
+	var owner string
+	if err := testPool.QueryRow(t.Context(), `SELECT user_id::text FROM user_model_key_grant WHERE source_id=1 AND upstream_id='2'`).Scan(&owner); err != nil || owner != testUserID {
+		t.Fatalf("owner = %q (%v), want first assigner", owner, err)
+	}
+}
+
+// Installed clients keep the per-user API; it must not take another user's key.
+func TestModelKeyLegacyPerUserGrantsRespectSingleOwner(t *testing.T) {
+	modelSourceFixture(t)
+	var other string
+	if err := testPool.QueryRow(t.Context(), `INSERT INTO "user"(name,email) VALUES('Legacy Owner','model-key-legacy@multica.test') RETURNING id::text`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM user_model_key_grant WHERE user_id=$1`, other)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id=$1`, other)
+	})
+	put := func(user string, ids []string) *testutil.Response {
+		return testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": ids}), "id", user))
+	}
+	put(testUserID, []string{"9007199254740993", "2"}).Want(200)
+	var grants struct {
+		Items []modelKeyGrant `json:"items"`
+	}
+	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("GET", "/", nil), "id", testUserID)).Want(200).JSON(&grants)
+	if len(grants.Items) != 2 || grants.Items[0].ID != "9007199254740993" || grants.Items[1].ID != "2" {
+		t.Fatalf("legacy order lost: %+v", grants.Items)
+	}
+	var conflict map[string]string
+	put(other, []string{"2"}).Want(409).JSON(&conflict)
+	if conflict["code"] != "model_key_assigned_elsewhere" {
+		t.Fatalf("legacy client took another user's key: %v", conflict)
+	}
+	// Dropping a key from the list returns it to the pool for others.
+	put(testUserID, []string{"9007199254740993"}).Want(200)
+	put(other, []string{"2"}).Want(200)
+	put(testUserID, []string{"3"}).Want(422)
+}
+
 func TestModelSourceEncryptionCacheAndFailureBoundary(t *testing.T) {
 	upstream, mode, calls := modelSourceFixture(t)
 	var source modelKeySourceResponse

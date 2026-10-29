@@ -435,6 +435,108 @@ func (h *Handler) AdminModelKeyUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"items": out})
 }
 
+type modelKeyAssignError struct {
+	status int
+	code   string
+	msg    string
+}
+
+func (e *modelKeyAssignError) Error() string { return e.msg }
+
+// setModelKeyOwners changes key ownership inside tx. Every assignment locks the
+// single source row FOR UPDATE first: an unassigned key has no grant row to
+// lock, so per-key row locks alone would let two admins both read "unassigned"
+// and the later upsert silently take the key. Serializing on the source row
+// makes every writer see the previous committed owner. Assignment is manual
+// admin work, so the lost concurrency is irrelevant.
+//
+// owner nil revokes ids. Otherwise ids are assigned to owner, appended after
+// the owner's existing grants; a key owned by someone else needs transfer.
+func (h *Handler) setModelKeyOwners(ctx context.Context, tx pgx.Tx, ids []string, owner *pgtype.UUID, transfer bool) error {
+	if _, err := tx.Exec(ctx, `SELECT id FROM model_key_source WHERE id=1 FOR UPDATE`); err != nil {
+		return err
+	}
+	if owner != nil {
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM "user" WHERE id=$1)`, *owner).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return &modelKeyAssignError{404, "", "User not found"}
+		}
+	}
+	for _, id := range ids {
+		var current *pgtype.UUID
+		var row pgtype.UUID
+		err := tx.QueryRow(ctx, `SELECT user_id FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1`, id).Scan(&row)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			current = &row
+		}
+		if owner == nil {
+			if _, err = tx.Exec(ctx, `DELETE FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1`, id); err != nil {
+				return err
+			}
+			continue
+		}
+		if current != nil && current.Bytes == owner.Bytes {
+			continue
+		}
+		if current != nil && !transfer {
+			return &modelKeyAssignError{409, "model_key_assigned_elsewhere", "Key belongs to another user; confirm the transfer"}
+		}
+		var name string
+		var allowed []byte
+		err = tx.QueryRow(ctx, `SELECT d.api_key_name,d.allowed_runtimes FROM model_key_directory_entry d JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE d.upstream_id=$1 AND d.status='enabled' AND s.status='ready'`, id).Scan(&name, &allowed)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		var kinds []string
+		_ = json.Unmarshal(allowed, &kinds)
+		usable := false
+		for _, k := range kinds {
+			usable = usable || sub2api.KnownRuntime(k)
+		}
+		if err != nil || !usable {
+			return &modelKeyAssignError{422, "", "Key is unavailable or has no supported runtime"}
+		}
+		// New grants rank after the owner's existing ones; the first compatible
+		// grant is each runtime's default and users can switch per runtime.
+		if _, err = tx.Exec(ctx, `INSERT INTO user_model_key_grant(user_id,source_id,upstream_id,api_key_name,position)
+VALUES($1,1,$2,$3,(SELECT COALESCE(max(position)+1,0) FROM user_model_key_grant WHERE user_id=$1))
+ON CONFLICT (source_id,upstream_id) DO UPDATE SET user_id=EXCLUDED.user_id,api_key_name=EXCLUDED.api_key_name,position=EXCLUDED.position,created_at=now()`, *owner, id, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeModelKeyAssignError(w http.ResponseWriter, err error) {
+	var e *modelKeyAssignError
+	switch {
+	case errors.As(err, &e) && e.code != "":
+		writeErrorCode(w, e.status, e.code, e.msg)
+	case errors.As(err, &e):
+		writeError(w, e.status, e.msg)
+	default:
+		modelKeyFailure(w, err)
+	}
+}
+
+func uniqueModelKeyIDs(w http.ResponseWriter, ids []string) bool {
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			writeError(w, 400, "Duplicate key ID")
+			return false
+		}
+		seen[id] = true
+	}
+	return true
+}
+
 // AdminModelKeyAssign sets the single owner of each key: a user ID assigns,
 // null revokes. Moving a key that already belongs to another user requires
 // allow_transfer so a stale page cannot silently take it from that user.
@@ -452,94 +554,32 @@ func (h *Handler) AdminModelKeyAssign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Invalid assignment")
 		return
 	}
-	seen := map[string]bool{}
-	for _, id := range in.IDs {
-		if seen[id] {
-			writeError(w, 400, "Duplicate key ID")
-			return
-		}
-		seen[id] = true
+	if !uniqueModelKeyIDs(w, in.IDs) {
+		return
 	}
-	var target pgtype.UUID
+	var owner *pgtype.UUID
 	if in.UserID != nil {
-		if target, ok = parseUUIDOrBadRequest(w, *in.UserID, "user_id"); !ok {
+		target, ok := parseUUIDOrBadRequest(w, *in.UserID, "user_id")
+		if !ok {
 			return
 		}
+		owner = &target
 		if err := h.refreshModelKeyDirectory(r.Context(), false); err != nil {
 			modelKeyFailure(w, err)
 			return
 		}
 	}
+	ids := append([]string(nil), in.IDs...)
+	sort.Strings(ids)
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
 		writeError(w, 500, "Cannot save assignment")
 		return
 	}
 	defer tx.Rollback(r.Context())
-	if _, err = tx.Exec(r.Context(), `SELECT id FROM model_key_source WHERE id=1 FOR SHARE`); err != nil {
-		writeError(w, 500, "Cannot lock source")
+	if err = h.setModelKeyOwners(r.Context(), tx, ids, owner, in.AllowTransfer); err != nil {
+		writeModelKeyAssignError(w, err)
 		return
-	}
-	if in.UserID != nil {
-		var exists bool
-		if tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM "user" WHERE id=$1)`, target).Scan(&exists) != nil {
-			writeError(w, 500, "Cannot read user")
-			return
-		}
-		if !exists {
-			writeError(w, 404, "User not found")
-			return
-		}
-	}
-	// Lock in a stable order so concurrent batches cannot deadlock.
-	ids := append([]string(nil), in.IDs...)
-	sort.Strings(ids)
-	for _, id := range ids {
-		var current *string
-		err = tx.QueryRow(r.Context(), `SELECT user_id::text FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1 FOR UPDATE`, id).Scan(&current)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			writeError(w, 500, "Cannot save assignment")
-			return
-		}
-		if in.UserID == nil {
-			if _, err = tx.Exec(r.Context(), `DELETE FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1`, id); err != nil {
-				writeError(w, 500, "Cannot save assignment")
-				return
-			}
-			continue
-		}
-		if current != nil && *current == *in.UserID {
-			continue
-		}
-		if current != nil && !in.AllowTransfer {
-			writeErrorCode(w, 409, "model_key_assigned_elsewhere", "Key belongs to another user; confirm the transfer")
-			return
-		}
-		var name string
-		var allowed []byte
-		err = tx.QueryRow(r.Context(), `SELECT d.api_key_name,d.allowed_runtimes FROM model_key_directory_entry d JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE d.upstream_id=$1 AND d.status='enabled' AND s.status='ready'`, id).Scan(&name, &allowed)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			modelKeyFailure(w, err)
-			return
-		}
-		var kinds []string
-		_ = json.Unmarshal(allowed, &kinds)
-		usable := false
-		for _, k := range kinds {
-			usable = usable || sub2api.KnownRuntime(k)
-		}
-		if err != nil || !usable {
-			writeError(w, 422, "Key is unavailable or has no supported runtime")
-			return
-		}
-		// New grants rank after the owner's existing ones; the first compatible
-		// grant is each runtime's default and users can switch per runtime.
-		if _, err = tx.Exec(r.Context(), `INSERT INTO user_model_key_grant(user_id,source_id,upstream_id,api_key_name,position)
-VALUES($1,1,$2,$3,(SELECT COALESCE(max(position)+1,0) FROM user_model_key_grant WHERE user_id=$1))
-ON CONFLICT (source_id,upstream_id) DO UPDATE SET user_id=EXCLUDED.user_id,api_key_name=EXCLUDED.api_key_name,position=EXCLUDED.position,created_at=now()`, target, id, name); err != nil {
-			writeError(w, 500, "Cannot save assignment")
-			return
-		}
 	}
 	action := "model_keys_revoke"
 	if in.UserID != nil {
@@ -551,6 +591,113 @@ ON CONFLICT (source_id,upstream_id) DO UPDATE SET user_id=EXCLUDED.user_id,api_k
 	}
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Cannot save assignment")
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"saved": true})
+}
+
+// AdminUserModelKeyGrants keeps the per-user API of earlier clients: installed
+// Desktop builds may still call it against this backend. GET lists the user's
+// keys; PUT makes the user's keys exactly ids. It never takes a key from
+// another user (409), because those clients cannot confirm a transfer.
+func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireInstanceAdmin(w, r)
+	if !ok {
+		return
+	}
+	uid, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "user_id")
+	if !ok {
+		return
+	}
+	if r.Method == http.MethodGet {
+		var exists bool
+		if h.DB.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM "user" WHERE id=$1)`, uid).Scan(&exists) != nil {
+			writeError(w, 500, "Cannot read user")
+			return
+		}
+		if !exists {
+			writeError(w, 404, "User not found")
+			return
+		}
+		rows, err := h.DB.Query(r.Context(), `SELECT g.upstream_id,COALESCE(d.api_key_name,g.api_key_name),COALESCE(d.status,'missing'),COALESCE(d.platform,''),COALESCE(d.allowed_runtimes,'[]'::jsonb),g.position FROM user_model_key_grant g LEFT JOIN model_key_directory_entry d ON d.source_id=g.source_id AND d.upstream_id=g.upstream_id WHERE g.user_id=$1 ORDER BY g.position,g.upstream_id`, uid)
+		if err != nil {
+			writeError(w, 500, "Cannot read grants")
+			return
+		}
+		defer rows.Close()
+		items, err := scanModelKeyRows(rows)
+		if err != nil {
+			writeError(w, 500, "Cannot read grants")
+			return
+		}
+		writeJSON(w, 200, map[string]any{"items": items})
+		return
+	}
+	var in struct {
+		IDs []string `json:"ids"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&in) != nil || in.IDs == nil || len(in.IDs) > 1000 {
+		writeError(w, 400, "Invalid grant list")
+		return
+	}
+	if !uniqueModelKeyIDs(w, in.IDs) {
+		return
+	}
+	if len(in.IDs) > 0 {
+		if err := h.refreshModelKeyDirectory(r.Context(), false); err != nil {
+			modelKeyFailure(w, err)
+			return
+		}
+	}
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Cannot save grants")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	// Revoke what the list drops, then assign the rest in the client's order.
+	var dropped []string
+	rows, err := tx.Query(r.Context(), `SELECT upstream_id FROM user_model_key_grant WHERE user_id=$1 AND source_id=1 AND NOT (upstream_id = ANY($2)) ORDER BY upstream_id`, uid, in.IDs)
+	if err == nil {
+		for rows.Next() {
+			var id string
+			if err = rows.Scan(&id); err != nil {
+				break
+			}
+			dropped = append(dropped, id)
+		}
+		rows.Close()
+		if err == nil {
+			err = rows.Err()
+		}
+	}
+	if err != nil {
+		writeError(w, 500, "Cannot save grants")
+		return
+	}
+	if len(dropped) > 0 {
+		err = h.setModelKeyOwners(r.Context(), tx, dropped, nil, false)
+	}
+	if err == nil && len(in.IDs) > 0 {
+		err = h.setModelKeyOwners(r.Context(), tx, in.IDs, &uid, false)
+	}
+	if err != nil {
+		writeModelKeyAssignError(w, err)
+		return
+	}
+	// Keep the client's explicit order for this user's keys.
+	for i, id := range in.IDs {
+		if _, err = tx.Exec(r.Context(), `UPDATE user_model_key_grant SET position=$3 WHERE user_id=$1 AND source_id=1 AND upstream_id=$2`, uid, id, i); err != nil {
+			writeError(w, 500, "Cannot save grants")
+			return
+		}
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO computer_audit(user_id,action,outcome) VALUES($1,$2,'success')`, parseUUID(actor), "model_keys_assign:"+chi.URLParam(r, "id")); err != nil {
+		writeError(w, 500, "Cannot record key assignment")
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Cannot save grants")
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"saved": true})

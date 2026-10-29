@@ -1684,6 +1684,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.With(handler.RequireHumanActor).Get("/api/admin/model-key-directory", h.AdminModelKeyDirectory)
 		r.With(handler.RequireHumanActor).Post("/api/admin/model-key-directory/refresh", h.AdminModelKeyDirectoryRefresh)
 		r.With(handler.RequireHumanActor).Post("/api/admin/model-key-directory/assign", h.AdminModelKeyAssign)
+		// Per-user grants for installed clients that predate single-owner keys.
+		r.With(handler.RequireHumanActor).Get("/api/admin/users/{id}/model-keys", h.AdminUserModelKeyGrants)
+		r.With(handler.RequireHumanActor).Put("/api/admin/users/{id}/model-keys", h.AdminUserModelKeyGrants)
 		r.With(handler.RequireHumanActor).Get("/api/admin/runtime-config-templates", h.AdminRuntimeConfigTemplateList)
 		r.With(handler.RequireHumanActor).Get("/api/admin/runtime-config-templates/{kind}", h.AdminRuntimeConfigTemplates)
 		r.With(handler.RequireHumanActor).Put("/api/admin/runtime-config-templates/{kind}", h.AdminRuntimeConfigTemplates)

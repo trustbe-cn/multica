@@ -1,6 +1,6 @@
 # sub2api API key 目录与模型探测契约
 
-状态：已验证 .64 的目录、resolve 和模型列表读取；`platform`、`protocols` 当前已在 resolve 返回，目录的同名元数据字段仍待补齐。真实 CLI 生成测试仍需单独验收。对应产品方案见[运行时模型配置方案](runtime-model-configuration.md)。示例不含可用凭据。
+状态：已验证 .64 的目录、resolve 和模型列表读取；目录与 resolve 均已返回 `platform`、`protocols`（2026-10-27 补齐）。真实 CLI 生成测试仍需单独验收。对应产品方案见[运行时模型配置方案](runtime-model-configuration.md)。示例不含可用凭据。
 
 ## 1. 来源与凭据
 
@@ -39,7 +39,7 @@ Authorization: Bearer <DIRECTORY_TOKEN>
 }
 ```
 
-目录中的 `platform`、`protocols` 是待补字段，其他目录字段已核对真实响应。Multica 不依赖 `code`、`message`、`pages` 判断分页完整性，按 HTTP 状态和 `data` 契约处理。
+目录字段均已核对真实响应。Multica 不依赖 `code`、`message`、`pages` 判断分页完整性，按 HTTP 状态和 `data` 契约处理。
 
 | 字段 | 约定 |
 | --- | --- |
@@ -51,13 +51,19 @@ Authorization: Bearer <DIRECTORY_TOKEN>
 
 runtime 标识：`claude`、`codex`、`opencode`、`openclaw`、`grok`、`kimi`、`omp`、`pi`。
 
-`platform` 实测值包括 `anthropic`、`openai` 和空字符串。已确认采用平台与协议兼容筛选，不再要求 sub2api 的 `allowed_runtimes`。未知 / 空平台无可选 runtime；已知平台缺少协议字段属于不完整元数据。管理员的 User-key 分配仍是权限边界。
+`platform` 实测值包括 `anthropic`、`openai`、`grok`、`gemini`、`deepseek`、`zhipu` 和空字符串。已确认采用平台与协议兼容筛选，不再要求 sub2api 的 `allowed_runtimes`。未知 / 空平台无可选 runtime；已支持平台缺少协议字段属于不完整元数据。管理员的 User-key 分配仍是权限边界。
 
 | 平台 / 声明协议 | 当前实现的兼容 runtime |
 | --- | --- |
 | `anthropic` / `anthropic_messages` | Claude、OpenClaw、OMP、Pi |
 | `openai` / `openai_responses` | Codex、Grok、OpenClaw、OMP、Pi |
-| `openai` / `openai_chat_completions` | OpenCode、Kimi、OpenClaw、OMP、Pi |
+| `openai` / `openai_chat_completions` | OpenCode、Kimi、Grok、OpenClaw、OMP、Pi |
+| `grok` / `openai_chat_completions` | Grok |
+| `deepseek` / `openai_chat_completions` | OpenCode、Pi |
+| `gemini` / `gemini_generate_content` | Pi（`google-generative-ai`，端点为根地址 + `/v1beta`，认证 `x-goog-api-key`） |
+| `zhipu` / 任意 | 无（暂不支持） |
+
+厂商平台（grok、deepseek、gemini）只开放给上表列出的 CLI，即使其他 CLI 也支持同一协议。Gemini key 的模型列表走 `/v1/models`：sub2api 的原生 `/v1beta/models` 会列出该分组实际无法路由的模型，`/v1/models` 只返回可用模型。
 
 一把 key 声明多个受支持协议时合并兼容范围。平台与协议相互矛盾时不扩大范围。Multica 内部及已有浏览器 API 的 `allowed_runtimes` 字段承载这份计算结果，保持 API 响应兼容；它不再表示上游逐 key 的 ACL。
 
