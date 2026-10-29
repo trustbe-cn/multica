@@ -94,6 +94,72 @@ func TestModelSourceRejectsEndpointPathAsBaseURL(t *testing.T) {
 		t.Fatalf("rejected address replaced the source: %+v", source)
 	}
 }
+
+// assignModelKeys sets the owner of ids (nil revokes) through the admin endpoint.
+func assignModelKeys(t *testing.T, ids []string, user *string, transfer bool) *testutil.Response {
+	t.Helper()
+	return testutil.Call(t, testHandler.AdminModelKeyAssign, computerTestRequest("POST", "/", map[string]any{"ids": ids, "user_id": user, "allow_transfer": transfer}))
+}
+func TestModelKeyAssignmentHasSingleOwner(t *testing.T) {
+	modelSourceFixture(t)
+	var other string
+	if err := testPool.QueryRow(t.Context(), `INSERT INTO "user"(name,email) VALUES('Key Owner B','model-key-owner-b@multica.test') RETURNING id::text`).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM user_model_key_grant WHERE user_id=$1`, other)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id=$1`, other)
+	})
+	list := func(query string) []modelKeyDirectoryItem {
+		t.Helper()
+		var out struct {
+			Items     []modelKeyDirectoryItem `json:"items"`
+			Platforms []string                `json:"platforms"`
+		}
+		testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/?"+query, nil)).Want(200).JSON(&out)
+		if len(out.Platforms) != 2 || out.Platforms[0] != "anthropic" || out.Platforms[1] != "openai" {
+			t.Fatalf("platforms = %v", out.Platforms)
+		}
+		return out.Items
+	}
+	if items := list("owner=none"); len(items) != 3 {
+		t.Fatalf("unassigned = %d", len(items))
+	}
+	assignModelKeys(t, []string{"2"}, ptr(testUserID), false).Want(200)
+	// Taking a key from its current owner needs an explicit transfer.
+	var conflict map[string]string
+	assignModelKeys(t, []string{"2"}, ptr(other), false).Want(409).JSON(&conflict)
+	if conflict["code"] != "model_key_assigned_elsewhere" {
+		t.Fatalf("conflict = %v", conflict)
+	}
+	if items := list("owner=" + testUserID); len(items) != 1 || items[0].ID != "2" {
+		t.Fatal("rejected transfer changed the owner")
+	}
+	assignModelKeys(t, []string{"2", "9007199254740993"}, ptr(other), true).Want(200)
+	if items := list("owner=" + testUserID); len(items) != 0 {
+		t.Fatal("transferred key still belongs to the previous owner")
+	}
+	items := list("owner=" + other)
+	if len(items) != 2 || items[0].Owner == nil || items[0].Owner.Email != "model-key-owner-b@multica.test" {
+		t.Fatalf("new owner listing = %+v", items)
+	}
+	if items := list("owner=" + other + "&platform=anthropic"); len(items) != 1 || items[0].ID != "2" || items[0].Platform != "anthropic" {
+		t.Fatalf("platform filter = %+v", items)
+	}
+	var rows int
+	if err := testPool.QueryRow(t.Context(), `SELECT count(*) FROM user_model_key_grant WHERE upstream_id='2'`).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("key 2 has %d grants", rows)
+	}
+	// Revoking returns the key to the unassigned pool.
+	assignModelKeys(t, []string{"2"}, nil, false).Want(200)
+	if items := list("owner=none&q=2"); len(items) != 1 || items[0].Owner != nil {
+		t.Fatalf("revoked key = %+v", items)
+	}
+	assignModelKeys(t, []string{"2", "2"}, ptr(other), false).Want(400)
+	testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/?status=bogus", nil)).Want(400)
+	testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/?owner=not-a-uuid", nil)).Want(400)
+}
+
 func TestModelSourceEncryptionCacheAndFailureBoundary(t *testing.T) {
 	upstream, mode, calls := modelSourceFixture(t)
 	var source modelKeySourceResponse
@@ -130,7 +196,7 @@ func TestModelSourceEncryptionCacheAndFailureBoundary(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.AdminModelKeySource, computerTestRequest("PUT", "/", map[string]any{"base_url": upstream.URL, "directory_token": "replacement", "revision": 0})).Want(409)
 	t.Setenv("MULTICA_INSTANCE_ADMIN_IDS", "")
-	for _, fn := range []http.HandlerFunc{testHandler.AdminModelKeySource, testHandler.AdminModelKeyDirectory, testHandler.AdminModelKeyUsers, testHandler.AdminRuntimeConfigTemplateList, testHandler.AdminUserModelKeyGrants} {
+	for _, fn := range []http.HandlerFunc{testHandler.AdminModelKeySource, testHandler.AdminModelKeyDirectory, testHandler.AdminModelKeyUsers, testHandler.AdminRuntimeConfigTemplateList, testHandler.AdminModelKeyAssign} {
 		testutil.Call(t, fn, computerTestRequest("GET", "/", nil)).Want(403)
 	}
 }
@@ -174,17 +240,14 @@ func TestModelKeyRetryAfterIsBounded(t *testing.T) {
 func TestModelKeyGrantsScopeOrderAndOwnerBoundary(t *testing.T) {
 	_, mode, calls := modelSourceFixture(t)
 	_, binding := operationBinding(t)
-	assign := func(ids []string) *http.Request {
-		return withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": ids}), "id", testUserID)
-	}
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, assign([]string{"2", "9007199254740993"})).Want(200)
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, assign([]string{"3"})).Want(422)
+	assignModelKeys(t, []string{"2", "9007199254740993"}, ptr(testUserID), false).Want(200)
+	assignModelKeys(t, []string{"3"}, ptr(testUserID), false).Want(422)
 	var grants struct {
-		Items []modelKeyGrant `json:"items"`
+		Items []modelKeyDirectoryItem `json:"items"`
 	}
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("GET", "/", nil), "id", testUserID)).Want(200).JSON(&grants)
-	if len(grants.Items) != 2 || grants.Items[0].ID != "2" {
-		t.Fatal("grant order lost or invalid write was not rolled back")
+	testutil.Call(t, testHandler.AdminModelKeyDirectory, computerTestRequest("GET", "/?owner="+testUserID, nil)).Want(200).JSON(&grants)
+	if len(grants.Items) != 2 || grants.Items[0].Owner == nil || grants.Items[0].Owner.ID != testUserID {
+		t.Fatal("grants lost or invalid write was not rolled back")
 	}
 	req := modelConfigRequest("GET", binding, "codex", "", nil)
 	var options struct {
@@ -282,7 +345,7 @@ func TestModelSourceFailureCooldownAndSourceIdentity(t *testing.T) {
 
 func TestModelSourceTokenRotationKeepsDirectoryAndForceBypassesCache(t *testing.T) {
 	upstream, mode, calls := modelSourceFixture(t)
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": []string{"9007199254740993"}}), "id", testUserID)).Want(200)
+	assignModelKeys(t, []string{"9007199254740993"}, ptr(testUserID), false).Want(200)
 	before := calls.Load()
 	testutil.Call(t, testHandler.AdminModelKeyDirectoryRefresh, computerTestRequest("POST", "/", nil)).Want(200)
 	if calls.Load() != before+1 {

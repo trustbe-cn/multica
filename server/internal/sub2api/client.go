@@ -20,6 +20,7 @@ type Key struct {
 	ID              string   `json:"id"`
 	APIKeyName      string   `json:"api_key_name"`
 	Status          string   `json:"status"`
+	Platform        string   `json:"platform"`
 	AllowedRuntimes []string `json:"allowed_runtimes"`
 }
 type Endpoint struct {
@@ -74,7 +75,7 @@ func KnownRuntime(s string) bool {
 }
 func KnownProtocol(s string) bool {
 	switch s {
-	case "anthropic-messages", "openai-responses", "openai-chat-completions":
+	case "anthropic-messages", "openai-responses", "openai-chat-completions", "google-generative-ai":
 		return true
 	}
 	return false
@@ -101,7 +102,7 @@ type wireKey struct {
 }
 
 func (w wireKey) key() (Key, error) {
-	if !idPattern.MatchString(w.ID.String()) || strings.TrimSpace(w.APIKeyName) == "" || len(w.APIKeyName) > 512 || w.Status == "" || w.Platform == nil || ((*w.Platform == "anthropic" || *w.Platform == "openai") && w.Protocols == nil) {
+	if !idPattern.MatchString(w.ID.String()) || strings.TrimSpace(w.APIKeyName) == "" || len(w.APIKeyName) > 512 || w.Status == "" || w.Platform == nil || (supportedPlatform(*w.Platform) && w.Protocols == nil) {
 		return Key{}, invalid()
 	}
 	status := w.Status
@@ -114,7 +115,7 @@ func (w wireKey) key() (Key, error) {
 		// Unknown upstream statuses never acquire enabled semantics.
 		status = "unknown"
 	}
-	return Key{ID: w.ID.String(), APIKeyName: w.APIKeyName, Status: status, AllowedRuntimes: CompatibleRuntimes(*w.Platform, w.Protocols)}, nil
+	return Key{ID: w.ID.String(), APIKeyName: w.APIKeyName, Status: status, Platform: *w.Platform, AllowedRuntimes: CompatibleRuntimes(*w.Platform, w.Protocols)}, nil
 }
 
 func (c *Client) request(ctx context.Context, base, token, method, path string, payload any, out any) error {
@@ -277,19 +278,14 @@ func (c *Client) Resolve(ctx context.Context, base, token, id, name string) (Res
 	endpoints := []Endpoint{}
 	seen := map[string]bool{}
 	for _, protocol := range w.Protocols {
-		if !platformProtocol(*w.Platform, protocol) {
+		apiType, endpointURL := protocolAPIType(*w.Platform, protocol), baseURL+"/v1"
+		switch apiType {
+		case "":
 			continue
-		}
-		apiType, endpointURL := "", baseURL+"/v1"
-		switch protocol {
-		case "anthropic_messages":
-			apiType, endpointURL = "anthropic-messages", baseURL
-		case "openai_responses":
-			apiType = "openai-responses"
-		case "openai_chat_completions":
-			apiType = "openai-chat-completions"
-		default:
-			return result, invalid()
+		case "anthropic-messages":
+			endpointURL = baseURL
+		case "google-generative-ai":
+			endpointURL = baseURL + "/v1beta"
 		}
 		if seen[apiType] {
 			return result, invalid()

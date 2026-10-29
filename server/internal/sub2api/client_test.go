@@ -121,10 +121,53 @@ func TestRuntimeCompatibilityComesFromPlatformAndProtocols(t *testing.T) {
 		{"anthropic", []string{"anthropic_messages"}, "codex", false},
 		{"", []string{"openai_responses"}, "codex", false},
 		{"openai", nil, "codex", false},
+		// Vendor platforms are pinned to the CLIs that serve their models.
+		{"grok", []string{"openai_chat_completions"}, "grok", true},
+		{"grok", []string{"openai_chat_completions"}, "opencode", false},
+		{"grok", []string{"openai_chat_completions"}, "pi", false},
+		{"deepseek", []string{"openai_chat_completions"}, "opencode", true},
+		{"deepseek", []string{"openai_chat_completions"}, "pi", true},
+		{"deepseek", []string{"openai_chat_completions"}, "kimi", false},
+		{"gemini", []string{"gemini_generate_content"}, "pi", true},
+		{"gemini", []string{"gemini_generate_content"}, "omp", false},
+		{"gemini", []string{"openai_chat_completions"}, "pi", false},
+		{"zhipu", []string{"openai_chat_completions"}, "opencode", false},
+		{"openai", []string{"openai_chat_completions"}, "grok", true},
 	} {
 		if got := Contains(CompatibleRuntimes(tc.platform, tc.protocols), tc.kind); got != tc.want {
-			t.Fatalf("compatibility mismatch for %s / %s", tc.platform, tc.kind)
+			t.Fatalf("compatibility mismatch for %s / %v / %s", tc.platform, tc.protocols, tc.kind)
 		}
+	}
+}
+
+func TestResolveMapsVendorProtocolsToEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		platform, protocol, apiType, path string
+	}{
+		{"gemini", "gemini_generate_content", "google-generative-ai", "/v1beta"},
+		{"grok", "openai_chat_completions", "openai-chat-completions", "/v1"},
+		{"deepseek", "openai_chat_completions", "openai-chat-completions", "/v1"},
+	} {
+		t.Run(tc.platform, func(t *testing.T) {
+			s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, `{"data":{"id":7,"api_key_name":"k","status":"active","platform":%q,"api_key_token":"t","base_url":"https://model.example","protocols":[%q]}}`, tc.platform, tc.protocol)
+			}))
+			defer s.Close()
+			out, err := (&Client{HTTP: s.Client()}).Resolve(t.Context(), s.URL, "test-directory", "7", "k")
+			if err != nil || out.Platform != tc.platform || len(out.Endpoints) != 1 || out.Endpoints[0].APIType != tc.apiType || out.Endpoints[0].BaseURL != "https://model.example"+tc.path {
+				t.Fatalf("resolve = %+v, %v", out, err)
+			}
+		})
+	}
+}
+
+func TestDirectoryRequiresProtocolsForSupportedVendorPlatforms(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":{"items":[{"id":1,"api_key_name":"g","status":"active","platform":"gemini","protocols":null}],"page":1,"page_size":100,"total":1}}`)
+	}))
+	defer s.Close()
+	if _, err := (&Client{HTTP: s.Client()}).ListAll(t.Context(), s.URL, "test-directory"); Code(err) != "source_invalid_response" {
+		t.Fatalf("gemini key without protocols accepted: %v", err)
 	}
 }
 

@@ -11,13 +11,20 @@ export const modelConfigKeys = {
   options: (userId: string, bindingId: string, kind: string) =>
     ["model-configuration", userId, bindingId, kind, "keys"] as const,
 };
+export interface ModelKeyFilters {
+  search: string;
+  runtime: string;
+  platform: string;
+  /** "" = all keys, "none" = unassigned, otherwise a user ID. */
+  owner: string;
+  /** "" = enabled only; "all" includes disabled keys. */
+  status: string;
+  page: number;
+}
 export function useModelKeyAdmin(
   userId: string,
-  search: string,
-  runtime: string,
-  page: number,
+  filters: ModelKeyFilters,
   userSearch: string,
-  targetUserId: string,
 ) {
   const client = useQueryClient();
   const key = modelConfigKeys.admin(userId);
@@ -27,19 +34,14 @@ export function useModelKeyAdmin(
     retry: false,
   });
   const directory = useQuery({
-    queryKey: [...key, "directory", search, runtime, page],
-    queryFn: () => api.getModelKeyDirectory({ search, runtime, page }),
+    queryKey: [...key, "directory", filters],
+    queryFn: () => api.getModelKeyDirectory(filters),
     enabled: source.data?.configured === true,
     retry: false,
   });
   const users = useQuery({
     queryKey: [...key, "users", userSearch],
     queryFn: () => api.getModelKeyUsers(userSearch),
-  });
-  const grants = useQuery({
-    queryKey: [...key, "grants", targetUserId],
-    queryFn: () => api.getUserModelKeys(targetUserId),
-    enabled: !!targetUserId,
   });
   const invalidate = () => client.invalidateQueries({ queryKey: key });
   const saveSource = useMutation({
@@ -55,16 +57,17 @@ export function useModelKeyAdmin(
     mutationFn: () => api.refreshModelKeyDirectory(),
     onSettled: invalidate,
   });
-  const saveGrants = useMutation({
-    mutationFn: (ids: string[]) => api.saveUserModelKeys(targetUserId, ids),
-    onSuccess: async () => {
-      await invalidate();
-      await client.invalidateQueries({
-        queryKey: ["model-configuration", targetUserId],
-      });
-    },
+  const assign = useMutation({
+    mutationFn: (input: {
+      ids: string[];
+      userId: string | null;
+      allowTransfer: boolean;
+    }) => api.assignModelKeys(input),
+    // Every affected owner's runtime key options change, so refetch them all.
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: ["model-configuration"] }),
   });
-  return { source, directory, users, grants, saveSource, refresh, saveGrants };
+  return { source, directory, users, saveSource, refresh, assign };
 }
 export function useModelTemplates(userId: string) {
   const client = useQueryClient();

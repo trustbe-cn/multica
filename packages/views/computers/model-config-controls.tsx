@@ -24,12 +24,15 @@ export function ModelChoice({
   options,
   disabled,
   onChange,
+  onSearch,
 }: {
   label: string;
   value: string;
   options: { value: string; label: string }[];
   disabled?: boolean;
   onChange: (value: string) => void;
+  /** Reports typed text so the caller can load matches from the server. */
+  onSearch?: (query: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { t } = useT("settings");
@@ -60,7 +63,11 @@ export function ModelChoice({
           align="start"
         >
           <Command>
-            <CommandInput aria-label={label} placeholder={label} />
+            <CommandInput
+              aria-label={label}
+              placeholder={label}
+              onValueChange={onSearch}
+            />
             <CommandList>
               <CommandEmpty>
                 {t(($) => $.model_configuration.empty)}

@@ -11,6 +11,10 @@ import (
 // DiscoverModels reads candidates with the resolved model credential. A list
 // entry is not proof that a particular CLI/protocol can generate a reply.
 // Nothing is cached, and neither credential is returned in an error.
+//
+// Gemini keys are listed through the OpenAI-style /v1/models as well: sub2api's
+// native /v1beta/models also returns models no account in the key's group can
+// serve, while /v1/models lists only the routable ones.
 func (c *Client) DiscoverModels(ctx context.Context, key Resolved) ([]Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()

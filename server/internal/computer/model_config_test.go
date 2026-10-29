@@ -51,6 +51,39 @@ func TestModelTemplatesEscapeAndPreserveUserFields(t *testing.T) {
 	}
 }
 
+func TestModelTemplatesRenderVendorProtocols(t *testing.T) {
+	chat := sub2api.Resolved{APIKeyToken: "grok-key", Endpoints: []sub2api.Endpoint{{APIType: "openai-chat-completions", BaseURL: "https://model.example/v1"}}, Models: []sub2api.Model{{ID: "grok-4.7", APITypes: []string{"openai-chat-completions"}}}}
+	grok, err := BuiltinModelTemplate("grok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, _, apiType, err := RenderModelFiles(grok, chat, "grok-4.7", "", nil)
+	if err != nil || apiType != "openai-chat-completions" || !strings.Contains(files[".grok/config.toml"], `api_backend = 'chat_completions'`) {
+		t.Fatalf("grok chat key rendered %q (%v)", files[".grok/config.toml"], err)
+	}
+	responses := chat
+	responses.Endpoints = []sub2api.Endpoint{{APIType: "openai-responses", BaseURL: "https://model.example/v1"}}
+	responses.Models = []sub2api.Model{{ID: "grok-4.7", APITypes: []string{"openai-responses"}}}
+	if files, _, _, err = RenderModelFiles(grok, responses, "grok-4.7", "", files); err != nil || !strings.Contains(files[".grok/config.toml"], `api_backend = 'responses'`) {
+		t.Fatalf("grok responses key rendered %q (%v)", files[".grok/config.toml"], err)
+	}
+	gemini := sub2api.Resolved{APIKeyToken: "gemini-key", Endpoints: []sub2api.Endpoint{{APIType: "google-generative-ai", BaseURL: "https://model.example/v1beta"}}, Models: []sub2api.Model{{ID: "gemini-4-argon", APITypes: []string{"google-generative-ai"}}}}
+	pi, err := BuiltinModelTemplate("pi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, _, apiType, err = RenderModelFiles(pi, gemini, "gemini-4-argon", "", nil)
+	if err != nil || apiType != "google-generative-ai" {
+		t.Fatalf("pi gemini key: %s %v", apiType, err)
+	}
+	if m := files[".pi/agent/models.json"]; !strings.Contains(m, `"api":"google-generative-ai"`) || !strings.Contains(m, `"baseUrl":"https://model.example/v1beta"`) {
+		t.Fatalf("pi gemini models.json = %s", m)
+	}
+	if _, _, _, err = RenderModelFiles(grok, gemini, "gemini-4-argon", "", nil); err == nil {
+		t.Fatal("grok accepted a gemini-only key")
+	}
+}
+
 type configScriptRunner struct {
 	root   string
 	script string

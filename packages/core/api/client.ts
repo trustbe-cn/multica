@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import { AgentRuntimeSchema, EMPTY_RUNTIME } from "../runtimes/schema";
 import type { IssueWakeup, IssueWakeupInput, IssueWakeupSummaryRow, PausedWakeup, SystemWakeup, WakeupRun, WorkspaceSystemWakeup } from "../types/issue-wakeup";
-import { ModelKeysWireSchema, ModelSourceWireSchema, ModelUsersWireSchema, ModelTemplatesWireSchema, ModelSavedWireSchema, ModelRefreshedWireSchema, ModelConfigWireSchema, parseModelPayload, modelKeysFromWire, modelTemplateFromWire, modelConfigFromWire, type ModelTemplate, type ModelConfigAction, type ModelConfigInput } from "../computers/model-config-schema";
+import { ModelKeysWireSchema, ModelDirectoryWireSchema, ModelSourceWireSchema, ModelUsersWireSchema, ModelTemplatesWireSchema, ModelSavedWireSchema, ModelRefreshedWireSchema, ModelConfigWireSchema, parseModelPayload, modelKeysFromWire, modelDirectoryFromWire, modelTemplateFromWire, modelConfigFromWire, type ModelTemplate, type ModelConfigAction, type ModelConfigInput } from "../computers/model-config-schema";
 import { RuntimeCacheSchema, type RuntimeCache } from "../computers/runtime-cache-schema";
 import { RemoteOperationSchema, ComputerBindingDetailSchema, AcceptedComputerOperationSchema, ComputerLifecycleResultSchema, type ComputerLifecycleInput, type ComputerLifecycleResult, type ComputerBindingDetail, type AcceptedComputerOperation, type RemoteOperation } from "../computers/schema";
 import { AdminSshPubKeySchema, InstanceAccessSchema, AdminComputerSchema, AdminBindingSchema, ComputerAuditSchema, ProbeResultSchema, AdminComputerRuntimeSchema, LinuxUserCheckSchema, type AdminComputer, type AdminBinding, type ComputerAudit, type ProbeResult, type AdminComputerRuntime } from "../computers/admin-schema";
@@ -1011,18 +1011,15 @@ export class ApiClient {
   async refreshModelKeyDirectory() {
     return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-directory/refresh", { method: "POST" }), ModelRefreshedWireSchema);
   }
-  async getModelKeyDirectory(input: { search: string; runtime: string; page: number }) {
-    const q = new URLSearchParams({ q: input.search, runtime: input.runtime, page: String(input.page) });
-    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-directory?${q}`), ModelKeysWireSchema));
+  async getModelKeyDirectory(input: { search: string; runtime: string; platform: string; owner: string; status: string; page: number }) {
+    const q = new URLSearchParams({ q: input.search, runtime: input.runtime, platform: input.platform, owner: input.owner, status: input.status, page: String(input.page) });
+    return modelDirectoryFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-directory?${q}`), ModelDirectoryWireSchema));
+  }
+  async assignModelKeys(input: { ids: string[]; userId: string | null; allowTransfer: boolean }) {
+    return parseModelPayload(await this.fetch<unknown>("/api/admin/model-key-directory/assign", { method: "POST", body: JSON.stringify({ ids: input.ids, user_id: input.userId, allow_transfer: input.allowTransfer }) }), ModelSavedWireSchema);
   }
   async getModelKeyUsers(search: string) {
     return parseModelPayload(await this.fetch<unknown>(`/api/admin/model-key-users?q=${encodeURIComponent(search)}`), ModelUsersWireSchema).items;
-  }
-  async getUserModelKeys(userId: string) {
-    return modelKeysFromWire(parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`), ModelKeysWireSchema)).items;
-  }
-  async saveUserModelKeys(userId: string, ids: string[]) {
-    return parseModelPayload(await this.fetch<unknown>(`/api/admin/users/${encodeURIComponent(userId)}/model-keys`, { method: "PUT", body: JSON.stringify({ ids }) }), ModelSavedWireSchema);
   }
   async getModelTemplates() {
     return parseModelPayload(await this.fetch<unknown>("/api/admin/runtime-config-templates"), ModelTemplatesWireSchema).items.map(modelTemplateFromWire);

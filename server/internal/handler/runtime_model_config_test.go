@@ -16,7 +16,7 @@ import (
 func TestRuntimeModelConfigPreviewSaveTestAndSecretBoundary(t *testing.T) {
 	_, mode, _ := modelSourceFixture(t)
 	_, binding := operationBinding(t)
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": []string{"9007199254740993"}}), "id", testUserID)).Want(200)
+	assignModelKeys(t, []string{"9007199254740993"}, ptr(testUserID), false).Want(200)
 	root := t.TempDir()
 	transport := t.TempDir()
 	t.Setenv("MULTICA_MODEL_TEST_HOME", root)
@@ -120,7 +120,7 @@ print(json.dumps({'type':'turn.completed'}))
 		t.Fatal("save retained stale test failure")
 	}
 	// Revoked grants do not remain attributed in either the list or editor.
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": []string{}}), "id", testUserID)).Want(200)
+	assignModelKeys(t, []string{"9007199254740993"}, nil, false).Want(200)
 	assets, err := testHandler.runtimeAssets(t.Context(), binding)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ print(json.dumps({'type':'turn.completed'}))
 	if revoked.APIKeyID != "" || revoked.ConfigStatus != "authorization_invalid" {
 		t.Fatal("read returned revoked key")
 	}
-	testutil.Call(t, testHandler.AdminUserModelKeyGrants, withURLParam(computerTestRequest("PUT", "/", map[string]any{"ids": []string{"9007199254740993"}}), "id", testUserID)).Want(200)
+	assignModelKeys(t, []string{"9007199254740993"}, ptr(testUserID), false).Want(200)
 	// A CLI test proves connectivity, not a new authorization. Source changes
 	// invalidate attribution without deleting the already-written native files.
 	dbfx.Exec(t, `UPDATE computer_runtime_model_config SET source_id=NULL,upstream_id=NULL,status='authorization_invalid' WHERE binding_id=$1 AND runtime_kind='codex'`, binding)

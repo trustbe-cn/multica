@@ -108,7 +108,7 @@ func BuiltinModelTemplate(kind string) (ModelTemplate, error) {
 	case "opencode":
 		add("config", ".config/opencode/opencode.json", "json", `{"provider":{"multica":{"npm":"@ai-sdk/openai-compatible","name":"Multica","options":{"baseURL":"","apiKey":""},"models":{"multica":{"name":"Multica","id":""}}}},"model":"multica/multica"}`, map[string]string{"provider.multica.options.baseURL": "base_url", "provider.multica.options.apiKey": "api_key_token", "provider.multica.models.multica.id": "model_id"})
 	case "grok":
-		add("config", ".grok/config.toml", "toml", "[models]\ndefault = \"multica\"\n[model.multica]\nname = \"Multica\"\nmodel = \"\"\nbase_url = \"\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 128000\n", map[string]string{"model.multica.model": "model_id", "model.multica.base_url": "base_url", "model.multica.api_key": "api_key_token"})
+		add("config", ".grok/config.toml", "toml", "[models]\ndefault = \"multica\"\n[model.multica]\nname = \"Multica\"\nmodel = \"\"\nbase_url = \"\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 128000\n", map[string]string{"model.multica.model": "model_id", "model.multica.base_url": "base_url", "model.multica.api_key": "api_key_token", "model.multica.api_backend": "api_type"})
 	case "kimi":
 		add("config", ".kimi/config.toml", "toml", "default_model = \"multica\"\n[providers.multica]\ntype = \"openai_legacy\"\nbase_url = \"\"\napi_key = \"\"\n[models.multica]\nprovider = \"multica\"\nmodel = \"\"\nmax_context_size = 128000\n", map[string]string{"providers.multica.base_url": "base_url", "providers.multica.api_key": "api_key_token", "models.multica.model": "model_id"})
 	case "pi", "omp":
@@ -253,10 +253,7 @@ func RenderModelFiles(t ModelTemplate, k sub2api.Resolved, model, protocol strin
 					values[field] = "multica/" + model
 				}
 			case "api_type":
-				values[field] = e.APIType
-				if e.APIType == "openai-chat-completions" {
-					values[field] = "openai-completions"
-				}
+				values[field] = runtimeAPIType(t.RuntimeKind, e.APIType)
 			}
 		}
 		content, err = patchModelFields(f.Format, content, values)
@@ -275,6 +272,22 @@ func RenderModelFiles(t ModelTemplate, k sub2api.Resolved, model, protocol strin
 		out[f.Path] = content
 	}
 	return out, model, e.APIType, ValidateModelFiles(t, out)
+}
+
+// runtimeAPIType spells an adapter API type the way each CLI's config expects.
+func runtimeAPIType(kind, apiType string) string {
+	if kind == "grok" {
+		switch apiType {
+		case "openai-responses":
+			return "responses"
+		case "openai-chat-completions":
+			return "chat_completions"
+		}
+	}
+	if apiType == "openai-chat-completions" {
+		return "openai-completions"
+	}
+	return apiType
 }
 func patchModelFields(format, content string, values map[string]string) (string, error) {
 	if _, err := parseModelFile(format, content); err != nil {

@@ -4,6 +4,7 @@ import { setSchemaLogger } from "../api/schema";
 import {
   ModelConfigWireSchema,
   ModelKeysWireSchema,
+  ModelDirectoryWireSchema,
   ModelSourceWireSchema,
   ModelUsersWireSchema,
   ModelTemplatesWireSchema,
@@ -11,6 +12,7 @@ import {
   ModelRefreshedWireSchema,
   parseModelPayload,
   modelKeysFromWire,
+  modelDirectoryFromWire,
   modelConfigFromWire,
 } from "./model-config-schema";
 
@@ -67,6 +69,7 @@ it("keeps precise IDs and defaults unknown grants to unavailable", () => {
         id: "9007199254740993",
         apiKeyName: "shared",
         status: "missing",
+        platform: "",
         allowedRuntimes: [],
         position: 0,
       },
@@ -74,6 +77,16 @@ it("keeps precise IDs and defaults unknown grants to unavailable", () => {
     page: 1,
     hasMore: false,
   });
+});
+it("tolerates a directory from an older server without owner or platform fields", () => {
+  const directory = modelDirectoryFromWire(
+    parseModelPayload(
+      { items: [{ id: "7", api_key_name: "legacy", status: "enabled" }] },
+      ModelDirectoryWireSchema,
+    ),
+  );
+  expect(directory.items[0]).toMatchObject({ id: "7", platform: "", owner: null });
+  expect(directory.platforms).toEqual([]);
 });
 it("preserves missing versus empty files and never treats an unknown test outcome as success", () => {
   const result = modelConfigFromWire(

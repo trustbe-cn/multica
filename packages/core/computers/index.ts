@@ -104,6 +104,6 @@ export { useRuntimeCache } from "./runtime-cache";
 
 export { useComputerBindingRuntimeBatch } from "./runtime-batch";
 export type { RuntimeBatchStatus } from "./runtime-batch";
-export { useModelKeyAdmin, useModelTemplates, useRuntimeModelConfig } from "./model-config";
+export { useModelKeyAdmin, useModelTemplates, useRuntimeModelConfig, type ModelKeyFilters } from "./model-config";
 export { modelRuntimeKinds } from "./model-config-schema";
-export type { ModelTemplate, ModelKey, ModelConfigResult, ModelConfigInput, ModelConfigAction } from "./model-config-schema";
+export type { ModelTemplate, ModelKey, ModelDirectoryKey, ModelConfigResult, ModelConfigInput, ModelConfigAction } from "./model-config-schema";

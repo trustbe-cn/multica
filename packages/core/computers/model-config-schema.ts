@@ -15,6 +15,7 @@ export const modelAPITypeSchema = z.enum([
   "anthropic-messages",
   "openai-responses",
   "openai-chat-completions",
+  "google-generative-ai",
 ]);
 const modelKeySchema = z.object({
   id: z.string().min(1),
@@ -22,6 +23,7 @@ const modelKeySchema = z.object({
   status: z
     .enum(["enabled", "disabled", "expired", "missing"])
     .catch("missing"),
+  platform: z.string().catch(""),
   allowed_runtimes: z.array(z.string()).catch([]),
   position: z.number().catch(0),
 });
@@ -29,6 +31,21 @@ export const ModelKeysWireSchema = z.object({
   items: z.array(modelKeySchema),
   page: z.number().catch(1),
   has_more: z.boolean().catch(false),
+});
+const modelKeyOwnerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+export const ModelDirectoryWireSchema = z.object({
+  items: z.array(
+    modelKeySchema.extend({
+      owner: modelKeyOwnerSchema.nullable().catch(null),
+    }),
+  ),
+  page: z.number().catch(1),
+  has_more: z.boolean().catch(false),
+  platforms: z.array(z.string()).catch([]),
 });
 export const ModelSourceWireSchema = z.object({
   configured: z.boolean(),
@@ -149,11 +166,23 @@ export function modelKeysFromWire(data: z.infer<typeof ModelKeysWireSchema>) {
       id: k.id,
       apiKeyName: k.api_key_name,
       status: k.status,
+      platform: k.platform,
       allowedRuntimes: k.allowed_runtimes,
       position: k.position,
     })),
     page: data.page,
     hasMore: data.has_more,
+  };
+}
+export function modelDirectoryFromWire(
+  data: z.infer<typeof ModelDirectoryWireSchema>,
+) {
+  const keys = modelKeysFromWire(data);
+  return {
+    items: keys.items.map((k, i) => ({ ...k, owner: data.items[i]!.owner })),
+    page: keys.page,
+    hasMore: keys.hasMore,
+    platforms: data.platforms,
   };
 }
 export function modelTemplateFromWire(
@@ -170,6 +199,9 @@ export function modelTemplateFromWire(
 }
 export type ModelTemplate = ReturnType<typeof modelTemplateFromWire>;
 export type ModelKey = ReturnType<typeof modelKeysFromWire>["items"][number];
+export type ModelDirectoryKey = ReturnType<
+  typeof modelDirectoryFromWire
+>["items"][number];
 export function modelConfigFromWire(r: z.infer<typeof ModelConfigWireSchema>) {
   return {
     runtimeKind: r.runtime_kind,

@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/sub2api"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 )
@@ -261,7 +263,7 @@ func (h *Handler) refreshModelKeySnapshot(ctx context.Context, force bool) error
 	}
 	for _, item := range items {
 		raw, _ := json.Marshal(item.AllowedRuntimes)
-		if _, err = tx.Exec(ctx, `INSERT INTO model_key_directory_entry(source_id,upstream_id,api_key_name,status,allowed_runtimes,source_revision) VALUES(1,$1,$2,$3,$4,$5)`, item.ID, item.APIKeyName, item.Status, raw, revision); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO model_key_directory_entry(source_id,upstream_id,api_key_name,status,platform,allowed_runtimes,source_revision) VALUES(1,$1,$2,$3,$4,$5,$6)`, item.ID, item.APIKeyName, item.Status, item.Platform, raw, revision); err != nil {
 			return err
 		}
 	}
@@ -291,7 +293,7 @@ func scanModelKeyRows(rows pgx.Rows) ([]modelKeyGrant, error) {
 	for rows.Next() {
 		var item modelKeyGrant
 		var raw []byte
-		if err := rows.Scan(&item.ID, &item.APIKeyName, &item.Status, &raw, &item.Position); err != nil {
+		if err := rows.Scan(&item.ID, &item.APIKeyName, &item.Status, &item.Platform, &raw, &item.Position); err != nil {
 			return nil, err
 		}
 		if json.Unmarshal(raw, &item.AllowedRuntimes) != nil {
@@ -301,6 +303,20 @@ func scanModelKeyRows(rows pgx.Rows) ([]modelKeyGrant, error) {
 	}
 	return out, rows.Err()
 }
+
+type modelKeyOwner struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+type modelKeyDirectoryItem struct {
+	sub2api.Key
+	Owner *modelKeyOwner `json:"owner"`
+}
+
+// AdminModelKeyDirectory lists the current snapshot with its single owner.
+// owner is "" (all), "none" (unassigned) or a user UUID; disabled and unknown
+// keys are hidden unless status is "all" or names them.
 func (h *Handler) AdminModelKeyDirectory(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireInstanceAdmin(w, r); !ok {
 		return
@@ -309,7 +325,8 @@ func (h *Handler) AdminModelKeyDirectory(w http.ResponseWriter, r *http.Request)
 		modelKeyFailure(w, err)
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
 	if page < 1 {
 		page = 1
 	}
@@ -317,14 +334,52 @@ func (h *Handler) AdminModelKeyDirectory(w http.ResponseWriter, r *http.Request)
 		writeError(w, 400, "Invalid page")
 		return
 	}
-	rows, err := h.DB.Query(r.Context(), `SELECT d.upstream_id,d.api_key_name,d.status,d.allowed_runtimes,0 FROM model_key_directory_entry d JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE ($1='' OR strpos(lower(api_key_name),lower($1))>0 OR upstream_id=$1) AND ($2='' OR allowed_runtimes ? $2) AND ($3='' OR d.status=$3) ORDER BY lower(api_key_name),upstream_id LIMIT 101 OFFSET $4`, strings.TrimSpace(r.URL.Query().Get("q")), r.URL.Query().Get("runtime"), r.URL.Query().Get("status"), (page-1)*100)
+	owner := q.Get("owner")
+	if owner != "" && owner != "none" {
+		if _, ok := parseUUIDOrBadRequest(w, owner, "owner"); !ok {
+			return
+		}
+	}
+	status := q.Get("status")
+	switch status {
+	case "":
+		status = "enabled"
+	case "all", "enabled", "disabled", "unknown":
+	default:
+		writeError(w, 400, "Invalid status")
+		return
+	}
+	rows, err := h.DB.Query(r.Context(), `SELECT d.upstream_id,d.api_key_name,d.status,d.platform,d.allowed_runtimes,u.id::text,u.name,u.email
+FROM model_key_directory_entry d
+JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision
+LEFT JOIN user_model_key_grant g ON g.source_id=d.source_id AND g.upstream_id=d.upstream_id
+LEFT JOIN "user" u ON u.id=g.user_id
+WHERE ($1='' OR strpos(lower(d.api_key_name),lower($1))>0 OR d.upstream_id=$1)
+  AND ($2='' OR d.allowed_runtimes ? $2)
+  AND ($3='all' OR d.status=$3)
+  AND ($4='' OR d.platform=$4)
+  AND ($5='' OR ($5='none' AND g.user_id IS NULL) OR g.user_id::text=$5)
+ORDER BY lower(d.api_key_name),d.upstream_id LIMIT 101 OFFSET $6`, strings.TrimSpace(q.Get("q")), q.Get("runtime"), status, q.Get("platform"), owner, (page-1)*100)
 	if err != nil {
 		writeError(w, 500, "Cannot list directory")
 		return
 	}
 	defer rows.Close()
-	items, err := scanModelKeyRows(rows)
-	if err != nil {
+	items := []modelKeyDirectoryItem{}
+	for rows.Next() {
+		var item modelKeyDirectoryItem
+		var raw []byte
+		var ownerID, ownerName, ownerEmail *string
+		if rows.Scan(&item.ID, &item.APIKeyName, &item.Status, &item.Platform, &raw, &ownerID, &ownerName, &ownerEmail) != nil || json.Unmarshal(raw, &item.AllowedRuntimes) != nil {
+			writeError(w, 500, "Cannot read directory")
+			return
+		}
+		if ownerID != nil {
+			item.Owner = &modelKeyOwner{ID: *ownerID, Name: *ownerName, Email: *ownerEmail}
+		}
+		items = append(items, item)
+	}
+	if rows.Err() != nil {
 		writeError(w, 500, "Cannot read directory")
 		return
 	}
@@ -332,7 +387,22 @@ func (h *Handler) AdminModelKeyDirectory(w http.ResponseWriter, r *http.Request)
 	if more {
 		items = items[:100]
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "page": page, "has_more": more})
+	platforms := []string{}
+	prow, err := h.DB.Query(r.Context(), `SELECT DISTINCT d.platform FROM model_key_directory_entry d JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE d.platform<>'' ORDER BY 1`)
+	if err != nil {
+		writeError(w, 500, "Cannot list directory")
+		return
+	}
+	defer prow.Close()
+	for prow.Next() {
+		var p string
+		if prow.Scan(&p) != nil {
+			writeError(w, 500, "Cannot read directory")
+			return
+		}
+		platforms = append(platforms, p)
+	}
+	writeJSON(w, 200, map[string]any{"items": items, "page": page, "has_more": more, "platforms": platforms})
 }
 func (h *Handler) AdminModelKeyUsers(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireInstanceAdmin(w, r); !ok {
@@ -364,47 +434,37 @@ func (h *Handler) AdminModelKeyUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"items": out})
 }
-func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request) {
+
+// AdminModelKeyAssign sets the single owner of each key: a user ID assigns,
+// null revokes. Moving a key that already belongs to another user requires
+// allow_transfer so a stale page cannot silently take it from that user.
+func (h *Handler) AdminModelKeyAssign(w http.ResponseWriter, r *http.Request) {
 	actor, ok := requireInstanceAdmin(w, r)
 	if !ok {
 		return
 	}
-	uid, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "user_id")
-	if !ok {
-		return
-	}
-	var exists bool
-	if h.DB.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM "user" WHERE id=$1)`, uid).Scan(&exists) != nil {
-		writeError(w, 500, "Cannot read user")
-		return
-	}
-	if !exists {
-		writeError(w, 404, "User not found")
-		return
-	}
-	if r.Method == http.MethodGet {
-		rows, err := h.DB.Query(r.Context(), `SELECT g.upstream_id,COALESCE(d.api_key_name,g.api_key_name),COALESCE(d.status,'missing'),COALESCE(d.allowed_runtimes,'[]'::jsonb),g.position FROM user_model_key_grant g LEFT JOIN model_key_directory_entry d ON d.source_id=g.source_id AND d.upstream_id=g.upstream_id WHERE g.user_id=$1 ORDER BY g.position,g.upstream_id`, uid)
-		if err != nil {
-			writeError(w, 500, "Cannot read grants")
-			return
-		}
-		defer rows.Close()
-		items, err := scanModelKeyRows(rows)
-		if err != nil {
-			writeError(w, 500, "Cannot read grants")
-			return
-		}
-		writeJSON(w, 200, map[string]any{"items": items})
-		return
-	}
 	var in struct {
-		IDs []string `json:"ids"`
+		IDs           []string `json:"ids"`
+		UserID        *string  `json:"user_id"`
+		AllowTransfer bool     `json:"allow_transfer"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&in) != nil || in.IDs == nil || len(in.IDs) > 1000 {
-		writeError(w, 400, "Invalid grant list")
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&in) != nil || len(in.IDs) == 0 || len(in.IDs) > 1000 {
+		writeError(w, 400, "Invalid assignment")
 		return
 	}
-	if len(in.IDs) > 0 {
+	seen := map[string]bool{}
+	for _, id := range in.IDs {
+		if seen[id] {
+			writeError(w, 400, "Duplicate key ID")
+			return
+		}
+		seen[id] = true
+	}
+	var target pgtype.UUID
+	if in.UserID != nil {
+		if target, ok = parseUUIDOrBadRequest(w, *in.UserID, "user_id"); !ok {
+			return
+		}
 		if err := h.refreshModelKeyDirectory(r.Context(), false); err != nil {
 			modelKeyFailure(w, err)
 			return
@@ -412,7 +472,7 @@ func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request
 	}
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
-		writeError(w, 500, "Cannot save grants")
+		writeError(w, 500, "Cannot save assignment")
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -420,23 +480,43 @@ func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request
 		writeError(w, 500, "Cannot lock source")
 		return
 	}
-	if _, err = tx.Exec(r.Context(), `SELECT id FROM "user" WHERE id=$1 FOR UPDATE`, uid); err != nil {
-		writeError(w, 500, "Cannot lock user")
-		return
-	}
-	if _, err = tx.Exec(r.Context(), `DELETE FROM user_model_key_grant WHERE user_id=$1`, uid); err != nil {
-		writeError(w, 500, "Cannot save grants")
-		return
-	}
-	seen := map[string]bool{}
-	for i, id := range in.IDs {
-		var name string
-		var allowed []byte
-		if seen[id] {
-			writeError(w, 400, "Duplicate key ID")
+	if in.UserID != nil {
+		var exists bool
+		if tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM "user" WHERE id=$1)`, target).Scan(&exists) != nil {
+			writeError(w, 500, "Cannot read user")
 			return
 		}
-		seen[id] = true
+		if !exists {
+			writeError(w, 404, "User not found")
+			return
+		}
+	}
+	// Lock in a stable order so concurrent batches cannot deadlock.
+	ids := append([]string(nil), in.IDs...)
+	sort.Strings(ids)
+	for _, id := range ids {
+		var current *string
+		err = tx.QueryRow(r.Context(), `SELECT user_id::text FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1 FOR UPDATE`, id).Scan(&current)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, 500, "Cannot save assignment")
+			return
+		}
+		if in.UserID == nil {
+			if _, err = tx.Exec(r.Context(), `DELETE FROM user_model_key_grant WHERE source_id=1 AND upstream_id=$1`, id); err != nil {
+				writeError(w, 500, "Cannot save assignment")
+				return
+			}
+			continue
+		}
+		if current != nil && *current == *in.UserID {
+			continue
+		}
+		if current != nil && !in.AllowTransfer {
+			writeErrorCode(w, 409, "model_key_assigned_elsewhere", "Key belongs to another user; confirm the transfer")
+			return
+		}
+		var name string
+		var allowed []byte
 		err = tx.QueryRow(r.Context(), `SELECT d.api_key_name,d.allowed_runtimes FROM model_key_directory_entry d JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE d.upstream_id=$1 AND d.status='enabled' AND s.status='ready'`, id).Scan(&name, &allowed)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			modelKeyFailure(w, err)
@@ -452,17 +532,25 @@ func (h *Handler) AdminUserModelKeyGrants(w http.ResponseWriter, r *http.Request
 			writeError(w, 422, "Key is unavailable or has no supported runtime")
 			return
 		}
-		if _, err = tx.Exec(r.Context(), `INSERT INTO user_model_key_grant(user_id,source_id,upstream_id,api_key_name,position) VALUES($1,1,$2,$3,$4)`, uid, id, name, i); err != nil {
-			writeError(w, 500, "Cannot save grants")
+		// New grants rank after the owner's existing ones; the first compatible
+		// grant is each runtime's default and users can switch per runtime.
+		if _, err = tx.Exec(r.Context(), `INSERT INTO user_model_key_grant(user_id,source_id,upstream_id,api_key_name,position)
+VALUES($1,1,$2,$3,(SELECT COALESCE(max(position)+1,0) FROM user_model_key_grant WHERE user_id=$1))
+ON CONFLICT (source_id,upstream_id) DO UPDATE SET user_id=EXCLUDED.user_id,api_key_name=EXCLUDED.api_key_name,position=EXCLUDED.position,created_at=now()`, target, id, name); err != nil {
+			writeError(w, 500, "Cannot save assignment")
 			return
 		}
 	}
-	if _, err = tx.Exec(r.Context(), `INSERT INTO computer_audit(user_id,action,outcome) VALUES($1,$2,'success')`, parseUUID(actor), "model_keys_assign:"+chi.URLParam(r, "id")); err != nil {
+	action := "model_keys_revoke"
+	if in.UserID != nil {
+		action = "model_keys_assign:" + *in.UserID
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO computer_audit(user_id,action,outcome) VALUES($1,$2,'success')`, parseUUID(actor), action+":"+strings.Join(ids, ",")); err != nil {
 		writeError(w, 500, "Cannot record key assignment")
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		writeError(w, 500, "Cannot save grants")
+		writeError(w, 500, "Cannot save assignment")
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"saved": true})
@@ -528,7 +616,7 @@ func (h *Handler) MeModelKeyOptions(w http.ResponseWriter, r *http.Request) {
 		modelKeyFailure(w, err)
 		return
 	}
-	rows, err := h.DB.Query(r.Context(), `SELECT d.upstream_id,d.api_key_name,d.status,d.allowed_runtimes,g.position FROM user_model_key_grant g JOIN model_key_directory_entry d ON d.source_id=g.source_id AND d.upstream_id=g.upstream_id JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE g.user_id=$1 AND d.status='enabled' AND d.allowed_runtimes ? $2 ORDER BY g.position,g.upstream_id`, uid, kind)
+	rows, err := h.DB.Query(r.Context(), `SELECT d.upstream_id,d.api_key_name,d.status,d.platform,d.allowed_runtimes,g.position FROM user_model_key_grant g JOIN model_key_directory_entry d ON d.source_id=g.source_id AND d.upstream_id=g.upstream_id JOIN model_key_source s ON s.id=d.source_id AND s.revision=d.source_revision WHERE g.user_id=$1 AND d.status='enabled' AND d.allowed_runtimes ? $2 ORDER BY g.position,g.upstream_id`, uid, kind)
 	if err != nil {
 		writeError(w, 500, "Cannot read key options")
 		return
